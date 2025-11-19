@@ -35,6 +35,8 @@ Thumbs.db
 
 # Prisma
 backend/prisma/migrations/
+backend/prisma/test.db
+backend/prisma/*.db-journal
 
 # Docker
 .dockerignore

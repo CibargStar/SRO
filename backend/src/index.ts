@@ -11,7 +11,9 @@
  */
 
 import express from 'express';
+import swaggerUi from 'swagger-ui-express';
 import { env, logger, prisma } from './config';
+import { swaggerSpec } from './config/swagger';
 import { ensureRootUser } from './modules/auth';
 import {
   securityMiddleware,
@@ -43,9 +45,18 @@ app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
+// Swagger UI документация
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'BM Tools API Documentation',
+  customfavIcon: '/favicon.ico',
+}));
+
 // API Routes
 import authRoutes from './routes/auth.routes';
+import usersRoutes from './routes/users.routes';
 app.use('/api/auth', authRoutes);
+app.use('/api/users', usersRoutes);
 
 // Обработчики ошибок должны быть последними
 app.use(notFoundHandler); // 404 для несуществующих маршрутов

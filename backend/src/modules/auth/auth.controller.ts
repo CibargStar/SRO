@@ -170,11 +170,25 @@ export async function refreshHandler(
     // и все старые refresh токены перестанут работать.
     // Это гарантирует, что при смене пароля все старые токены инвалидируются.
 
+    // РОТАЦИЯ REFRESH ТОКЕНОВ: Инвалидируем старый refresh токен перед выдачей нового
+    // Это обеспечивает более быструю инвалидацию скомпрометированных токенов
+    // и ограничивает время жизни refresh токена
+    try {
+      await revokeRefreshToken(prisma, refreshToken);
+    } catch (error) {
+      // Если не удалось отозвать токен (уже удален или не существует),
+      // логируем предупреждение, но продолжаем (возможно, race condition)
+      logger.warn('Failed to revoke old refresh token during rotation', {
+        userId: user.id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+
     // Генерация новых токенов
     const { accessToken, refreshToken: newRefreshToken } = await generateTokens(user, prisma);
 
     // Логирование успешного обновления (без токенов)
-    logger.info('Tokens refreshed successfully', {
+    logger.info('Tokens refreshed successfully (with rotation)', {
       userId: user.id,
       email: user.email,
     });

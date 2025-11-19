@@ -111,6 +111,9 @@ function parseTimeToSeconds(timeStr: string): number {
  * - Сохраняет refresh токен в БД для возможности отзыва
  * - Не логирует токены
  * - Включает passwordVersion для инвалидации при смене пароля
+ * 
+ * Примечание: Ротация refresh-токенов и detection повторного использования
+ * реализованы в refreshHandler (auth.controller.ts) и verifyRefreshToken соответственно.
  */
 export async function generateTokens(
   prisma: PrismaClient,
@@ -293,7 +296,15 @@ export async function verifyRefreshToken(
     });
 
     if (!refreshTokenRecord) {
-      logger.debug('Refresh token not found in database (revoked or invalid)');
+      // DETECTION ПОВТОРНОГО ИСПОЛЬЗОВАНИЯ: Если токен не найден в БД,
+      // но JWT валиден, это может означать попытку повторного использования
+      // уже отозванного токена (подозрение на компрометацию)
+      // Логируем это событие для мониторинга
+      logger.warn('Attempt to use revoked or non-existent refresh token', {
+        userId: decoded.sub,
+        tokenId: decoded.tokenId,
+        // Не логируем сам токен, только факт попытки
+      });
       return null;
     }
 

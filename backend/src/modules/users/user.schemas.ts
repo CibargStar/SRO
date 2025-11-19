@@ -105,6 +105,9 @@ export const updateUserSchema = z
       .optional(),
 
     isActive: z.boolean().optional(),
+
+    // role НЕ включен в схему - нельзя обновлять роль через API
+    // ROOT нельзя создавать или обновлять через API
   })
   .refine(
     (data) => {
@@ -113,6 +116,17 @@ export const updateUserSchema = z
     },
     {
       message: 'At least one field must be provided for update',
+    }
+  )
+  .refine(
+    (data) => {
+      // Защита: если кто-то попытается передать role в body, мы его игнорируем
+      // Но для явности проверяем, что role не может быть ROOT
+      // Примечание: role не включен в схему, но на случай расширения схемы
+      return !('role' in data && (data as any).role === 'ROOT');
+    },
+    {
+      message: 'Cannot set role to ROOT through API',
     }
   );
 

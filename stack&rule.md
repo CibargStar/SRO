@@ -167,20 +167,25 @@ SRO/
 - **Без саморегистрации** - только ROOT создает пользователей
 - **Две роли**: ROOT (администратор) и USER (обычный пользователь)
 - **JWT токены**: Access (15 мин) + Refresh (7 дней)
-- **Хеширование паролей**: argon2id
-- **Защита от brute force**: строгий rate limiting для `/auth/login`
+- **Ротация токенов**: при каждом refresh старый refresh токен инвалидируется
+- **Хеширование паролей**: argon2id (memoryCost: 65536, timeCost: 3, parallelism: 4)
+- **Защита от brute force**: строгий rate limiting для `/auth/login` (5 попыток / 15 минут)
+- **Инвалидация токенов**: при смене пароля все токены инвалидируются через passwordVersion
+- **Защита ROOT**: нельзя создать/обновить ROOT через API
 
 ### Переменные окружения
 
 **Обязательные:**
-- `ROOT_EMAIL` - Email root-пользователя
-- `ROOT_PASSWORD` - Пароль root-пользователя (мин. 12 символов)
+- `ROOT_EMAIL` - Email root-пользователя (используется только при первичном создании)
+- `ROOT_PASSWORD` - Пароль root-пользователя (мин. 12 символов, заглавные/строчные, цифры, спецсимволы)
 - `JWT_ACCESS_SECRET` - Секрет для Access токенов (мин. 32 символа)
-- `JWT_REFRESH_SECRET` - Секрет для Refresh токенов (мин. 32 символа)
+- `JWT_REFRESH_SECRET` - Секрет для Refresh токенов (мин. 32 символа, должен отличаться от ACCESS_SECRET)
 
 **Опциональные:**
 - `FRONTEND_URL` - URL фронтенда для CORS (по умолчанию: `http://localhost:5173`)
-- `JWT_ACCESS_EXPIRES_IN` - Время жизни Access токена (по умолчанию: `15m`)
-- `JWT_REFRESH_EXPIRES_IN` - Время жизни Refresh токена (по умолчанию: `7d`)
+- `JWT_ACCESS_EXPIRES_IN` - Время жизни Access токена (по умолчанию: `15m`, формат: "15m", "1h")
+- `JWT_REFRESH_EXPIRES_IN` - Время жизни Refresh токена (по умолчанию: `7d`, должен быть больше ACCESS_EXPIRES_IN)
+
+**ВАЖНО:** Смена `ROOT_EMAIL` в env не меняет email существующего ROOT аккаунта в БД. `ROOT_EMAIL` используется только при первичном создании ROOT пользователя.
 
 Подробнее см. `backend/ARCHITECTURE.md` и `backend/SECURITY.md`.

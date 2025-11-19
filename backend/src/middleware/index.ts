@@ -11,6 +11,9 @@
  * - notFoundHandler: обработчик 404 ошибок
  * - validate: валидация запросов с express-validator
  * - validateBody: валидация тела запроса с Zod
+ * - authMiddleware: проверка access токена и подтягивание пользователя
+ * - requireAuth: проверка наличия авторизованного пользователя
+ * - requireRoot: проверка прав доступа ROOT
  */
 
 export { securityMiddleware, corsMiddleware, rateLimiter, authRateLimiter } from './security';
@@ -19,3 +22,10 @@ export { errorHandler, type AppError } from './errorHandler';
 export { notFoundHandler } from './notFound';
 export { validate } from './validation';
 export { validateBody, type ValidatedRequest } from './zodValidate';
+export {
+  authMiddleware,
+  requireAuth,
+  requireRoot,
+  type AuthenticatedUser,
+  type AuthenticatedRequest,
+} from './auth';

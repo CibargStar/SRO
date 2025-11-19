@@ -72,6 +72,19 @@ cd frontend
 npm run dev
 ```
 
+### API Документация (Swagger)
+
+После запуска backend сервера, Swagger UI доступен по адресу:
+- **URL:** `http://localhost:3000/api-docs`
+- **Описание:** Интерактивная документация всех API endpoints с возможностью тестирования запросов
+
+**Особенности:**
+- Полное описание всех эндпоинтов авторизации и управления пользователями
+- Схемы данных (User, LoginInput, CreateUserInput и т.д.)
+- Примеры запросов и ответов
+- Описание ошибок и кодов ответов
+- Возможность авторизации через Bearer токен прямо в Swagger UI
+
 ### Docker
 
 #### Production
@@ -110,10 +123,22 @@ docker-compose build --no-cache
 
 **Особенности:**
 - JWT токены (Access + Refresh)
-- Access токен в Authorization header
-- Refresh токен в httpOnly cookie
-- Защита от brute force (rate limiting)
+- Access токен в Authorization header (`Authorization: Bearer <token>`)
+- Refresh токен в теле запроса (body)
+- Ротация refresh токенов (старый токен инвалидируется при refresh)
+- Защита от brute force (rate limiting: 5 попыток / 15 минут для `/auth/login`)
 - Хеширование паролей через argon2id
+- Инвалидация токенов при смене пароля (passwordVersion)
+- Защита от создания/обновления ROOT через API
+
+**API Endpoints:**
+- `POST /api/auth/login` - вход в систему
+- `POST /api/auth/refresh` - обновление токенов
+- `POST /api/auth/logout` - выход из системы
+- `GET /api/users/me` - данные текущего пользователя
+- `GET /api/users` - список пользователей (только ROOT)
+- `POST /api/users` - создание пользователя (только ROOT)
+- `PATCH /api/users/:id` - обновление пользователя (только ROOT)
 
 Подробнее см. `backend/ARCHITECTURE.md` и `backend/SECURITY.md`.
 

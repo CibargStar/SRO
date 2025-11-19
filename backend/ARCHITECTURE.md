@@ -21,63 +21,53 @@
 backend/src/
 ├── modules/                    # Бизнес-модули приложения
 │   ├── auth/                   # Модуль авторизации
-│   │   ├── controllers/        # HTTP обработчики (request/response)
-│   │   │   ├── auth.controller.ts
-│   │   │   └── index.ts
-│   │   ├── services/           # Бизнес-логика
-│   │   │   ├── auth.service.ts      # Логика входа/выхода
-│   │   │   ├── token.service.ts     # Генерация/валидация JWT
-│   │   │   └── index.ts
-│   │   ├── middleware/         # Auth middleware
-│   │   │   ├── authenticate.ts      # Проверка JWT токена
-│   │   │   ├── authorize.ts          # Проверка ролей (RBAC)
-│   │   │   └── index.ts
-│   │   ├── routes/             # Express маршруты
-│   │   │   ├── auth.routes.ts
-│   │   │   └── index.ts
-│   │   ├── schemas/            # Zod схемы валидации
-│   │   │   ├── auth.schemas.ts
+│   │   ├── auth.controller.ts  # HTTP обработчики (login, refresh, logout)
+│   │   ├── auth.schemas.ts      # Zod схемы валидации (login, refresh)
+│   │   ├── password.service.ts  # Хеширование паролей (argon2id)
+│   │   ├── token.service.ts     # Генерация/валидация JWT токенов
+│   │   ├── ensureRootUser.ts    # Инициализация root пользователя
+│   │   ├── auth.e2e.spec.ts     # Интеграционные тесты
+│   │   ├── schemas/             # Публичный API схем
 │   │   │   └── index.ts
 │   │   └── index.ts            # Публичный API модуля
 │   │
 │   └── users/                  # Модуль управления пользователями
-│       ├── controllers/
-│       │   ├── users.controller.ts
+│       ├── users.controller.ts # HTTP обработчики (CRUD для ROOT)
+│       ├── user.schemas.ts      # Zod схемы валидации (create, update)
+│       ├── users.e2e.spec.ts    # Интеграционные тесты
+│       ├── schemas/             # Публичный API схем
 │       │   └── index.ts
-│       ├── services/
-│       │   ├── users.service.ts      # CRUD операции (только для root)
-│       │   └── index.ts
-│       ├── routes/
-│       │   ├── users.routes.ts
-│       │   └── index.ts
-│       ├── schemas/
-│       │   ├── users.schemas.ts
-│       │   └── index.ts
-│       └── index.ts
+│       └── index.ts            # Публичный API модуля
 │
-├── common/                     # Общие модули (используются всеми модулями)
-│   ├── enums/
-│   │   ├── user-role.enum.ts   # Enum ролей (ROOT, USER)
-│   │   └── index.ts
-│   ├── constants/
-│   │   ├── auth.constants.ts   # Константы (время жизни токенов и т.д.)
-│   │   └── index.ts
-│   ├── types/
-│   │   ├── auth.types.ts       # Типы для JWT payload, Request extensions
-│   │   └── index.ts
-│   └── utils/
-│       ├── password.util.ts    # Хеширование паролей (bcrypt)
-│       └── index.ts
+├── middleware/                # Глобальные middleware
+│   ├── auth.ts                 # Auth middleware (authMiddleware, requireAuth, requireRoot)
+│   ├── security.ts             # Helmet, CORS, rate limiting
+│   ├── zodValidate.ts           # Валидация тела запроса через Zod
+│   ├── errorHandler.ts          # Глобальный обработчик ошибок
+│   ├── logger.ts                # Логирование запросов
+│   ├── notFound.ts              # Обработчик 404
+│   └── index.ts                 # Экспорт всех middleware
 │
-├── middleware/                # Глобальные middleware (расширить)
-│   ├── rate-limit/            # Специфичные rate limiters
-│   │   ├── auth-rate-limit.ts  # Строгий лимит для /auth/login
-│   │   └── index.ts
-│   └── ...                    # Существующие middleware
+├── routes/                     # Express маршруты
+│   ├── auth.routes.ts           # Маршруты авторизации (/api/auth/*)
+│   ├── users.routes.ts          # Маршруты управления пользователями (/api/users/*)
+│   └── index.ts                 # Главный роутер
 │
-├── config/                    # Конфигурация (уже существует)
-├── routes/                    # Главный роутер (подключает модули)
-└── index.ts                   # Точка входа
+├── config/                     # Конфигурация
+│   ├── env.ts                   # Валидация переменных окружения (Zod)
+│   ├── database.ts              # Prisma Client
+│   ├── logger.ts                # Winston logger
+│   └── index.ts                 # Экспорт конфигурации
+│
+├── tests/                      # Тестовая инфраструктура
+│   ├── setup.ts                 # Глобальная настройка тестов
+│   ├── utils/                   # Тестовые утилиты
+│   │   ├── testApp.ts           # Создание тестового Express приложения
+│   │   ├── testDb.ts            # Утилиты для работы с тестовой БД
+│   │   └── index.ts
+│   └── README.md                # Документация тестов
+│
+└── index.ts                     # Точка входа приложения
 ```
 
 ### 1.2. Принципы организации
@@ -90,14 +80,14 @@ backend/src/
 **Разделение ответственности:**
 - **Controllers** - обработка HTTP запросов/ответов, валидация входных данных
 - **Services** - бизнес-логика, работа с БД через Prisma
-- **Routes** - определение маршрутов Express
-- **Schemas** - Zod схемы для валидации
-- **Middleware** - проверка авторизации и прав доступа
+- **Routes** - определение маршрутов Express (в `src/routes/`)
+- **Schemas** - Zod схемы для валидации (внутри модулей)
+- **Middleware** - проверка авторизации и прав доступа (в `src/middleware/`)
 
-**Общие модули (common):**
-- Используются несколькими модулями
-- Не содержат бизнес-логику
-- Типы, константы, утилиты, enums
+**Структура модуля:**
+- Файлы контроллеров, сервисов и схем на верхнем уровне модуля
+- Публичный API через `index.ts`
+- Тесты рядом с кодом (`.e2e.spec.ts`)
 
 ---
 
@@ -116,7 +106,7 @@ enum UserRole {
 model User {
   id        String    @id @default(uuid())
   email     String    @unique
-  password  String    // Хешированный пароль (bcrypt)
+  passwordHash   String    // Хешированный пароль (argon2id)
   role      UserRole  @default(USER)
   name      String?   // Опциональное имя
   isActive  Boolean   @default(true)  // Может быть деактивирован root'ом
@@ -141,27 +131,27 @@ model RefreshToken {
   
   @@index([userId])
   @@index([expiresAt])  // Для очистки истекших токенов
+  @@index([token])      // Для быстрого поиска токена
+  @@map("refresh_tokens")
 }
 ```
 
 ### 2.2. Enum ролей
 
-**Файл: `src/common/enums/user-role.enum.ts`**
+**Файл: `prisma/schema.prisma`**
 
-```typescript
-/**
- * Роли пользователей в системе
- */
-export enum UserRole {
-  ROOT = 'ROOT',  // Администратор системы
-  USER = 'USER',  // Обычный пользователь
+```prisma
+enum UserRole {
+  ROOT  // Администратор системы
+  USER  // Обычный пользователь
 }
 ```
 
 **Использование:**
 - В Prisma schema (enum)
-- В TypeScript типах
-- В middleware для проверки прав доступа
+- В TypeScript типах (генерируется Prisma Client)
+- В middleware для проверки прав доступа (`requireRoot`)
+- В контроллерах для проверки ролей
 
 ### 2.3. Правила доступа
 
@@ -216,35 +206,26 @@ export enum UserRole {
     exp: number;         // Время истечения
   }
   ```
-- **Хранение:** В httpOnly cookie (`refreshToken`)
+- **Хранение:** В теле запроса (body) или памяти клиента
 - **Передача:** Автоматически с каждым HTTP запросом
 - **Назначение:** Обновление access токена без повторного входа
 
 ### 3.2. Решение: Cookie vs Header
 
-**Рекомендация: Гибридный подход**
+**Текущая реализация:**
 
 | Токен | Хранение | Передача | Причина |
 |-------|----------|----------|---------|
-| **Access Token** | Память/localStorage | `Authorization` header | Быстрый доступ, легко отозвать |
-| **Refresh Token** | httpOnly cookie | Автоматически | Защита от XSS, автоматическая отправка |
+| **Access Token** | Память/localStorage | `Authorization: Bearer <token>` header | Стандартный подход, легко отозвать |
+| **Refresh Token** | Память/localStorage | В теле запроса (body) | Простота реализации, контроль со стороны клиента |
 
 **Преимущества:**
 - Access token в header - стандартный подход, легко отозвать
-- Refresh token в httpOnly cookie - защита от XSS атак
-- Автоматическая отправка refresh token с каждым запросом
+- Refresh token в body - полный контроль со стороны клиента
+- Простая реализация без сложной логики cookies
 - Удобно для SPA (React)
 
-**Настройки cookie для refresh token:**
-```typescript
-{
-  httpOnly: true,        // Недоступен через JavaScript (защита от XSS)
-  secure: true,         // Только HTTPS (в production)
-  sameSite: 'strict',   // Защита от CSRF
-  maxAge: 7 * 24 * 60 * 60 * 1000,  // 7 дней в миллисекундах
-  path: '/api/auth',    // Только для auth endpoints
-}
-```
+**Примечание:** В будущем можно перейти на httpOnly cookie для refresh token для дополнительной защиты от XSS.
 
 ### 3.3. Flow авторизации
 
@@ -254,7 +235,7 @@ export enum UserRole {
    ├─ Генерация Access Token (15 мин)
    ├─ Генерация Refresh Token (7 дней)
    ├─ Сохранение Refresh Token в БД
-   ├─ Установка Refresh Token в httpOnly cookie
+   └─ Возврат Refresh Token в response body
    └─ Возврат Access Token в response body
 
 2. Запрос к API (GET /api/users)
@@ -264,7 +245,7 @@ export enum UserRole {
    └─ Выполнение запроса
 
 3. Обновление токена (POST /api/auth/refresh)
-   ├─ Извлечение Refresh Token из cookie
+   ├─ Извлечение Refresh Token из body
    ├─ Валидация Refresh Token
    ├─ Проверка наличия в БД (не отозван)
    ├─ Генерация нового Access Token
@@ -273,7 +254,7 @@ export enum UserRole {
 
 4. Выход (POST /api/auth/logout)
    ├─ Удаление Refresh Token из БД
-   └─ Очистка cookie
+   └─ Возврат 204 No Content
 ```
 
 ---
@@ -283,22 +264,34 @@ export enum UserRole {
 ### 4.1. Auth Endpoints
 
 ```
-POST   /api/auth/login          # Вход (email, password) → { accessToken, user }
-POST   /api/auth/logout         # Выход (требует auth) → 204
-POST   /api/auth/refresh        # Обновление access token → { accessToken }
-GET    /api/auth/me             # Текущий пользователь (требует auth) → { user }
+POST   /api/auth/login          # Вход (email, password) → { accessToken, refreshToken, user }
+POST   /api/auth/logout         # Выход (refreshToken в body) → 204
+POST   /api/auth/refresh        # Обновление токенов (refreshToken в body) → { accessToken, refreshToken }
 ```
 
-### 4.2. Users Endpoints (только для ROOT)
+**Middleware:**
+- `/api/auth/login` - `authRateLimiter` (5 попыток / 15 минут) + `validateBody(loginSchema)`
+- `/api/auth/refresh` - `validateBody(refreshSchema)`
+- `/api/auth/logout` - `validateBody(refreshSchema)`
+
+### 4.2. Users Endpoints
 
 ```
+GET    /api/users/me            # Текущий пользователь (требует auth) → { user }
 GET    /api/users               # Список пользователей (требует ROOT) → { users[] }
-GET    /api/users/:id           # Пользователь по ID (требует ROOT) → { user }
-POST   /api/users               # Создание пользователя (требует ROOT) → { user }
-PATCH  /api/users/:id            # Изменение пользователя (требует ROOT) → { user }
-DELETE /api/users/:id           # Удаление пользователя (требует ROOT) → 204
-PATCH  /api/users/:id/activate  # Активация/деактивация (требует ROOT) → { user }
+POST   /api/users               # Создание пользователя (требует ROOT) → { user } (201)
+PATCH  /api/users/:id           # Изменение пользователя (требует ROOT) → { user }
 ```
+
+**Middleware:**
+- `/api/users/me` - `authMiddleware` + `requireAuth`
+- `/api/users` (GET, POST) - `authMiddleware` + `requireAuth` + `requireRoot`
+- `/api/users/:id` (PATCH) - `authMiddleware` + `requireAuth` + `requireRoot` + `validateBody(updateUserSchema)`
+
+**Ограничения:**
+- Нельзя создать ROOT через API (всегда создается с role: USER)
+- Нельзя изменить ROOT через API (403)
+- Нельзя обновить role на ROOT (403)
 
 ---
 
@@ -372,7 +365,7 @@ async deleteUser(userId: string, currentUser: User) {
 ### 5.6. Хеширование паролей
 
 **Требования:**
-- Использовать bcrypt с cost factor 12+
+- Использовать argon2id (memoryCost: 65536, timeCost: 3, parallelism: 4)
 - Никогда не хранить пароли в открытом виде
 - Не логировать пароли (даже хешированные)
 
@@ -392,7 +385,7 @@ async deleteUser(userId: string, currentUser: User) {
 // Разрешить только с фронтенда
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  credentials: true,  // Для httpOnly cookies
+  credentials: true,  // Для CORS (если в будущем будут использоваться cookies)
 }));
 ```
 
@@ -415,7 +408,7 @@ app.use(cors({
 1. При старте приложения проверять наличие ROOT пользователя
 2. Если ROOT не существует:
    - Создать пользователя с данными из `ROOT_EMAIL` и `ROOT_PASSWORD`
-   - Хешировать пароль через bcrypt
+   - Хешировать пароль через argon2id
    - Установить роль `ROOT`
 3. Если ROOT уже существует - пропустить
 
@@ -428,7 +421,7 @@ async function initializeRootUser() {
   });
   
   if (!rootExists) {
-    const hashedPassword = await bcrypt.hash(env.ROOT_PASSWORD, 12);
+    const passwordHash = await hashPassword(env.ROOT_PASSWORD);
     await prisma.user.create({
       data: {
         email: env.ROOT_EMAIL,
@@ -447,42 +440,46 @@ async function initializeRootUser() {
 
 ### 7.1. Расширение Express Request
 
-**Файл: `src/common/types/auth.types.ts`**
+**Файл: `src/middleware/auth.ts`**
 
 ```typescript
-import { UserRole } from '../enums/user-role.enum';
+export interface AuthenticatedUser {
+  id: string;
+  email: string;
+  role: 'ROOT' | 'USER';
+  passwordVersion: number;
+}
 
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        id: string;
-        role: UserRole;
-        email: string;
-      };
-    }
-  }
+export interface AuthenticatedRequest extends Request {
+  user?: AuthenticatedUser;
 }
 ```
 
 **Использование:**
-- После middleware `authenticate` в `req.user` доступны данные пользователя
+- После middleware `authMiddleware` в `req.user` доступны данные пользователя
 - Типобезопасный доступ к `req.user` в контроллерах
+- `requireAuth` проверяет наличие `req.user`
+- `requireRoot` проверяет `req.user.role === 'ROOT'`
 
 ### 7.2. JWT Payload типы
 
+**Файл: `src/modules/auth/token.service.ts`**
+
 ```typescript
 export interface AccessTokenPayload {
-  userId: string;
-  role: UserRole;
+  sub: string;              // UUID пользователя
+  email: string;            // Email пользователя
+  role: 'ROOT' | 'USER';    // Роль
+  passwordVersion: number;  // Версия пароля (для инвалидации)
   type: 'access';
   iat: number;
   exp: number;
 }
 
 export interface RefreshTokenPayload {
-  userId: string;
-  tokenId: string;  // UUID refresh token в БД
+  sub: string;              // UUID пользователя
+  tokenId: string;          // UUID refresh token в БД
+  passwordVersion: number;  // Версия пароля (для инвалидации)
   type: 'refresh';
   iat: number;
   exp: number;
@@ -498,14 +495,22 @@ export interface RefreshTokenPayload {
 ```json
 {
   "dependencies": {
-    "jsonwebtoken": "^9.0.0",        // JWT токены
-    "bcrypt": "^5.1.0",              // Хеширование паролей
-    "cookie-parser": "^1.4.6"        // Парсинг cookies
+    "jsonwebtoken": "^9.0.2",        // JWT токены
+    "argon2": "^0.44.0",             // Хеширование паролей (argon2id)
+    "zod": "^3.24.1",                // Валидация схем
+    "dotenv-safe": "^9.1.0",         // Валидация env переменных
+    "@prisma/client": "6.18.0",      // Prisma ORM
+    "express-rate-limit": "^8.2.1",  // Rate limiting
+    "helmet": "^8.1.0",              // Security headers
+    "cors": "^2.8.5"                 // CORS
   },
   "devDependencies": {
-    "@types/jsonwebtoken": "^9.0.0",
-    "@types/bcrypt": "^5.0.0",
-    "@types/cookie-parser": "^1.4.6"
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/argon2": "^0.14.1",
+    "@types/cors": "^2.8.19",
+    "jest": "^30.2.0",               // Тестирование
+    "supertest": "^7.1.4",           // HTTP тесты
+    "ts-jest": "^29.4.5"             // TypeScript для Jest
   }
 }
 ```
@@ -552,17 +557,20 @@ export interface RefreshTokenPayload {
 
 - [ ] Все JWT секреты минимум 32 символа
 - [ ] JWT_ACCESS_SECRET ≠ JWT_REFRESH_SECRET
-- [ ] ROOT_PASSWORD соответствует требованиям
-- [ ] Access token живет ≤ 1 часа
-- [ ] Refresh token живет дольше Access token
-- [ ] Rate limiting настроен для `/api/auth/login`
-- [ ] httpOnly cookie для refresh token
-- [ ] CORS настроен правильно
-- [ ] ROOT не может быть удален/изменен
+- [ ] ROOT_PASSWORD соответствует требованиям (мин. 12 символов, заглавные/строчные, цифры, спецсимволы)
+- [ ] Access token живет ≤ 1 часа (рекомендуется 15 минут)
+- [ ] Refresh token живет дольше Access token (рекомендуется 7 дней)
+- [ ] Rate limiting настроен для `/api/auth/login` (5 попыток / 15 минут)
+- [ ] CORS настроен правильно (не `*`, только разрешенные origins)
+- [ ] ROOT не может быть удален/изменен через API
+- [ ] Нельзя создать ROOT через API
 - [ ] Нет endpoint для саморегистрации
-- [ ] Пароли хешируются через bcrypt
-- [ ] Логирование попыток входа
+- [ ] Пароли хешируются через argon2id (не bcrypt)
+- [ ] Логирование попыток входа (без паролей/токенов)
 - [ ] Валидация всех входных данных через Zod
+- [ ] Ротация refresh токенов реализована
+- [ ] Инвалидация токенов при смене пароля (passwordVersion)
+- [ ] Helmet.js настроен с правильными заголовками
 
 ---
 

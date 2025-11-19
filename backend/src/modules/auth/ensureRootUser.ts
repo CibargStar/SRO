@@ -47,6 +47,10 @@ type EnvConfig = {
  * - Не логирует пароль из env
  * - Идемпотентна (безопасно вызывать многократно)
  * - Вызывается ДО старта HTTP сервера
+ * 
+ * ВАЖНО: Смена ROOT_EMAIL в env не меняет email существующего ROOT аккаунта в БД.
+ * ROOT_EMAIL используется только при первичном создании ROOT пользователя.
+ * Для изменения email ROOT нужно делать это напрямую в БД или через специальную миграцию.
  */
 export async function ensureRootUser(
   prisma: PrismaClient,
@@ -67,7 +71,17 @@ export async function ensureRootUser(
     });
 
     if (existingRoot) {
-      // ROOT уже существует - ничего не делаем
+      // ROOT уже существует - ничего не делаем (идемпотентность)
+      // ВАЖНО: Смена ROOT_EMAIL в env НЕ меняет email существующего ROOT аккаунта
+      // ROOT_EMAIL используется только при первичном создании ROOT пользователя
+      if (existingRoot.email !== env.ROOT_EMAIL) {
+        logger.warn('ROOT user exists with different email than ROOT_EMAIL in env', {
+          rootId: existingRoot.id,
+          rootEmailInDb: existingRoot.email,
+          rootEmailInEnv: env.ROOT_EMAIL,
+          message: 'ROOT_EMAIL in env is ignored after initial ROOT creation',
+        });
+      }
       logger.info('Root user already exists', {
         email: existingRoot.email,
         isActive: existingRoot.isActive,
