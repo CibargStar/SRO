@@ -21,34 +21,39 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "express": "^5.1.0",
-    "prisma": "6.18.0",
     "@prisma/client": "6.18.0",
-    "zod": "^3.24.1",
-    "winston": "^3.18.3",
-    "helmet": "^8.1.0",
+    "argon2": "^0.44.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "dotenv-safe": "^9.1.0",
+    "express": "^5.1.0",
     "express-rate-limit": "^8.2.1",
     "express-validator": "^7.3.0",
-    "dotenv-safe": "^9.1.0",
-    "dotenv": "^16.4.5"
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "prisma": "6.18.0",
+    "winston": "^3.18.3",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@types/express": "^5.0.0",
-    "@types/node": "^22.10.5",
-    "typescript-eslint": "^8.47.0",
-    "eslint": "^9.39.1",
     "@eslint/js": "^9.39.1",
-    "typescript": "^5.9.3",
-    "tsx": "^4.20.6",
-    "jest": "^30.2.0",
+    "@types/argon2": "^0.14.1",
+    "@types/cors": "^2.8.19",
+    "@types/dotenv-safe": "^9.1.0",
+    "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
-    "ts-jest": "^29.4.5",
-    "supertest": "^7.1.4",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^22.10.5",
     "@types/supertest": "^6.0.3",
-    "@types/dotenv-safe": "^9.1.0"
+    "eslint": "^9.39.1",
+    "jest": "^30.2.0",
+    "supertest": "^7.1.4",
+    "ts-jest": "^29.4.5",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.47.0"
   },
   "overrides": {
     "glob": "^13.0.0"
   }
 }
-

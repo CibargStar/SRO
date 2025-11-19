@@ -12,6 +12,17 @@ services:
       - PORT=3000
       - DATABASE_URL=file:./prisma/dev.db
       - LOG_LEVEL=info
+      # Frontend URL для CORS
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
+      # Авторизация - Root пользователь
+      - ROOT_EMAIL=${ROOT_EMAIL}
+      - ROOT_PASSWORD=${ROOT_PASSWORD}
+      # JWT секреты (должны быть установлены в .env или через docker secrets)
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      # Время жизни токенов
+      - JWT_ACCESS_EXPIRES_IN=${JWT_ACCESS_EXPIRES_IN:-15m}
+      - JWT_REFRESH_EXPIRES_IN=${JWT_REFRESH_EXPIRES_IN:-7d}
     volumes:
       - ./backend/prisma:/app/prisma
       - ./backend/logs:/app/logs

@@ -31,8 +31,14 @@
 ### Безопасность
 - ✅ **Helmet.js 8.1.0+** (заголовки безопасности)
 - ✅ **express-rate-limit 8.2.1+** (rate limiting)
+- ✅ **cors 2.8.5+** (Cross-Origin Resource Sharing)
 - ✅ **dotenv-safe 9.1.0+** (валидация env-переменных)
 - ✅ **dotenv 16.4.5+** (fallback для production)
+
+### Авторизация
+- ✅ **argon2 0.44.0+** (хеширование паролей, режим argon2id)
+- ✅ **jsonwebtoken 9.0.2+** (JWT токены для авторизации)
+- ✅ **@prisma/client** (модели User и RefreshToken)
 
 ### Тестирование
 - ✅ **Jest 30.2.0+** (unit/integration)
@@ -140,6 +146,12 @@
 SRO/
 ├── backend/          # Backend приложение
 │   ├── src/          # Исходный код
+│   │   ├── modules/  # Бизнес-модули
+│   │   │   ├── auth/ # Модуль авторизации
+│   │   │   └── users/# Модуль управления пользователями
+│   │   ├── common/   # Общие модули (enums, types, utils)
+│   │   ├── config/   # Конфигурация (env, database, logger)
+│   │   └── middleware/# Middleware (security, validation, error handling)
 │   ├── prisma/       # Prisma схемы и миграции
 │   └── Dockerfile    # Production образ
 ├── frontend/         # Frontend приложение
@@ -148,3 +160,27 @@ SRO/
 ├── docker-compose.yml        # Production конфигурация
 └── docker-compose.dev.yml    # Development конфигурация
 ```
+
+## Система авторизации
+
+### Особенности
+- **Без саморегистрации** - только ROOT создает пользователей
+- **Две роли**: ROOT (администратор) и USER (обычный пользователь)
+- **JWT токены**: Access (15 мин) + Refresh (7 дней)
+- **Хеширование паролей**: argon2id
+- **Защита от brute force**: строгий rate limiting для `/auth/login`
+
+### Переменные окружения
+
+**Обязательные:**
+- `ROOT_EMAIL` - Email root-пользователя
+- `ROOT_PASSWORD` - Пароль root-пользователя (мин. 12 символов)
+- `JWT_ACCESS_SECRET` - Секрет для Access токенов (мин. 32 символа)
+- `JWT_REFRESH_SECRET` - Секрет для Refresh токенов (мин. 32 символа)
+
+**Опциональные:**
+- `FRONTEND_URL` - URL фронтенда для CORS (по умолчанию: `http://localhost:5173`)
+- `JWT_ACCESS_EXPIRES_IN` - Время жизни Access токена (по умолчанию: `15m`)
+- `JWT_REFRESH_EXPIRES_IN` - Время жизни Refresh токена (по умолчанию: `7d`)
+
+Подробнее см. `backend/ARCHITECTURE.md` и `backend/SECURITY.md`.

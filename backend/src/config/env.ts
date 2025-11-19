@@ -98,6 +98,12 @@ const baseEnvSchema = z.object({
   DATABASE_URL: z.string().min(1, { message: 'DATABASE_URL не может быть пустым' }),
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
 
+  // Frontend URL для CORS
+  FRONTEND_URL: z
+    .string()
+    .url({ message: 'FRONTEND_URL должен быть валидным URL' })
+    .default('http://localhost:5173'),
+
   // Авторизация
   ROOT_EMAIL: z.string().email({ message: 'ROOT_EMAIL должен быть валидным email адресом' }),
   ROOT_PASSWORD: rootPasswordSchema,
