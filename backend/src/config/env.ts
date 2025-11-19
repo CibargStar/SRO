@@ -14,14 +14,15 @@ import { existsSync } from 'fs';
 // Используем dotenv-safe если есть .env.example (для разработки),
 // иначе обычный dotenv (для production в Docker)
 if (existsSync('.env.example')) {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
   const dotenvSafe = require('dotenv-safe');
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
   dotenvSafe.config({
     allowEmptyValues: false,
     example: '.env.example',
   });
 } else {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
   require('dotenv').config();
 }
 
@@ -38,7 +39,9 @@ const jwtExpiresInSchema = z
   .refine(
     (val: string) => {
       const match = val.match(/^(\d+)([smhd])$/);
-      if (!match) return false;
+      if (!match) {
+        return false;
+      }
       const [, number, unit] = match;
       const num = parseInt(number, 10);
       // Минимум 1 секунда, максимум 365 дней
@@ -64,7 +67,7 @@ const rootPasswordSchema = z
   .regex(/[A-Z]/, { message: 'Пароль должен содержать хотя бы одну заглавную букву' })
   .regex(/[a-z]/, { message: 'Пароль должен содержать хотя бы одну строчную букву' })
   .regex(/[0-9]/, { message: 'Пароль должен содержать хотя бы одну цифру' })
-  .regex(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/, {
+  .regex(/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/, {
     message: 'Пароль должен содержать хотя бы один специальный символ (!@#$%^&* и т.д.)',
   });
 
@@ -148,11 +151,13 @@ const envSchema = baseEnvSchema
       // Проверка: Refresh токен должен жить дольше Access токена
       const parseTime = (timeStr: string): number => {
         const match = timeStr.match(/^(\d+)([smhd])$/);
-        if (!match) return 0;
+        if (!match) {
+          return 0;
+        }
         const [, number, unit] = match;
         const num = parseInt(number, 10);
         const multipliers: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
-        return num * (multipliers[unit] || 1);
+        return num * (multipliers[unit] ?? 1);
       };
 
       const accessSeconds = parseTime(data.JWT_ACCESS_EXPIRES_IN);

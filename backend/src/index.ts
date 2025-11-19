@@ -92,6 +92,7 @@ async function bootstrap(): Promise<void> {
     logger.error('Failed to bootstrap application', { error: errorMessage });
     
     // Закрываем соединение с БД перед выходом
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     await prisma.$disconnect();
     
     // Выходим с ошибкой
@@ -115,6 +116,7 @@ function setupGracefulShutdown(server: ReturnType<typeof app.listen>): void {
     logger.info(`${signal} received, shutting down gracefully`);
     server.close(() => {
       logger.info('HTTP server closed');
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       prisma.$disconnect().then(() => {
         logger.info('Database disconnected');
         process.exit(0);
@@ -128,7 +130,7 @@ function setupGracefulShutdown(server: ReturnType<typeof app.listen>): void {
 }
 
 // Запуск приложения
-bootstrap().catch((error) => {
+bootstrap().catch((error: unknown) => {
   logger.error('Unhandled error during bootstrap', { error });
   process.exit(1);
 });

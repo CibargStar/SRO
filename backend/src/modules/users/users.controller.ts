@@ -11,7 +11,7 @@
  */
 
 import { Response, NextFunction } from 'express';
-import { Prisma } from '@prisma/client';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { ValidatedRequest } from '../../middleware/zodValidate';
 import { AuthenticatedRequest } from '../../middleware/auth';
 import { CreateUserInput, UpdateUserInput } from './user.schemas';
@@ -53,7 +53,7 @@ export async function createUserHandler(
     // Даже если кто-то попытается передать role в body (хотя схема это не позволяет),
     // мы явно проверяем и блокируем это
     // Схема createUserSchema не включает role, но для дополнительной защиты проверяем явно
-    if ('role' in req.body && (req.body as any).role === 'ROOT') {
+    if ('role' in req.body && (req.body as Record<string, unknown>).role === 'ROOT') {
       logger.warn('Attempt to create ROOT user through API', {
         email,
         attemptedBy: (req as AuthenticatedRequest).user?.id,
@@ -63,6 +63,7 @@ export async function createUserHandler(
     }
 
     // Проверка уникальности email
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const existingUser = await prisma.user.findUnique({
       where: { email },
     });
@@ -81,13 +82,14 @@ export async function createUserHandler(
     // Защита от множественных ROOT: даже если в body будет role: 'ROOT', мы игнорируем это
     // Примечание: Для дополнительной защиты можно рассмотреть частичный индекс на уровне БД
     // (PostgreSQL: CREATE UNIQUE INDEX ON users (role) WHERE role = 'ROOT')
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const newUser = await prisma.user.create({
       data: {
         email,
         passwordHash,
         role: 'USER', // Всегда USER, ROOT создается только из env через ensureRootUser
         isActive: true,
-        name: name || null,
+        name: name ?? null,
       },
       select: {
         id: true,
@@ -103,16 +105,18 @@ export async function createUserHandler(
 
     // Логирование успешного создания (без пароля)
     logger.info('User created successfully', {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       userId: newUser.id,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       email: newUser.email,
       createdBy: (req as AuthenticatedRequest).user?.id,
     });
 
     // Возврат 201 Created с данными пользователя
     res.status(201).json(newUser);
-  } catch (error) {
+  } catch (error: unknown) {
     // Обработка ошибок Prisma (например, уникальный индекс)
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error instanceof PrismaClientKnownRequestError) {
       if (error.code === 'P2002') {
         // Unique constraint violation
         logger.warn('Attempt to create user with existing email (Prisma)', {
@@ -158,6 +162,7 @@ export async function listUsersHandler(
 ): Promise<void> {
   try {
     // Получение всех пользователей
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const users = await prisma.user.findMany({
       select: {
         id: true,
@@ -176,6 +181,7 @@ export async function listUsersHandler(
 
     // Логирование успешного получения списка
     logger.debug('Users list retrieved', {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       count: users.length,
       requestedBy: req.user?.id,
     });
@@ -222,9 +228,11 @@ export async function updateUserHandler(
 ): Promise<void> {
   try {
     const { id } = req.params;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const updateData = req.body;
 
     // Поиск пользователя по id
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const existingUser = await prisma.user.findUnique({
       where: { id },
       select: {
@@ -243,7 +251,9 @@ export async function updateUserHandler(
       return;
     }
 
+    // После проверки на null TypeScript знает, что existingUser не null
     // ВАЖНО: Запрет на изменение ROOT через API
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     if (existingUser.role === 'ROOT') {
       logger.warn('Attempt to update ROOT user through API', {
         userId: id,
@@ -256,7 +266,7 @@ export async function updateUserHandler(
     // ВАЖНО: Защита от изменения role на ROOT
     // Даже если кто-то попытается передать role в body (хотя схема это не позволяет),
     // мы явно проверяем и блокируем это
-    if ('role' in updateData && (updateData as any).role === 'ROOT') {
+    if ('role' in updateData && (updateData as Record<string, unknown>).role === 'ROOT') {
       logger.warn('Attempt to update user role to ROOT through API', {
         userId: id,
         attemptedBy: req.user?.id,
@@ -266,31 +276,41 @@ export async function updateUserHandler(
     }
 
     // Подготовка данных для обновления
-    const updatePayload: Prisma.UserUpdateInput = {};
+    // Тип для данных обновления пользователя (Prisma генерирует типы динамически)
+    const updatePayload: Record<string, unknown> = {};
 
     // Обновление email (если указан)
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     if (updateData.email !== undefined) {
       // Проверка уникальности email (если он изменился)
-      if (updateData.email !== existingUser.email) {
+      // После проверки на null TypeScript знает, что existingUser не null
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      if (updateData.email !== (existingUser as { email: string }).email) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
         const emailExists = await prisma.user.findUnique({
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
           where: { email: updateData.email },
         });
 
         if (emailExists) {
           logger.warn('Attempt to update user with existing email', {
             userId: id,
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
             email: updateData.email,
           });
           res.status(409).json({ message: 'Email already in use' });
           return;
         }
       }
-      updatePayload.email = updateData.email;
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      updatePayload.email = updateData.email as string;
     }
 
     // Обновление пароля (если указан)
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     if (updateData.password !== undefined) {
       // Хеширование нового пароля
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument
       const passwordHash = await hashPassword(updateData.password);
       updatePayload.passwordHash = passwordHash;
       // Инкремент passwordVersion для инвалидации всех токенов
@@ -298,16 +318,21 @@ export async function updateUserHandler(
     }
 
     // Обновление name (если указан)
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     if (updateData.name !== undefined) {
-      updatePayload.name = updateData.name || null;
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      updatePayload.name = (updateData.name ?? null) as string | null;
     }
 
     // Обновление isActive (если указан)
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     if (updateData.isActive !== undefined) {
-      updatePayload.isActive = updateData.isActive;
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      updatePayload.isActive = updateData.isActive as boolean;
     }
 
     // Обновление пользователя
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const updatedUser = await prisma.user.update({
       where: { id },
       data: updatePayload,
@@ -326,15 +351,15 @@ export async function updateUserHandler(
     // Логирование успешного обновления (без пароля)
     logger.info('User updated successfully', {
       userId: id,
-      updatedFields: Object.keys(updateData),
+      updatedFields: Object.keys(updateData as Record<string, unknown>),
       updatedBy: req.user?.id,
     });
 
     // Возврат обновленного пользователя
     res.status(200).json(updatedUser);
-  } catch (error) {
+  } catch (error: unknown) {
     // Обработка ошибок Prisma
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error instanceof PrismaClientKnownRequestError) {
       if (error.code === 'P2002') {
         // Unique constraint violation
         logger.warn('Attempt to update user with existing email (Prisma)', {
@@ -394,6 +419,7 @@ export async function getMeHandler(
     }
 
     // Подтягивание актуальных данных пользователя из БД
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
       select: {

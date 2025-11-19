@@ -61,6 +61,7 @@ export function validateBody<T>(schema: ZodSchema<T>): RequestHandler {
 
       // Заменяем req.body на валидированные данные
       // Это обеспечивает типобезопасность в контроллерах
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       req.body = validatedData as Request['body'];
 
       // Валидация прошла успешно

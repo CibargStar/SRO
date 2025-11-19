@@ -76,6 +76,9 @@ export default tseslint.config(
       'coverage/**',
       '*.config.js',
       '*.config.ts',
+      // Тестовые файлы исключены из tsconfig.json, поэтому ESLint их не должен проверять с typed linting
+      '**/*.test.ts',
+      '**/*.spec.ts',
       // eslint.config.mjs не игнорируется - он проверяется базовыми правилами для .mjs файлов
       // Другие конфигурационные .mjs файлы можно добавить явно, если нужно
     ],

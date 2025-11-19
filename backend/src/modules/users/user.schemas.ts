@@ -39,7 +39,7 @@ export const createUserSchema = z.object({
     .regex(/[A-Z]/, { message: 'Password must contain at least one uppercase letter' })
     .regex(/[a-z]/, { message: 'Password must contain at least one lowercase letter' })
     .regex(/[0-9]/, { message: 'Password must contain at least one number' })
-    .regex(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/, {
+    .regex(/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/, {
       message: 'Password must contain at least one special character',
     }),
 
@@ -92,7 +92,7 @@ export const updateUserSchema = z
       .regex(/[A-Z]/, { message: 'Password must contain at least one uppercase letter' })
       .regex(/[a-z]/, { message: 'Password must contain at least one lowercase letter' })
       .regex(/[0-9]/, { message: 'Password must contain at least one number' })
-      .regex(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/, {
+      .regex(/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/, {
         message: 'Password must contain at least one special character',
       })
       .optional(),
@@ -123,7 +123,7 @@ export const updateUserSchema = z
       // Защита: если кто-то попытается передать role в body, мы его игнорируем
       // Но для явности проверяем, что role не может быть ROOT
       // Примечание: role не включен в схему, но на случай расширения схемы
-      return !('role' in data && (data as any).role === 'ROOT');
+      return !('role' in data && (data as Record<string, unknown>).role === 'ROOT');
     },
     {
       message: 'Cannot set role to ROOT through API',

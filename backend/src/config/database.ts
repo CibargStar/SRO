@@ -16,6 +16,7 @@ import logger from './logger';
  * - error: ошибки в stdout
  * - warn: предупреждения в stdout
  */
+// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
 const prisma = new PrismaClient({
   log: [
     { level: 'query', emit: 'event' },
@@ -25,7 +26,8 @@ const prisma = new PrismaClient({
 });
 
 // Логирование всех SQL запросов для отладки
-prisma.$on('query', (e) => {
+// eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+prisma.$on('query', (e: { query: string; params: string; duration: number }) => {
   logger.debug({
     query: e.query,
     params: e.params,

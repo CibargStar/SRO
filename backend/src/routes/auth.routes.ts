@@ -9,7 +9,7 @@
  * @module routes/auth.routes
  */
 
-import { Router, RequestHandler } from 'express';
+import { Router } from 'express';
 import { authRateLimiter, validateBody } from '../middleware';
 import { loginSchema, refreshSchema } from '../modules/auth/auth.schemas';
 import { loginHandler, refreshHandler, logoutHandler } from '../modules/auth/auth.controller';
@@ -91,8 +91,7 @@ const router = Router();
  *             example:
  *               message: Too many login attempts, please try again later.
  */
-// eslint-disable-next-line @typescript-eslint/no-unsafe-call
-router.post('/login', authRateLimiter as RequestHandler, validateBody(loginSchema) as RequestHandler, loginHandler);
+router.post('/login', authRateLimiter, validateBody(loginSchema), loginHandler);
 
 /**
  * @swagger
@@ -138,8 +137,7 @@ router.post('/login', authRateLimiter as RequestHandler, validateBody(loginSchem
  *             example:
  *               message: Invalid refresh token
  */
-// eslint-disable-next-line @typescript-eslint/no-unsafe-call
-router.post('/refresh', validateBody(refreshSchema) as RequestHandler, refreshHandler);
+router.post('/refresh', validateBody(refreshSchema), refreshHandler);
 
 /**
  * @swagger
@@ -170,8 +168,7 @@ router.post('/refresh', validateBody(refreshSchema) as RequestHandler, refreshHa
  *             schema:
  *               $ref: '#/components/schemas/ValidationError'
  */
-// eslint-disable-next-line @typescript-eslint/no-unsafe-call
-router.post('/logout', validateBody(refreshSchema) as RequestHandler, logoutHandler);
+router.post('/logout', validateBody(refreshSchema), logoutHandler);
 
 export default router;
 

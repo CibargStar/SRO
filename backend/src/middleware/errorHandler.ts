@@ -58,8 +58,8 @@ export const errorHandler = (
   }
 
   // Обработка остальных ошибок
-  const statusCode = err.statusCode || 500;
-  const message = err.message || 'Internal server error';
+  const statusCode = err.statusCode ?? 500;
+  const message = err.message ?? 'Internal server error';
 
   // Логирование ошибки с полным стеком
   logger.error({

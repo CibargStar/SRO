@@ -10,7 +10,7 @@
  * @module routes/users.routes
  */
 
-import { Router, RequestHandler } from 'express';
+import { Router } from 'express';
 import { authMiddleware, requireAuth, requireRoot, validateBody } from '../middleware';
 import { createUserSchema, updateUserSchema } from '../modules/users/user.schemas';
 import {
@@ -129,8 +129,7 @@ router.get('/me', authMiddleware as never, requireAuth as never, getMeHandler);
  *             example:
  *               message: Email already in use
  */
-// eslint-disable-next-line @typescript-eslint/no-unsafe-call
-router.post('/', authMiddleware as never, requireAuth as never, requireRoot as never, validateBody(createUserSchema) as RequestHandler, createUserHandler);
+router.post('/', authMiddleware, requireAuth, requireRoot, validateBody(createUserSchema), createUserHandler);
 
 /**
  * @swagger
@@ -297,8 +296,7 @@ router.get('/', authMiddleware as never, requireAuth as never, requireRoot as ne
  *             example:
  *               message: Email already in use
  */
-// eslint-disable-next-line @typescript-eslint/no-unsafe-call
-router.patch('/:id', authMiddleware as never, requireAuth as never, requireRoot as never, validateBody(updateUserSchema) as RequestHandler, updateUserHandler);
+router.patch('/:id', authMiddleware, requireAuth, requireRoot, validateBody(updateUserSchema), updateUserHandler);
 
 export default router;
 

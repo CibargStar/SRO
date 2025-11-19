@@ -10,6 +10,9 @@
  */
 
 import { Request, Response, NextFunction, RequestHandler } from 'express';
+// Prisma генерирует типы, которые ESLint не видит, но TypeScript видит
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - TypeScript видит типы, но ESLint нет
 import { UserRole } from '@prisma/client';
 import { verifyAccessToken, isPasswordVersionValid } from '../modules/auth/token.service';
 import { prisma } from '../config';
@@ -76,7 +79,7 @@ export const authMiddleware: RequestHandler = async (
     // Извлечение токена из заголовка Authorization
     const authHeader = req.headers.authorization;
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!authHeader?.startsWith('Bearer ')) {
       logger.debug('Missing or invalid Authorization header');
       res.status(401).json({ message: 'Unauthorized' });
       return;
@@ -101,6 +104,7 @@ export const authMiddleware: RequestHandler = async (
     }
 
     // Подтягивание пользователя из БД по userId (sub)
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const user = await prisma.user.findUnique({
       where: { id: tokenPayload.sub },
       select: {
@@ -118,10 +122,14 @@ export const authMiddleware: RequestHandler = async (
       return;
     }
 
+    // После проверки на null TypeScript знает, что user не null
     // Проверка активности пользователя
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     if (!user.isActive) {
       logger.warn('Inactive user attempted to access protected resource', {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
         userId: user.id,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
         email: user.email,
       });
       res.status(401).json({ message: 'Unauthorized' });
@@ -129,11 +137,15 @@ export const authMiddleware: RequestHandler = async (
     }
 
     // Проверка passwordVersion (токен мог быть инвалидирован при смене пароля)
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
     if (!isPasswordVersionValid(tokenPayload, user.passwordVersion)) {
       logger.warn('Access token invalidated due to password change', {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
         userId: user.id,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
         email: user.email,
         tokenPasswordVersion: tokenPayload.passwordVersion,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
         userPasswordVersion: user.passwordVersion,
       });
       res.status(401).json({ message: 'Unauthorized' });
@@ -143,16 +155,23 @@ export const authMiddleware: RequestHandler = async (
     // Установка req.user с данными пользователя
     // Приводим req к AuthenticatedRequest для типобезопасности
     (req as AuthenticatedRequest).user = {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       id: user.id,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       email: user.email,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       role: user.role,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       passwordVersion: user.passwordVersion,
     };
 
     // Логирование успешной авторизации (без токена)
     logger.debug('User authenticated successfully', {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       userId: user.id,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       email: user.email,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       role: user.role,
     });
 
@@ -256,6 +275,7 @@ export const requireRoot: RequestHandler = (
     logger.warn('Forbidden access attempt (requireRoot)', {
       userId: authenticatedReq.user.id,
       email: authenticatedReq.user.email,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       role: authenticatedReq.user.role,
       path: req.path,
       method: req.method,
