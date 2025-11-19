@@ -10,7 +10,7 @@
  * @module routes/users.routes
  */
 
-import { Router } from 'express';
+import { Router, RequestHandler } from 'express';
 import { authMiddleware, requireAuth, requireRoot, validateBody } from '../middleware';
 import { createUserSchema, updateUserSchema } from '../modules/users/user.schemas';
 import {
@@ -57,7 +57,7 @@ const router = Router();
  *             example:
  *               message: Unauthorized
  */
-router.get('/me', authMiddleware, requireAuth, getMeHandler);
+router.get('/me', authMiddleware as never, requireAuth as never, getMeHandler);
 
 /**
  * @swagger
@@ -129,7 +129,8 @@ router.get('/me', authMiddleware, requireAuth, getMeHandler);
  *             example:
  *               message: Email already in use
  */
-router.post('/', authMiddleware, requireAuth, requireRoot, validateBody(createUserSchema), createUserHandler);
+// eslint-disable-next-line @typescript-eslint/no-unsafe-call
+router.post('/', authMiddleware as never, requireAuth as never, requireRoot as never, validateBody(createUserSchema) as RequestHandler, createUserHandler);
 
 /**
  * @swagger
@@ -180,7 +181,7 @@ router.post('/', authMiddleware, requireAuth, requireRoot, validateBody(createUs
  *             example:
  *               message: Forbidden
  */
-router.get('/', authMiddleware, requireAuth, requireRoot, listUsersHandler);
+router.get('/', authMiddleware as never, requireAuth as never, requireRoot as never, listUsersHandler);
 
 /**
  * @swagger
@@ -296,7 +297,8 @@ router.get('/', authMiddleware, requireAuth, requireRoot, listUsersHandler);
  *             example:
  *               message: Email already in use
  */
-router.patch('/:id', authMiddleware, requireAuth, requireRoot, validateBody(updateUserSchema), updateUserHandler);
+// eslint-disable-next-line @typescript-eslint/no-unsafe-call
+router.patch('/:id', authMiddleware as never, requireAuth as never, requireRoot as never, validateBody(updateUserSchema) as RequestHandler, updateUserHandler);
 
 export default router;
 

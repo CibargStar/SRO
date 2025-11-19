@@ -13,49 +13,31 @@
  * Устанавливает тестовые значения для переменных окружения,
  * если они не установлены явно.
  */
-if (!process.env.TEST_DATABASE_URL) {
-  // Используем in-memory SQLite для тестов по умолчанию
-  process.env.TEST_DATABASE_URL = 'file::memory:?cache=shared';
-}
+// Используем in-memory SQLite для тестов по умолчанию
+process.env.TEST_DATABASE_URL ??= 'file::memory:?cache=shared';
 
-if (!process.env.TEST_ROOT_EMAIL) {
-  process.env.TEST_ROOT_EMAIL = 'test-root@example.com';
-}
+process.env.TEST_ROOT_EMAIL ??= 'test-root@example.com';
 
-if (!process.env.TEST_ROOT_PASSWORD) {
-  process.env.TEST_ROOT_PASSWORD = 'TestRootPassword123!@#';
-}
+process.env.TEST_ROOT_PASSWORD ??= 'TestRootPassword123!@#';
 
 // Устанавливаем NODE_ENV в test, если не установлен
-if (!process.env.NODE_ENV) {
-  process.env.NODE_ENV = 'test';
-}
+process.env.NODE_ENV ??= 'test';
 
 // Устанавливаем минимальные значения для JWT секретов (для тестов)
-if (!process.env.JWT_ACCESS_SECRET) {
-  process.env.JWT_ACCESS_SECRET = 'test-access-secret-min-32-chars-long-for-testing-only';
-}
+process.env.JWT_ACCESS_SECRET ??= 'test-access-secret-min-32-chars-long-for-testing-only';
 
-if (!process.env.JWT_REFRESH_SECRET) {
-  process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-min-32-chars-long-for-testing-only';
-}
+process.env.JWT_REFRESH_SECRET ??= 'test-refresh-secret-min-32-chars-long-for-testing-only';
 
 // Устанавливаем значения для JWT expires
-if (!process.env.JWT_ACCESS_EXPIRES_IN) {
-  process.env.JWT_ACCESS_EXPIRES_IN = '15m';
-}
+process.env.JWT_ACCESS_EXPIRES_IN ??= '15m';
 
-if (!process.env.JWT_REFRESH_EXPIRES_IN) {
-  process.env.JWT_REFRESH_EXPIRES_IN = '7d';
-}
+process.env.JWT_REFRESH_EXPIRES_IN ??= '7d';
 
 // Устанавливаем FRONTEND_URL для тестов
-if (!process.env.FRONTEND_URL) {
-  process.env.FRONTEND_URL = 'http://localhost:5173';
-}
+process.env.FRONTEND_URL ??= 'http://localhost:5173';
 
 /**
- * Увеличиваем таймаут для Jest (для интеграционных тестов с БД)
+ * Примечание: Таймаут для тестов настроен в jest.config.js (testTimeout: 30000)
+ * Здесь настраиваем только переменные окружения
  */
-jest.setTimeout(30000);
 

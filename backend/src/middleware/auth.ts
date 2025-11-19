@@ -9,7 +9,7 @@
  * @module middleware/auth
  */
 
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction, RequestHandler } from 'express';
 import { UserRole } from '@prisma/client';
 import { verifyAccessToken, isPasswordVersionValid } from '../modules/auth/token.service';
 import { prisma } from '../config';
@@ -67,11 +67,11 @@ export interface AuthenticatedRequest extends Request {
  * );
  * ```
  */
-export async function authMiddleware(
+export const authMiddleware: RequestHandler = async (
   req: Request,
   res: Response,
   next: NextFunction
-): Promise<void> {
+): Promise<void> => {
   try {
     // Извлечение токена из заголовка Authorization
     const authHeader = req.headers.authorization;
@@ -192,11 +192,11 @@ export async function authMiddleware(
  * );
  * ```
  */
-export function requireAuth(
+export const requireAuth: RequestHandler = (
   req: Request,
   res: Response,
   next: NextFunction
-): void {
+): void => {
   const authenticatedReq = req as AuthenticatedRequest;
 
   if (!authenticatedReq.user) {
@@ -236,11 +236,11 @@ export function requireAuth(
  * );
  * ```
  */
-export function requireRoot(
+export const requireRoot: RequestHandler = (
   req: Request,
   res: Response,
   next: NextFunction
-): void {
+): void => {
   const authenticatedReq = req as AuthenticatedRequest;
 
   if (!authenticatedReq.user) {

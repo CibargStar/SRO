@@ -22,7 +22,7 @@ describe('Users API E2E Tests', () => {
   let testApp: TestApp;
   let app: Express;
   let prisma: PrismaClient;
-  let rootUser: { email: string; password: string };
+  let rootUser: { ROOT_EMAIL: string; ROOT_PASSWORD: string };
   let rootAccessToken: string;
   let userAccessToken: string;
   let createdUserId: string;
@@ -35,8 +35,8 @@ describe('Users API E2E Tests', () => {
 
     // Получаем credentials root пользователя из env
     rootUser = {
-      email: process.env.TEST_ROOT_EMAIL || 'test-root@example.com',
-      password: process.env.TEST_ROOT_PASSWORD || 'TestRootPassword123!@#',
+      ROOT_EMAIL: process.env.TEST_ROOT_EMAIL || 'test-root@example.com',
+      ROOT_PASSWORD: process.env.TEST_ROOT_PASSWORD || 'TestRootPassword123!@#',
     };
   });
 
@@ -51,8 +51,8 @@ describe('Users API E2E Tests', () => {
     const rootLoginResponse = await request(app)
       .post('/api/auth/login')
       .send({
-        email: rootUser.email,
-        password: rootUser.password,
+        email: rootUser.ROOT_EMAIL,
+        password: rootUser.ROOT_PASSWORD,
       });
 
     expect(rootLoginResponse.status).toBe(200);
@@ -88,7 +88,9 @@ describe('Users API E2E Tests', () => {
 
   afterAll(async () => {
     // Закрываем соединение с БД
-    await prisma.$disconnect();
+    if (prisma) {
+      await prisma.$disconnect();
+    }
   });
 
   describe('Authorization and roles', () => {
@@ -284,7 +286,7 @@ describe('Users API E2E Tests', () => {
     it('should return 403 for updating ROOT user', async () => {
       // Получаем ROOT пользователя
       const rootUserRecord = await prisma.user.findUnique({
-        where: { email: rootUser.email },
+        where: { email: rootUser.ROOT_EMAIL },
       });
 
       expect(rootUserRecord).not.toBeNull();
@@ -394,7 +396,7 @@ describe('Users API E2E Tests', () => {
         .set('Authorization', `Bearer ${rootAccessToken}`);
 
       expect(response.status).toBe(200);
-      expect(response.body.email).toBe(rootUser.email);
+      expect(response.body.email).toBe(rootUser.ROOT_EMAIL);
       expect(response.body.role).toBe('ROOT');
       expect(response.body).not.toHaveProperty('passwordHash');
       expect(response.body).not.toHaveProperty('passwordVersion');

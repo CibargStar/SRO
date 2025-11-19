@@ -44,7 +44,7 @@ import logger from '../../config/logger';
 export async function createUserHandler(
   req: ValidatedRequest<CreateUserInput>,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): Promise<void> {
   try {
     const { email, password, name } = req.body;
@@ -154,7 +154,7 @@ export async function createUserHandler(
 export async function listUsersHandler(
   req: AuthenticatedRequest,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): Promise<void> {
   try {
     // Получение всех пользователей
@@ -218,7 +218,7 @@ export async function listUsersHandler(
 export async function updateUserHandler(
   req: ValidatedRequest<UpdateUserInput> & AuthenticatedRequest & { params: { id: string } },
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): Promise<void> {
   try {
     const { id } = req.params;
@@ -384,7 +384,7 @@ export async function updateUserHandler(
 export async function getMeHandler(
   req: AuthenticatedRequest,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): Promise<void> {
   try {
     // req.user гарантированно существует после requireAuth

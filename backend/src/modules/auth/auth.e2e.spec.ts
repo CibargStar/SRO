@@ -21,7 +21,7 @@ describe('Auth API E2E Tests', () => {
   let testApp: TestApp;
   let app: Express;
   let prisma: PrismaClient;
-  let rootUser: { email: string; password: string };
+  let rootUser: { ROOT_EMAIL: string; ROOT_PASSWORD: string };
 
   beforeAll(async () => {
     // Создаем тестовое приложение
@@ -31,8 +31,8 @@ describe('Auth API E2E Tests', () => {
 
     // Получаем credentials root пользователя из env
     rootUser = {
-      email: process.env.TEST_ROOT_EMAIL || 'test-root@example.com',
-      password: process.env.TEST_ROOT_PASSWORD || 'TestRootPassword123!@#',
+      ROOT_EMAIL: process.env.TEST_ROOT_EMAIL || 'test-root@example.com',
+      ROOT_PASSWORD: process.env.TEST_ROOT_PASSWORD || 'TestRootPassword123!@#',
     };
   });
 
@@ -46,7 +46,9 @@ describe('Auth API E2E Tests', () => {
 
   afterAll(async () => {
     // Закрываем соединение с БД
-    await prisma.$disconnect();
+    if (prisma) {
+      await prisma.$disconnect();
+    }
   });
 
   describe('POST /api/auth/login', () => {
@@ -54,8 +56,8 @@ describe('Auth API E2E Tests', () => {
       const response = await request(app)
         .post('/api/auth/login')
         .send({
-          email: rootUser.email,
-          password: rootUser.password,
+          email: rootUser.ROOT_EMAIL,
+          password: rootUser.ROOT_PASSWORD,
         });
 
       expect(response.status).toBe(200);
@@ -63,7 +65,7 @@ describe('Auth API E2E Tests', () => {
       expect(response.body).toHaveProperty('refreshToken');
       expect(response.body).toHaveProperty('user');
       expect(response.body.user.role).toBe('ROOT');
-      expect(response.body.user.email).toBe(rootUser.email);
+      expect(response.body.user.email).toBe(rootUser.ROOT_EMAIL);
       expect(response.body.user).not.toHaveProperty('passwordHash');
       expect(response.body.user).not.toHaveProperty('passwordVersion');
     });
@@ -72,7 +74,7 @@ describe('Auth API E2E Tests', () => {
       const response = await request(app)
         .post('/api/auth/login')
         .send({
-          email: rootUser.email,
+          email: rootUser.ROOT_EMAIL,
           password: 'WrongPassword123!@#',
         });
 
@@ -135,7 +137,7 @@ describe('Auth API E2E Tests', () => {
       const response = await request(app)
         .post('/api/auth/login')
         .send({
-          email: rootUser.email,
+          email: rootUser.ROOT_EMAIL,
         });
 
       expect(response.status).toBe(400);
@@ -149,8 +151,8 @@ describe('Auth API E2E Tests', () => {
       const loginResponse = await request(app)
         .post('/api/auth/login')
         .send({
-          email: rootUser.email,
-          password: rootUser.password,
+          email: rootUser.ROOT_EMAIL,
+          password: rootUser.ROOT_PASSWORD,
         });
 
       expect(loginResponse.status).toBe(200);
@@ -200,8 +202,8 @@ describe('Auth API E2E Tests', () => {
       const loginResponse = await request(app)
         .post('/api/auth/login')
         .send({
-          email: rootUser.email,
-          password: rootUser.password,
+          email: rootUser.ROOT_EMAIL,
+          password: rootUser.ROOT_PASSWORD,
         });
 
       expect(loginResponse.status).toBe(200);
@@ -209,7 +211,7 @@ describe('Auth API E2E Tests', () => {
 
       // Получаем пользователя из БД
       const user = await prisma.user.findUnique({
-        where: { email: rootUser.email },
+        where: { email: rootUser.ROOT_EMAIL },
       });
 
       expect(user).not.toBeNull();
@@ -253,8 +255,8 @@ describe('Auth API E2E Tests', () => {
       const loginResponse = await request(app)
         .post('/api/auth/login')
         .send({
-          email: rootUser.email,
-          password: rootUser.password,
+          email: rootUser.ROOT_EMAIL,
+          password: rootUser.ROOT_PASSWORD,
         });
 
       expect(loginResponse.status).toBe(200);
@@ -308,8 +310,8 @@ describe('Auth API E2E Tests', () => {
       const loginResponse = await request(app)
         .post('/api/auth/login')
         .send({
-          email: rootUser.email,
-          password: rootUser.password,
+          email: rootUser.ROOT_EMAIL,
+          password: rootUser.ROOT_PASSWORD,
         });
 
       expect(loginResponse.status).toBe(200);
@@ -352,16 +354,16 @@ describe('Auth API E2E Tests', () => {
       const loginResponse = await request(app)
         .post('/api/auth/login')
         .send({
-          email: rootUser.email,
-          password: rootUser.password,
+          email: rootUser.ROOT_EMAIL,
+          password: rootUser.ROOT_PASSWORD,
         });
 
       expect(loginResponse.status).toBe(200);
-      const { accessToken, refreshToken } = loginResponse.body;
+      const { refreshToken } = loginResponse.body;
 
       // 2. Меняем пароль
       const user = await prisma.user.findUnique({
-        where: { email: rootUser.email },
+        where: { email: rootUser.ROOT_EMAIL },
       });
 
       const newPassword = 'NewSecurePassword123!@#';
@@ -388,7 +390,7 @@ describe('Auth API E2E Tests', () => {
       const newLoginResponse = await request(app)
         .post('/api/auth/login')
         .send({
-          email: rootUser.email,
+          email: rootUser.ROOT_EMAIL,
           password: newPassword,
         });
 

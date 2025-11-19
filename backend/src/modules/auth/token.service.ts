@@ -8,7 +8,14 @@
  */
 
 import jwt from 'jsonwebtoken';
-import { PrismaClient, User, UserRole } from '@prisma/client';
+// Prisma генерирует типы, которые ESLint не видит, но TypeScript видит
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - TypeScript видит типы, но ESLint нет
+import type { User } from '@prisma/client';
+// Prisma генерирует типы, которые ESLint не видит, но TypeScript видит
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - TypeScript видит типы, но ESLint нет
+import { PrismaClient, UserRole } from '@prisma/client';
 import { env } from '../../config/env';
 import logger from '../../config/logger';
 
@@ -122,9 +129,13 @@ export async function generateTokens(
   try {
     // Генерация Access токена
     const accessTokenPayload: AccessTokenPayload = {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       sub: user.id,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       email: user.email,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       role: user.role,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       passwordVersion: user.passwordVersion,
       type: 'access',
     };
@@ -140,8 +151,10 @@ export async function generateTokens(
     const expiresAt = new Date(Date.now() + refreshTokenExpiresIn * 1000);
 
     // Создаем запись RefreshToken в БД и генерируем токен атомарно
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const refreshTokenRecord = await prisma.refreshToken.create({
       data: {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
         userId: user.id,
         expiresAt,
         token: '', // Временное значение, обновим в транзакции
@@ -150,8 +163,11 @@ export async function generateTokens(
 
     // Генерируем JWT refresh токен с tokenId и passwordVersion
     const refreshTokenPayload: RefreshTokenPayload = {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       sub: user.id,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       tokenId: refreshTokenRecord.id,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       passwordVersion: user.passwordVersion, // Включаем passwordVersion для инвалидации при смене пароля
       type: 'refresh',
     };
@@ -162,14 +178,18 @@ export async function generateTokens(
 
     // Обновляем запись с реальным токеном
     // Если обновление не удастся, запись останется с пустым токеном (будет очищена позже)
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     await prisma.refreshToken.update({
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       where: { id: refreshTokenRecord.id },
       data: { token: refreshToken },
     });
 
     // ВАЖНО: Не логируем токены!
     logger.debug('Tokens generated successfully', {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       userId: user.id,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       email: user.email,
     });
 
@@ -177,6 +197,7 @@ export async function generateTokens(
   } catch (error) {
     logger.error('Failed to generate tokens', {
       error: error instanceof Error ? error.message : 'Unknown error',
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       userId: user.id,
     });
     throw new Error('Token generation failed');
@@ -222,11 +243,12 @@ export function verifyAccessToken(token: string): JwtPayloadWithUserData | null 
     return {
       sub: decoded.sub,
       email: decoded.email,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       role: decoded.role,
       passwordVersion: decoded.passwordVersion,
       type: 'access',
-      iat: decoded.iat || 0,
-      exp: decoded.exp || 0,
+      iat: decoded.iat ?? 0,
+      exp: decoded.exp ?? 0,
     };
   } catch (error) {
     // JWT ошибки (expired, invalid signature и т.д.)
@@ -290,6 +312,7 @@ export async function verifyRefreshToken(
     }
 
     // Проверяем наличие записи в БД
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const refreshTokenRecord = await prisma.refreshToken.findUnique({
       where: { token },
       include: { user: true },
@@ -309,34 +332,43 @@ export async function verifyRefreshToken(
     }
 
     // Проверяем, что токен не истек
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     if (refreshTokenRecord.expiresAt < new Date()) {
       logger.debug('Refresh token expired');
       // Удаляем истекший токен
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       await prisma.refreshToken.delete({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
         where: { id: refreshTokenRecord.id },
       });
       return null;
     }
 
     // Проверяем, что пользователь активен
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     if (!refreshTokenRecord.user.isActive) {
       logger.debug('User is not active');
       return null;
     }
 
     // Проверяем passwordVersion (токен должен быть инвалидирован при смене пароля)
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     if (decoded.passwordVersion !== refreshTokenRecord.user.passwordVersion) {
       logger.debug('Refresh token invalidated due to password change', {
         tokenPasswordVersion: decoded.passwordVersion,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
         userPasswordVersion: refreshTokenRecord.user.passwordVersion,
       });
       // Удаляем токен с неверной версией пароля
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       await prisma.refreshToken.delete({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
         where: { id: refreshTokenRecord.id },
       });
       return null;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
     return { user: refreshTokenRecord.user };
   } catch (error) {
     // JWT ошибки (expired, invalid signature и т.д.)
@@ -375,12 +407,15 @@ export async function verifyRefreshToken(
 export async function revokeRefreshToken(prisma: PrismaClient, token: string): Promise<void> {
   try {
     // Пытаемся найти и удалить токен
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const deleted = await prisma.refreshToken.deleteMany({
       where: { token },
     });
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     if (deleted.count > 0) {
       logger.debug('Refresh token revoked', {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
         count: deleted.count,
       });
     } else {

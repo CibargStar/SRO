@@ -40,10 +40,19 @@ export const errorHandler = (
 ): void => {
   // Обработка ошибок валидации Zod
   if (err instanceof ZodError) {
-    logger.warn({ validationError: err.errors });
+    logger.warn('Validation error', {
+      errorCount: err.errors.length,
+      errors: err.errors.map((e) => ({
+        path: e.path.join('.'),
+        message: e.message,
+      })),
+    });
     res.status(400).json({
       error: 'Validation error',
-      details: err.errors,
+      details: err.errors.map((e) => ({
+        field: e.path.join('.') || 'root',
+        message: e.message,
+      })),
     });
     return;
   }

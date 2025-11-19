@@ -7,7 +7,7 @@
  * @module middleware/zodValidate
  */
 
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction, RequestHandler } from 'express';
 import { ZodSchema, ZodError } from 'zod';
 import logger from '../config/logger';
 
@@ -52,7 +52,7 @@ export interface ValidatedRequest<T> extends Request {
  * - Типобезопасность через TypeScript generics
  * - Валидация происходит до обработки запроса
  */
-export function validateBody<T>(schema: ZodSchema<T>) {
+export function validateBody<T>(schema: ZodSchema<T>): RequestHandler {
   return (req: Request, res: Response, next: NextFunction): void => {
     try {
       // Валидация req.body по схеме

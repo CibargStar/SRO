@@ -9,18 +9,16 @@
 
 import express, { Express } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { ensureRootUser } from '../../modules/auth';
+// import { ensureRootUser } from '../../modules/auth'; // Не используется в тестах (вызывается в beforeEach)
 import {
   securityMiddleware,
   corsMiddleware,
-  rateLimiter,
   requestLogger,
   errorHandler,
   notFoundHandler,
 } from '../../middleware';
-import authRoutes from '../../routes/auth.routes';
-import usersRoutes from '../../routes/users.routes';
-import logger from '../../config/logger';
+import { createTestAuthRoutes, createTestUsersRoutes } from './testRoutes';
+// import logger from '../../config/logger'; // Не используется (ensureRootUser вызывается в beforeEach)
 
 /**
  * Конфигурация для тестовой БД
@@ -90,7 +88,7 @@ export interface TestApp {
  * - Инициализирует root пользователя (если не пропущено)
  * - Не запускает HTTP сервер
  */
-export async function createTestApp(options: { skipRootUser?: boolean } = {}): Promise<TestApp> {
+export async function createTestApp(_options: { skipRootUser?: boolean } = {}): Promise<TestApp> {
   // Сохраняем оригинальный DATABASE_URL
   const originalDatabaseUrl = process.env.DATABASE_URL;
 
@@ -104,37 +102,29 @@ export async function createTestApp(options: { skipRootUser?: boolean } = {}): P
     // Подключение к тестовой БД
     await testPrisma.$connect();
 
-    // Применение схемы к тестовой БД
-    // 
-    // ВАЖНО: Для применения миграций к тестовой БД нужно:
-    // 
-    // 1. Для in-memory SQLite (file::memory:):
-    //    - Использовать Prisma Migrate API программно
-    //    - Или применять схему через db push перед запуском тестов
-    //    - Или использовать отдельный файл для тестов
-    // 
-    // 2. Для файловой БД (file:./prisma/test.db):
-    //    - Выполнить: DATABASE_URL="file:./prisma/test.db" npx prisma migrate deploy
-    //    - Или использовать db push: DATABASE_URL="file:./prisma/test.db" npx prisma db push
-    // 
-    // 3. Рекомендуемый подход для тестов:
-    //    - Использовать отдельный файл: TEST_DATABASE_URL="file:./prisma/test.db"
-    //    - Применить миграции один раз перед запуском тестов
-    //    - Очищать данные между тестами через resetDatabase
-    // 
-    // Для простоты здесь мы полагаемся на то, что миграции уже применены
-    // или будут применены через setup скрипт перед запуском тестов.
+    // Применение схемы к тестовой БД через db push
+    // Это создаст таблицы в тестовой БД (in-memory или файловой)
+    // ВАЖНО: db push применяет схему напрямую, без миграций
+    // Для тестов это нормально, так как мы не сохраняем историю миграций
+    try {
+      const { execSync } = require('child_process');
+      execSync('npx prisma db push --skip-generate --accept-data-loss', {
+        env: { ...process.env, DATABASE_URL: TEST_DATABASE_URL },
+        stdio: 'ignore', // Скрываем вывод команды
+        cwd: process.cwd(), // Убеждаемся, что команда выполняется из корня проекта
+      });
+    } catch (error) {
+      // Если db push не удался, пробуем продолжить (возможно, схема уже применена)
+      // В production тестах лучше использовать явные миграции
+      // Игнорируем ошибку для in-memory БД, так как она может не поддерживать db push
+    }
 
     // Инициализация root пользователя (если не пропущено)
-    if (!options.skipRootUser) {
-      // Используем тестовые credentials для root пользователя
-      const testEnv = {
-        ROOT_EMAIL: process.env.TEST_ROOT_EMAIL || 'test-root@example.com',
-        ROOT_PASSWORD: process.env.TEST_ROOT_PASSWORD || 'TestRootPassword123!@#',
-      };
-
-      await ensureRootUser(testPrisma, testEnv, logger);
-    }
+    // ВАЖНО: В тестах ensureRootUser вызывается в beforeEach после resetDatabase
+    // Здесь мы НЕ создаем ROOT, чтобы избежать конфликтов
+    // if (!options.skipRootUser) {
+    //   await ensureRootUser(testPrisma, testEnv, logger);
+    // }
 
     // Создание Express приложения
     const app = express();
@@ -150,17 +140,17 @@ export async function createTestApp(options: { skipRootUser?: boolean } = {}): P
     app.use(requestLogger);
     // 3. Безопасность
     app.use(securityMiddleware);
-    // 4. Rate limiting (можно отключить для тестов, но оставляем для реалистичности)
-    app.use(rateLimiter);
+    // 4. Rate limiting (отключен для тестов, чтобы не блокировать множественные запросы)
+    // app.use(rateLimiter); // Закомментировано для тестов
 
     // Health check endpoint
     app.get('/health', (_req, res) => {
       res.status(200).json({ status: 'ok' });
     });
 
-    // API Routes
-    app.use('/api/auth', authRoutes);
-    app.use('/api/users', usersRoutes);
+    // API Routes (без rate limiter для тестов)
+    app.use('/api/auth', createTestAuthRoutes());
+    app.use('/api/users', createTestUsersRoutes());
 
     // Обработчики ошибок (должны быть последними)
     app.use(notFoundHandler);

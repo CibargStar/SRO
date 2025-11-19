@@ -32,9 +32,10 @@ import { PrismaClient } from '@prisma/client';
 export async function resetDatabase(prisma: PrismaClient): Promise<void> {
   // Используем транзакцию для атомарности
   // Важно: удаляем сначала RefreshToken (из-за foreign key), потом User
+  // ВАЖНО: Используем deleteMany без where для полной очистки всех данных
   await prisma.$transaction([
-    prisma.refreshToken.deleteMany(), // Сначала удаляем refresh токены
-    prisma.user.deleteMany(), // Потом пользователей
+    prisma.refreshToken.deleteMany({}), // Сначала удаляем refresh токены
+    prisma.user.deleteMany({}), // Потом пользователей (включая ROOT)
   ]);
 }
 

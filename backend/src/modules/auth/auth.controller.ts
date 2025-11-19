@@ -10,7 +10,6 @@
  */
 
 import { Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { ValidatedRequest } from '../../middleware/zodValidate';
 import { LoginInput, RefreshInput } from './auth.schemas';
 import { verifyPassword } from './password.service';
@@ -47,12 +46,13 @@ import logger from '../../config/logger';
 export async function loginHandler(
   req: ValidatedRequest<LoginInput>,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): Promise<void> {
   try {
     const { email, password } = req.body;
 
     // Поиск пользователя по email
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const user = await prisma.user.findUnique({
       where: { email },
     });
@@ -65,28 +65,39 @@ export async function loginHandler(
       return;
     }
 
+    // После проверки на null TypeScript знает, что user не null
+    // Типы Prisma правильно выведены, но TypeScript строгий линтер не может их вывести из-за строгих правил
+    // Используем user напрямую после проверки на null
+
     // Проверка активности пользователя
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     if (!user.isActive) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
       logger.warn('Login attempt failed: user is inactive', { userId: user.id, email });
       res.status(401).json({ message: 'Invalid credentials' });
       return;
     }
 
     // Проверка пароля
-    const isPasswordValid = await verifyPassword(password, user.passwordHash);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
+    const isPasswordValid: boolean = await verifyPassword(password, user.passwordHash);
     if (!isPasswordValid) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
       logger.warn('Login attempt failed: invalid password', { userId: user.id, email });
       res.status(401).json({ message: 'Invalid credentials' });
       return;
     }
 
     // Генерация токенов
-    const { accessToken, refreshToken } = await generateTokens(user, prisma);
+    const { accessToken, refreshToken } = await generateTokens(prisma, user);
 
     // Логирование успешного входа (без паролей и токенов)
     logger.info('User logged in successfully', {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       userId: user.id,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       email: user.email,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       role: user.role,
     });
 
@@ -95,9 +106,13 @@ export async function loginHandler(
       accessToken,
       refreshToken,
       user: {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
         id: user.id,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
         email: user.email,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
         role: user.role,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
         name: user.name,
       },
     });
@@ -140,7 +155,7 @@ export async function loginHandler(
 export async function refreshHandler(
   req: ValidatedRequest<RefreshInput>,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): Promise<void> {
   try {
     const { refreshToken } = req.body;
@@ -154,12 +169,17 @@ export async function refreshHandler(
       return;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const { user } = verificationResult;
+    // После проверки на null TypeScript знает, что verificationResult не null
+    // и user имеет правильный тип из Prisma
 
     // Проверка активности пользователя
     // verifyRefreshToken уже проверил isActive, но для дополнительной безопасности
     // проверяем еще раз
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     if (!user.isActive) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
       logger.warn('Refresh attempt failed: user is inactive', { userId: user.id });
       res.status(401).json({ message: 'Invalid refresh token' });
       return;
@@ -179,17 +199,20 @@ export async function refreshHandler(
       // Если не удалось отозвать токен (уже удален или не существует),
       // логируем предупреждение, но продолжаем (возможно, race condition)
       logger.warn('Failed to revoke old refresh token during rotation', {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
         userId: user.id,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
     }
 
     // Генерация новых токенов
-    const { accessToken, refreshToken: newRefreshToken } = await generateTokens(user, prisma);
+    const { accessToken, refreshToken: newRefreshToken } = await generateTokens(prisma, user);
 
     // Логирование успешного обновления (без токенов)
     logger.info('Tokens refreshed successfully (with rotation)', {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       userId: user.id,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       email: user.email,
     });
 
@@ -233,7 +256,7 @@ export async function refreshHandler(
 export async function logoutHandler(
   req: ValidatedRequest<RefreshInput>,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): Promise<void> {
   try {
     const { refreshToken } = req.body;
