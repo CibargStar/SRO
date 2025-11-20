@@ -18,12 +18,21 @@ export const createClientGroupSchema = z.object({
     .trim(),
 
   description: z
-    .string()
-    .min(1, { message: 'Описание не может быть пустым, если указано' })
-    .max(500, { message: 'Описание не должно превышать 500 символов' })
-    .trim()
-    .optional()
-    .nullable(),
+    .preprocess(
+      (val) => {
+        if (typeof val === 'string') {
+          const trimmed = val.trim();
+          return trimmed === '' ? null : trimmed;
+        }
+        return val;
+      },
+      z
+        .union([
+          z.string().min(1, { message: 'Описание не может быть пустым, если указано' }).max(500, { message: 'Описание не должно превышать 500 символов' }),
+          z.null(),
+        ])
+        .optional()
+    ),
 
   color: z
     .string()
@@ -39,6 +48,11 @@ export const createClientGroupSchema = z.object({
     .min(0, { message: 'Порядок сортировки не может быть отрицательным' })
     .optional()
     .nullable(),
+
+  userId: z
+    .string()
+    .uuid({ message: 'Неверный формат ID пользователя' })
+    .optional(), // Опциональный параметр для ROOT (для создания группы от имени другого пользователя)
 });
 
 /**

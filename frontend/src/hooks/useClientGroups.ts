@@ -28,15 +28,17 @@ export const clientGroupsKeys = {
 /**
  * Хук для получения списка групп клиентов
  * 
+ * @param userId - Опциональный ID пользователя для ROOT (для просмотра групп другого пользователя)
  * @example
  * ```typescript
  * const { data: groups, isLoading } = useClientGroups();
+ * const { data: userGroups } = useClientGroups('user-id'); // Для ROOT
  * ```
  */
-export function useClientGroups() {
+export function useClientGroups(userId?: string) {
   return useQuery({
-    queryKey: clientGroupsKeys.list(),
-    queryFn: () => listClientGroups(),
+    queryKey: [...clientGroupsKeys.list(), userId || 'current'],
+    queryFn: () => listClientGroups(userId),
     staleTime: 30 * 1000,
     retry: false,
   });

@@ -135,8 +135,8 @@ model Client {
   middleName String?      // Отчество (опционально)
   regionId   String?      // ID региона (опционально)
   region     Region?      @relation(fields: [regionId], references: [id], onDelete: SetNull)
-  groupId    String?      // ID группы клиентов (опционально)
-  group      ClientGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  groupId    String       // ID группы клиентов (обязательно)
+  group      ClientGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
   status     ClientStatus @default(NEW) // Статус клиента (NEW или OLD)
   createdAt  DateTime     @default(now())
   

@@ -27,7 +27,7 @@ import { styled } from '@mui/material/styles';
 import { updateClientSchema, type UpdateClientFormData } from '@/schemas/client.schema';
 import { useUpdateClient } from '@/hooks/useClients';
 import { useRegions } from '@/hooks/useRegions';
-import { useClientGroups } from '@/hooks/useClientGroups';
+import { ClientGroupSelector } from './ClientGroupSelector';
 import { ClientPhonesList } from './ClientPhonesList';
 import type { Client } from '@/types';
 
@@ -82,7 +82,6 @@ interface EditClientDialogProps {
 export function EditClientDialog({ open, client, onClose }: EditClientDialogProps) {
   const updateMutation = useUpdateClient();
   const { data: regions = [] } = useRegions();
-  const { data: groups = [] } = useClientGroups();
 
   const {
     register,
@@ -205,23 +204,20 @@ export function EditClientDialog({ open, client, onClose }: EditClientDialogProp
               />
             </FormControl>
 
-            <FormControl fullWidth>
-              <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Группа</InputLabel>
-              <Controller
-                name="groupId"
-                control={control}
-                render={({ field }) => (
-                  <StyledSelect {...field} label="Группа" value={field.value || ''}>
-                    <MenuItem value="">Не выбрана</MenuItem>
-                    {groups.map((group) => (
-                      <MenuItem key={group.id} value={group.id}>
-                        {group.name}
-                      </MenuItem>
-                    ))}
-                  </StyledSelect>
-                )}
-              />
-            </FormControl>
+            <Controller
+              name="groupId"
+              control={control}
+              render={({ field, fieldState }) => (
+                <ClientGroupSelector
+                  {...field}
+                  value={field.value || null}
+                  onChange={(val) => field.onChange(val)}
+                  required
+                  error={!!fieldState.error}
+                  helperText={fieldState.error?.message}
+                />
+              )}
+            />
 
             <FormControl fullWidth>
               <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Статус</InputLabel>

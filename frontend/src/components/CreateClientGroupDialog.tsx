@@ -19,6 +19,7 @@ import {
 import { styled } from '@mui/material/styles';
 import { createClientGroupSchema, type CreateClientGroupFormData } from '@/schemas/client-group.schema';
 import { useCreateClientGroup } from '@/hooks/useClientGroups';
+import { useAuthStore } from '@/store';
 
 const StyledTextField = styled(TextField)({
   '& .MuiOutlinedInput-root': {
@@ -55,9 +56,12 @@ const CancelButton = styled(Button)(({ theme }) => ({
 interface CreateClientGroupDialogProps {
   open: boolean;
   onClose: () => void;
+  userId?: string; // Опциональный ID пользователя для ROOT (передается из родительского компонента)
 }
 
-export function CreateClientGroupDialog({ open, onClose }: CreateClientGroupDialogProps) {
+export function CreateClientGroupDialog({ open, onClose, userId: propUserId }: CreateClientGroupDialogProps) {
+  const user = useAuthStore((state) => state.user);
+  const isRoot = user?.role === 'ROOT';
   const createMutation = useCreateClientGroup();
 
   const {
@@ -72,16 +76,23 @@ export function CreateClientGroupDialog({ open, onClose }: CreateClientGroupDial
       description: null,
       color: null,
       orderIndex: null,
+      userId: undefined,
     },
   });
 
   const onSubmit = (data: CreateClientGroupFormData) => {
-    createMutation.mutate(data, {
-      onSuccess: () => {
-        reset();
-        onClose();
+    createMutation.mutate(
+      {
+        ...data,
+        userId: isRoot && propUserId ? propUserId : undefined, // Для ROOT - создание от имени переданного пользователя
       },
-    });
+      {
+        onSuccess: () => {
+          reset();
+          onClose();
+        },
+      }
+    );
   };
 
   const handleClose = () => {

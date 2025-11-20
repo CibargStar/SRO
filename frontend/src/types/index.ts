@@ -175,6 +175,7 @@ export interface ListClientsQuery {
   regionId?: string;
   groupId?: string;
   status?: ClientStatus;
+  userId?: string; // Опциональный параметр для ROOT (для просмотра клиентов другого пользователя)
   sortBy?: 'createdAt' | 'lastName' | 'firstName' | 'regionId' | 'status';
   sortOrder?: 'asc' | 'desc';
 }

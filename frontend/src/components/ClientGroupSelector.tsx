@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { FormControl, InputLabel, Select, MenuItem } from '@mui/material';
+import { FormControl, InputLabel, Select, MenuItem, FormHelperText, Typography } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import { useClientGroups } from '@/hooks/useClientGroups';
 
@@ -24,6 +24,10 @@ interface ClientGroupSelectorProps {
   onChange: (value: string | null) => void;
   label?: string;
   fullWidth?: boolean;
+  required?: boolean;
+  error?: boolean;
+  helperText?: string;
+  userId?: string; // Опциональный ID пользователя для ROOT (для фильтрации групп)
 }
 
 export function ClientGroupSelector({
@@ -31,25 +35,36 @@ export function ClientGroupSelector({
   onChange,
   label = 'Группа',
   fullWidth = true,
+  required = false,
+  error = false,
+  helperText,
+  userId,
 }: ClientGroupSelectorProps) {
-  const { data: groups = [], isLoading } = useClientGroups();
+  const { data: groups = [], isLoading } = useClientGroups(userId);
 
   return (
-    <FormControl fullWidth={fullWidth}>
+    <FormControl fullWidth={fullWidth} required={required} error={error}>
       <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>{label}</InputLabel>
       <StyledSelect
         value={value || ''}
         onChange={(e) => onChange(e.target.value ? (e.target.value as string) : null)}
         label={label}
         disabled={isLoading}
+        required={required}
+        sx={!fullWidth ? { minWidth: 200 } : undefined}
       >
-        <MenuItem value="">Не выбрана</MenuItem>
+        {!required && <MenuItem value="">{fullWidth ? 'Не выбрана' : 'Все'}</MenuItem>}
         {groups.map((group) => (
           <MenuItem key={group.id} value={group.id}>
             {group.name}
           </MenuItem>
         ))}
       </StyledSelect>
+      {helperText && (
+        <Typography variant="caption" sx={{ color: error ? '#f44336' : 'rgba(255, 255, 255, 0.5)', mt: 0.5, ml: 1.75 }}>
+          {helperText}
+        </Typography>
+      )}
     </FormControl>
   );
 }

@@ -44,25 +44,37 @@ export async function createClientGroupHandler(
   _next: NextFunction
 ): Promise<void> {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
+    const currentUser = req.user;
+    if (!currentUser) {
       res.status(401).json({ message: 'Unauthorized' });
       return;
     }
 
-    const { name, description, color, orderIndex } = req.body;
+    const { name, description, color, orderIndex, userId: targetUserId } = req.body;
+
+    // Определение userId для создания группы:
+    // - Если ROOT и передан userId в body - используем его (создание группы от имени другого пользователя)
+    // - Иначе используем ID текущего пользователя (создание своей группы)
+    let groupOwnerId: string;
+    if (currentUser.role === 'ROOT' && targetUserId) {
+      // ROOT может создавать группы от имени любого пользователя
+      groupOwnerId = targetUserId;
+    } else {
+      // Обычный пользователь создает только свои группы
+      groupOwnerId = currentUser.id;
+    }
 
     // Проверка уникальности названия для пользователя
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const existingGroup = await prisma.clientGroup.findFirst({
       where: {
-        userId,
+        userId: groupOwnerId,
         name,
       },
     });
 
     if (existingGroup) {
-      logger.warn('Attempt to create group with existing name', { name, userId });
+      logger.warn('Attempt to create group with existing name', { name, userId: currentUser.id, groupOwnerId });
       res.status(409).json({ message: 'Group with this name already exists' });
       return;
     }
@@ -71,7 +83,7 @@ export async function createClientGroupHandler(
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const newGroup = await prisma.clientGroup.create({
       data: {
-        userId,
+        userId: groupOwnerId,
         name,
         description: description ?? null,
         color: color ?? null,
@@ -89,7 +101,8 @@ export async function createClientGroupHandler(
     logger.info('Client group created successfully', {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       groupId: newGroup.id,
-      userId,
+      requestedBy: currentUser.id,
+      groupOwnerId,
     });
 
     res.status(201).json(newGroup);
@@ -131,22 +144,34 @@ export async function createClientGroupHandler(
  * @param next - Express NextFunction
  */
 export async function listClientGroupsHandler(
-  req: AuthenticatedRequest,
+  req: AuthenticatedRequest & { query: { userId?: string } },
   res: Response,
   _next: NextFunction
 ): Promise<void> {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
+    const currentUser = req.user;
+    if (!currentUser) {
       res.status(401).json({ message: 'Unauthorized' });
       return;
+    }
+
+    // Определение userId для фильтрации:
+    // - Если ROOT и передан userId в query - используем его (просмотр групп другого пользователя)
+    // - Иначе используем ID текущего пользователя (только свои группы)
+    let targetUserId: string;
+    if (currentUser.role === 'ROOT' && req.query.userId) {
+      // ROOT может просматривать группы любого пользователя
+      targetUserId = req.query.userId;
+    } else {
+      // Обычный пользователь видит только свои группы
+      targetUserId = currentUser.id;
     }
 
     // Получение групп пользователя
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const groups = await prisma.clientGroup.findMany({
       where: {
-        userId,
+        userId: targetUserId,
       },
       include: {
         _count: {
@@ -163,7 +188,8 @@ export async function listClientGroupsHandler(
 
     logger.debug('Client groups list retrieved', {
       count: groups.length,
-      userId,
+      requestedBy: currentUser.id,
+      targetUserId,
     });
 
     res.status(200).json(groups);
@@ -197,8 +223,8 @@ export async function getClientGroupHandler(
   _next: NextFunction
 ): Promise<void> {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
+    const currentUser = req.user;
+    if (!currentUser) {
       res.status(401).json({ message: 'Unauthorized' });
       return;
     }
@@ -219,14 +245,14 @@ export async function getClientGroupHandler(
     });
 
     if (!group) {
-      logger.warn('Attempt to get non-existent group', { groupId: id, userId });
+      logger.warn('Attempt to get non-existent group', { groupId: id, userId: currentUser.id });
       res.status(404).json({ message: 'Client group not found' });
       return;
     }
 
-    // Проверка принадлежности группы пользователю
-    if (group.userId !== userId) {
-      logger.warn('Attempt to get group from another user', { groupId: id, userId });
+    // Проверка принадлежности группы пользователю (ROOT может получить группу любого пользователя)
+    if (currentUser.role !== 'ROOT' && group.userId !== currentUser.id) {
+      logger.warn('Attempt to get group from another user', { groupId: id, userId: currentUser.id });
       res.status(403).json({ message: 'Access denied' });
       return;
     }
@@ -264,8 +290,8 @@ export async function updateClientGroupHandler(
   _next: NextFunction
 ): Promise<void> {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
+    const currentUser = req.user;
+    if (!currentUser) {
       res.status(401).json({ message: 'Unauthorized' });
       return;
     }
@@ -285,24 +311,25 @@ export async function updateClientGroupHandler(
     });
 
     if (!existingGroup) {
-      logger.warn('Attempt to update non-existent group', { groupId: id, userId });
+      logger.warn('Attempt to update non-existent group', { groupId: id, userId: currentUser.id });
       res.status(404).json({ message: 'Client group not found' });
       return;
     }
 
-    // Проверка принадлежности группы пользователю
-    if (existingGroup.userId !== userId) {
-      logger.warn('Attempt to update group from another user', { groupId: id, userId });
+    // Проверка принадлежности группы пользователю (ROOT может обновлять группы любого пользователя)
+    if (currentUser.role !== 'ROOT' && existingGroup.userId !== currentUser.id) {
+      logger.warn('Attempt to update group from another user', { groupId: id, userId: currentUser.id });
       res.status(403).json({ message: 'Access denied' });
       return;
     }
 
     // Проверка уникальности нового названия (если изменяется)
+    // Проверяем уникальность для владельца группы (не для текущего пользователя)
     if (updateData.name !== undefined && updateData.name !== existingGroup.name) {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       const nameExists = await prisma.clientGroup.findFirst({
         where: {
-          userId,
+          userId: existingGroup.userId, // Проверяем уникальность для владельца группы
           name: updateData.name,
         },
       });
@@ -311,7 +338,8 @@ export async function updateClientGroupHandler(
         logger.warn('Attempt to update group with existing name', {
           groupId: id,
           name: updateData.name,
-          userId,
+          userId: currentUser.id,
+          groupOwnerId: existingGroup.userId,
         });
         res.status(409).json({ message: 'Group with this name already exists' });
         return;
@@ -351,7 +379,8 @@ export async function updateClientGroupHandler(
     logger.info('Client group updated successfully', {
       groupId: id,
       updatedFields: Object.keys(updateData),
-      userId,
+      requestedBy: currentUser.id,
+      groupOwnerId: existingGroup.userId,
     });
 
     res.status(200).json(updatedGroup);
@@ -414,8 +443,8 @@ export async function deleteClientGroupHandler(
   _next: NextFunction
 ): Promise<void> {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
+    const currentUser = req.user;
+    if (!currentUser) {
       res.status(401).json({ message: 'Unauthorized' });
       return;
     }
@@ -433,21 +462,20 @@ export async function deleteClientGroupHandler(
     });
 
     if (!existingGroup) {
-      logger.warn('Attempt to delete non-existent group', { groupId: id, userId });
+      logger.warn('Attempt to delete non-existent group', { groupId: id, userId: currentUser.id });
       res.status(404).json({ message: 'Client group not found' });
       return;
     }
 
-    // Проверка принадлежности группы пользователю
-    if (existingGroup.userId !== userId) {
-      logger.warn('Attempt to delete group from another user', { groupId: id, userId });
+    // Проверка принадлежности группы пользователю (ROOT может удалять группы любого пользователя)
+    if (currentUser.role !== 'ROOT' && existingGroup.userId !== currentUser.id) {
+      logger.warn('Attempt to delete group from another user', { groupId: id, userId: currentUser.id });
       res.status(403).json({ message: 'Access denied' });
       return;
     }
 
     // Удаление группы
-    // При удалении группы клиенты остаются, но их groupId становится null
-    // (благодаря onDelete: SetNull в схеме Prisma)
+    // При удалении группы клиенты удаляются каскадно (благодаря onDelete: Cascade в схеме Prisma)
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     await prisma.clientGroup.delete({
       where: { id },
@@ -455,7 +483,8 @@ export async function deleteClientGroupHandler(
 
     logger.info('Client group deleted successfully', {
       groupId: id,
-      userId,
+      requestedBy: currentUser.id,
+      groupOwnerId: existingGroup.userId,
     });
 
     res.status(204).send();

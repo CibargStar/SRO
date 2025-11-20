@@ -16,6 +16,7 @@ import { z } from 'zod';
  * @property description - Описание группы (опционально)
  * @property color - HEX цвет или название цвета (опционально)
  * @property orderIndex - Порядок сортировки (опционально)
+ * @property userId - ID пользователя-владельца (опционально, UUID, только для ROOT)
  * 
  * @example
  * ```typescript
@@ -30,12 +31,21 @@ export const createClientGroupSchema = z.object({
     .trim(),
 
   description: z
-    .string()
-    .min(1, { message: 'Description cannot be empty if provided' })
-    .max(500, { message: 'Description must be at most 500 characters long' })
-    .trim()
-    .optional()
-    .nullable(),
+    .preprocess(
+      (val) => {
+        if (typeof val === 'string') {
+          const trimmed = val.trim();
+          return trimmed === '' ? null : trimmed;
+        }
+        return val;
+      },
+      z
+        .union([
+          z.string().min(1, { message: 'Description cannot be empty if provided' }).max(500, { message: 'Description must be at most 500 characters long' }),
+          z.null(),
+        ])
+        .optional()
+    ),
 
   color: z
     .string()
@@ -51,6 +61,11 @@ export const createClientGroupSchema = z.object({
     .min(0, { message: 'Order index must be non-negative' })
     .optional()
     .nullable(),
+
+  userId: z
+    .string()
+    .uuid({ message: 'User ID must be a valid UUID' })
+    .optional(), // Опциональный параметр для ROOT (для создания группы от имени другого пользователя)
 });
 
 /**

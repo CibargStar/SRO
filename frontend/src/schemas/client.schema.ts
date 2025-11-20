@@ -38,12 +38,15 @@ export const createClientSchema = z.object({
     .nullable(),
 
   groupId: z
-    .string()
-    .uuid({ message: 'Неверный формат ID группы' })
-    .optional()
-    .nullable(),
+    .string({ required_error: 'Группа обязательна' })
+    .uuid({ message: 'Неверный формат ID группы' }),
 
   status: z.enum(['NEW', 'OLD']).default('NEW'),
+
+  userId: z
+    .string()
+    .uuid({ message: 'Неверный формат ID пользователя' })
+    .optional(), // Опциональный параметр для ROOT (для создания клиента от имени другого пользователя)
 });
 
 /**
@@ -88,7 +91,7 @@ export const updateClientSchema = z
       .string()
       .uuid({ message: 'Неверный формат ID группы' })
       .optional()
-      .nullable(),
+      .nullable(), // При редактировании можно не менять группу, но если меняем - должна быть валидной
 
     status: z.enum(['NEW', 'OLD']).optional(),
   })

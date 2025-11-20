@@ -44,13 +44,25 @@ export async function createClientHandler(
   _next: NextFunction
 ): Promise<void> {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
+    const currentUser = req.user;
+    if (!currentUser) {
       res.status(401).json({ message: 'Unauthorized' });
       return;
     }
 
-    const { lastName, firstName, middleName, regionId, groupId, status } = req.body;
+    const { lastName, firstName, middleName, regionId, groupId, status, userId: targetUserId } = req.body;
+
+    // Определение userId для создания клиента:
+    // - Если ROOT и передан userId в body - используем его (создание клиента от имени другого пользователя)
+    // - Иначе используем ID текущего пользователя (создание своего клиента)
+    let clientOwnerId: string;
+    if (currentUser.role === 'ROOT' && targetUserId) {
+      // ROOT может создавать клиентов от имени любого пользователя
+      clientOwnerId = targetUserId;
+    } else {
+      // Обычный пользователь создает только своих клиентов
+      clientOwnerId = currentUser.id;
+    }
 
     // Проверка существования региона (если указан)
     if (regionId) {
@@ -60,43 +72,41 @@ export async function createClientHandler(
       });
 
       if (!region) {
-        logger.warn('Attempt to create client with non-existent region', { regionId, userId });
+        logger.warn('Attempt to create client with non-existent region', { regionId, userId: currentUser.id });
         res.status(404).json({ message: 'Region not found' });
         return;
       }
     }
 
-    // Проверка существования группы и принадлежности пользователю (если указана)
-    if (groupId) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-      const group = await prisma.clientGroup.findUnique({
-        where: { id: groupId },
-      });
+    // Проверка существования группы и принадлежности пользователю (обязательно)
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    const group = await prisma.clientGroup.findUnique({
+      where: { id: groupId },
+    });
 
-      if (!group) {
-        logger.warn('Attempt to create client with non-existent group', { groupId, userId });
-        res.status(404).json({ message: 'Client group not found' });
-        return;
-      }
+    if (!group) {
+      logger.warn('Attempt to create client with non-existent group', { groupId, userId: currentUser.id });
+      res.status(404).json({ message: 'Client group not found' });
+      return;
+    }
 
-      // Проверка принадлежности группы пользователю
-      if (group.userId !== userId) {
-        logger.warn('Attempt to create client with group from another user', { groupId, userId });
-        res.status(403).json({ message: 'Client group does not belong to you' });
-        return;
-      }
+    // Проверка принадлежности группы пользователю (ROOT может использовать группы любого пользователя)
+    if (currentUser.role !== 'ROOT' && group.userId !== clientOwnerId) {
+      logger.warn('Attempt to create client with group from another user', { groupId, userId: currentUser.id });
+      res.status(403).json({ message: 'Client group does not belong to you' });
+      return;
     }
 
     // Создание клиента
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const newClient = await prisma.client.create({
       data: {
-        userId,
+        userId: clientOwnerId,
         lastName,
         firstName,
         middleName: middleName ?? null,
         regionId: regionId ?? null,
-        groupId: groupId ?? null,
+        groupId, // Обязательное поле
         status: status ?? 'NEW',
       },
       include: {
@@ -124,7 +134,8 @@ export async function createClientHandler(
     logger.info('Client created successfully', {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       clientId: newClient.id,
-      userId,
+      requestedBy: currentUser.id,
+      clientOwnerId,
     });
 
     res.status(201).json(newClient);
@@ -171,17 +182,29 @@ export async function listClientsHandler(
   _next: NextFunction
 ): Promise<void> {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
+    const currentUser = req.user;
+    if (!currentUser) {
       res.status(401).json({ message: 'Unauthorized' });
       return;
     }
 
-    const { page, limit, search, regionId, groupId, status, sortBy, sortOrder } = req.validatedQuery;
+    const { page, limit, search, regionId, groupId, status, userId: queryUserId, sortBy, sortOrder } = req.validatedQuery;
+
+    // Определение userId для фильтрации:
+    // - Если ROOT и передан userId в query - используем его (просмотр клиентов другого пользователя)
+    // - Иначе используем ID текущего пользователя (только свои клиенты)
+    let targetUserId: string;
+    if (currentUser.role === 'ROOT' && queryUserId) {
+      // ROOT может просматривать клиентов любого пользователя
+      targetUserId = queryUserId;
+    } else {
+      // Обычный пользователь видит только своих клиентов
+      targetUserId = currentUser.id;
+    }
 
     // Построение условий фильтрации
     const where: Record<string, unknown> = {
-      userId, // Только клиенты текущего пользователя
+      userId: targetUserId,
     };
 
     // Фильтр по региону
@@ -257,7 +280,8 @@ export async function listClientsHandler(
       total,
       page,
       limit,
-      userId,
+      requestedBy: currentUser.id,
+      targetUserId,
     });
 
     res.status(200).json({
@@ -301,8 +325,8 @@ export async function getClientHandler(
   _next: NextFunction
 ): Promise<void> {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
+    const currentUser = req.user;
+    if (!currentUser) {
       res.status(401).json({ message: 'Unauthorized' });
       return;
     }
@@ -336,14 +360,14 @@ export async function getClientHandler(
     });
 
     if (!client) {
-      logger.warn('Attempt to get non-existent client', { clientId: id, userId });
+      logger.warn('Attempt to get non-existent client', { clientId: id, userId: currentUser.id });
       res.status(404).json({ message: 'Client not found' });
       return;
     }
 
-    // Проверка принадлежности клиента пользователю
-    if (client.userId !== userId) {
-      logger.warn('Attempt to get client from another user', { clientId: id, userId });
+    // Проверка принадлежности клиента пользователю (ROOT может получить клиента любого пользователя)
+    if (currentUser.role !== 'ROOT' && client.userId !== currentUser.id) {
+      logger.warn('Attempt to get client from another user', { clientId: id, userId: currentUser.id });
       res.status(403).json({ message: 'Access denied' });
       return;
     }
@@ -382,8 +406,8 @@ export async function updateClientHandler(
   _next: NextFunction
 ): Promise<void> {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
+    const currentUser = req.user;
+    if (!currentUser) {
       res.status(401).json({ message: 'Unauthorized' });
       return;
     }
@@ -402,14 +426,14 @@ export async function updateClientHandler(
     });
 
     if (!existingClient) {
-      logger.warn('Attempt to update non-existent client', { clientId: id, userId });
+      logger.warn('Attempt to update non-existent client', { clientId: id, userId: currentUser.id });
       res.status(404).json({ message: 'Client not found' });
       return;
     }
 
-    // Проверка принадлежности клиента пользователю
-    if (existingClient.userId !== userId) {
-      logger.warn('Attempt to update client from another user', { clientId: id, userId });
+    // Проверка принадлежности клиента пользователю (ROOT может обновлять клиентов любого пользователя)
+    if (currentUser.role !== 'ROOT' && existingClient.userId !== currentUser.id) {
+      logger.warn('Attempt to update client from another user', { clientId: id, userId: currentUser.id });
       res.status(403).json({ message: 'Access denied' });
       return;
     }
@@ -513,7 +537,8 @@ export async function updateClientHandler(
     logger.info('Client updated successfully', {
       clientId: id,
       updatedFields: Object.keys(updateData),
-      userId,
+      requestedBy: currentUser.id,
+      clientOwnerId: existingClient.userId,
     });
 
     res.status(200).json(updatedClient);
@@ -572,8 +597,8 @@ export async function deleteClientHandler(
   _next: NextFunction
 ): Promise<void> {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
+    const currentUser = req.user;
+    if (!currentUser) {
       res.status(401).json({ message: 'Unauthorized' });
       return;
     }
@@ -591,14 +616,14 @@ export async function deleteClientHandler(
     });
 
     if (!existingClient) {
-      logger.warn('Attempt to delete non-existent client', { clientId: id, userId });
+      logger.warn('Attempt to delete non-existent client', { clientId: id, userId: currentUser.id });
       res.status(404).json({ message: 'Client not found' });
       return;
     }
 
-    // Проверка принадлежности клиента пользователю
-    if (existingClient.userId !== userId) {
-      logger.warn('Attempt to delete client from another user', { clientId: id, userId });
+    // Проверка принадлежности клиента пользователю (ROOT может удалять клиентов любого пользователя)
+    if (currentUser.role !== 'ROOT' && existingClient.userId !== currentUser.id) {
+      logger.warn('Attempt to delete client from another user', { clientId: id, userId: currentUser.id });
       res.status(403).json({ message: 'Access denied' });
       return;
     }
@@ -611,7 +636,8 @@ export async function deleteClientHandler(
 
     logger.info('Client deleted successfully', {
       clientId: id,
-      userId,
+      requestedBy: currentUser.id,
+      clientOwnerId: existingClient.userId,
     });
 
     res.status(204).send();

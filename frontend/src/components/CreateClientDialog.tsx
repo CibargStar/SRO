@@ -27,8 +27,9 @@ import { styled } from '@mui/material/styles';
 import { createClientSchema, type CreateClientFormData } from '@/schemas/client.schema';
 import { useCreateClient } from '@/hooks/useClients';
 import { useRegions } from '@/hooks/useRegions';
-import { useClientGroups } from '@/hooks/useClientGroups';
 import { useCreateClientPhone } from '@/hooks/useClientPhones';
+import { useAuthStore } from '@/store';
+import { ClientGroupSelector } from './ClientGroupSelector';
 import { ClientPhonesFormField } from './ClientPhonesFormField';
 
 const StyledTextField = styled(TextField)(({ theme }) => ({
@@ -76,6 +77,7 @@ const CancelButton = styled(Button)(({ theme }) => ({
 interface CreateClientDialogProps {
   open: boolean;
   onClose: () => void;
+  userId?: string; // Опциональный ID пользователя для ROOT (передается из родительского компонента)
 }
 
 interface PhoneItem {
@@ -84,11 +86,12 @@ interface PhoneItem {
   isNew?: boolean;
 }
 
-export function CreateClientDialog({ open, onClose }: CreateClientDialogProps) {
+export function CreateClientDialog({ open, onClose, userId: propUserId }: CreateClientDialogProps) {
+  const user = useAuthStore((state) => state.user);
+  const isRoot = user?.role === 'ROOT';
   const createMutation = useCreateClient();
   const createPhoneMutation = useCreateClientPhone();
   const { data: regions = [] } = useRegions();
-  const { data: groups = [] } = useClientGroups();
   const [phones, setPhones] = React.useState<PhoneItem[]>([]);
 
   // Сброс телефонов при закрытии диалога
@@ -117,7 +120,12 @@ export function CreateClientDialog({ open, onClose }: CreateClientDialogProps) {
   });
 
   const onSubmit = (data: CreateClientFormData) => {
-    createMutation.mutate(data, {
+    createMutation.mutate(
+      {
+        ...data,
+        userId: isRoot && propUserId ? propUserId : undefined, // Для ROOT - создание от имени переданного пользователя
+      },
+      {
       onSuccess: async (createdClient) => {
         // Создаем телефоны после создания клиента
         if (phones.length > 0) {
@@ -138,9 +146,9 @@ export function CreateClientDialog({ open, onClose }: CreateClientDialogProps) {
 
   const handleClose = () => {
     if (!createMutation.isPending && !createPhoneMutation.isPending) {
-      reset();
-      setPhones([]);
-      onClose();
+        reset();
+        setPhones([]);
+        onClose();
     }
   };
 
@@ -212,23 +220,21 @@ export function CreateClientDialog({ open, onClose }: CreateClientDialogProps) {
               />
             </FormControl>
 
-            <FormControl fullWidth>
-              <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Группа</InputLabel>
-              <Controller
-                name="groupId"
-                control={control}
-                render={({ field }) => (
-                  <StyledSelect {...field} label="Группа" value={field.value || ''}>
-                    <MenuItem value="">Не выбрана</MenuItem>
-                    {groups.map((group) => (
-                      <MenuItem key={group.id} value={group.id}>
-                        {group.name}
-                      </MenuItem>
-                    ))}
-                  </StyledSelect>
-                )}
-              />
-            </FormControl>
+            <Controller
+              name="groupId"
+              control={control}
+              render={({ field, fieldState }) => (
+                <ClientGroupSelector
+                  {...field}
+                  value={field.value || null}
+                  onChange={(val) => field.onChange(val)}
+                  required
+                  error={!!fieldState.error}
+                  helperText={fieldState.error?.message}
+                  userId={isRoot && propUserId ? propUserId : undefined} // Для ROOT - фильтрация групп по переданному пользователю
+                />
+              )}
+            />
 
             <FormControl fullWidth>
               <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Статус</InputLabel>

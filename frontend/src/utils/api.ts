@@ -467,6 +467,7 @@ export async function listClients(query?: ListClientsQuery): Promise<ClientsList
   if (query?.regionId) queryParams.append('regionId', query.regionId);
   if (query?.groupId) queryParams.append('groupId', query.groupId);
   if (query?.status) queryParams.append('status', query.status);
+  if (query?.userId) queryParams.append('userId', query.userId); // Для ROOT - фильтр по пользователю
   if (query?.sortBy) queryParams.append('sortBy', query.sortBy);
   if (query?.sortOrder) queryParams.append('sortOrder', query.sortOrder);
 
@@ -574,16 +575,26 @@ export async function deleteClient(clientId: string): Promise<void> {
 /**
  * Получение списка групп клиентов
  * 
- * @returns Список групп клиентов текущего пользователя
+ * @param userId - Опциональный ID пользователя для ROOT (для просмотра групп другого пользователя)
+ * @returns Список групп клиентов
  */
-export async function listClientGroups(): Promise<ClientGroup[]> {
+export async function listClientGroups(userId?: string): Promise<ClientGroup[]> {
   const token = useAuthStore.getState().accessToken;
   
   if (!token) {
     throw { message: 'No access token available' } as ApiError;
   }
 
-  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/client-groups`, {
+  // Построение query строки
+  const queryParams = new URLSearchParams();
+  if (userId) {
+    queryParams.append('userId', userId);
+  }
+
+  const queryString = queryParams.toString();
+  const url = `${API_BASE_URL}/client-groups${queryString ? `?${queryString}` : ''}`;
+
+  const response = await fetchWithAutoRefresh(url, {
     method: 'GET',
     headers: createHeaders(token),
   });
@@ -615,7 +626,7 @@ export async function getClientGroup(groupId: string): Promise<ClientGroup> {
 /**
  * Создание группы клиентов
  * 
- * @param groupData - Данные для создания группы
+ * @param groupData - Данные для создания группы (может включать userId для ROOT)
  * @returns Созданная группа
  */
 export async function createClientGroup(groupData: CreateClientGroupInput): Promise<ClientGroup> {

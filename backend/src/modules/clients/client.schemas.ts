@@ -21,8 +21,9 @@ export const ClientStatusEnum = z.enum(['NEW', 'OLD']);
  * @property firstName - Имя клиента (обязательно)
  * @property middleName - Отчество клиента (опционально)
  * @property regionId - ID региона (опционально, UUID)
- * @property groupId - ID группы клиентов (опционально, UUID)
+ * @property groupId - ID группы клиентов (обязательно, UUID)
  * @property status - Статус клиента (NEW или OLD, по умолчанию NEW)
+ * @property userId - ID пользователя-владельца (опционально, UUID, только для ROOT)
  * 
  * @example
  * ```typescript
@@ -57,12 +58,15 @@ export const createClientSchema = z.object({
     .nullable(),
 
   groupId: z
-    .string()
-    .uuid({ message: 'Group ID must be a valid UUID' })
-    .optional()
-    .nullable(),
+    .string({ required_error: 'Group ID is required' })
+    .uuid({ message: 'Group ID must be a valid UUID' }),
 
   status: ClientStatusEnum.default('NEW'),
+
+  userId: z
+    .string()
+    .uuid({ message: 'User ID must be a valid UUID' })
+    .optional(), // Опциональный параметр для ROOT (для создания клиентов от имени другого пользователя)
 });
 
 /**
@@ -151,6 +155,7 @@ export type UpdateClientInput = z.infer<typeof updateClientSchema>;
  * @property regionId - Фильтр по региону (опционально, UUID)
  * @property groupId - Фильтр по группе (опционально, UUID)
  * @property status - Фильтр по статусу (NEW или OLD, опционально)
+ * @property userId - Фильтр по пользователю-владельцу (опционально, UUID, только для ROOT)
  * @property sortBy - Поле для сортировки (по умолчанию createdAt)
  * @property sortOrder - Порядок сортировки (asc или desc, по умолчанию desc)
  * 
@@ -192,6 +197,11 @@ export const listClientsQuerySchema = z.object({
     .optional(),
 
   status: ClientStatusEnum.optional(),
+
+  userId: z
+    .string()
+    .uuid({ message: 'User ID must be a valid UUID' })
+    .optional(), // Опциональный параметр для ROOT (для просмотра клиентов других пользователей)
 
   sortBy: z
     .enum(['createdAt', 'lastName', 'firstName', 'regionId', 'status'], {

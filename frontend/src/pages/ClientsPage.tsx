@@ -43,6 +43,9 @@ import Chip from '@mui/material/Chip';
 import { useClients, useDeleteClient } from '@/hooks/useClients';
 import { useRegions } from '@/hooks/useRegions';
 import { useClientGroups, useDeleteClientGroup } from '@/hooks/useClientGroups';
+import { useUsers } from '@/hooks/useUsers';
+import { useAuthStore } from '@/store';
+import { ClientGroupSelector } from '@/components/ClientGroupSelector';
 import { ClientTable } from '@/components/ClientTable';
 import { CreateClientDialog } from '@/components/CreateClientDialog';
 import { EditClientDialog } from '@/components/EditClientDialog';
@@ -89,6 +92,9 @@ const StyledSelect = styled(Select)({
 });
 
 export function ClientsPage() {
+  const user = useAuthStore((state) => state.user);
+  const isRoot = user?.role === 'ROOT';
+  
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
   const [search, setSearch] = useState('');
@@ -97,6 +103,9 @@ export function ClientsPage() {
   const [status, setStatus] = useState<ClientStatus | undefined>(undefined);
   const [sortBy, setSortBy] = useState<'createdAt' | 'lastName' | 'firstName' | 'regionId' | 'status'>('createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  
+  // Состояние для выбора пользователя (только для ROOT)
+  const [selectedUserId, setSelectedUserId] = useState<string | undefined>(undefined);
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -109,7 +118,11 @@ export function ClientsPage() {
   const [editGroupDialogOpen, setEditGroupDialogOpen] = useState(false);
   const [deleteGroupDialogOpen, setDeleteGroupDialogOpen] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<ClientGroup | null>(null);
+  
+  // Состояние для выбора пользователя в модалке управления группами (только для ROOT)
+  const [groupsDialogSelectedUserId, setGroupsDialogSelectedUserId] = useState<string | undefined>(undefined);
 
+  const { data: users = [] } = useUsers(); // Для ROOT - список пользователей для переключения
   const { data: clientsData, isLoading, error } = useClients({
     page,
     limit,
@@ -117,12 +130,15 @@ export function ClientsPage() {
     regionId,
     groupId,
     status,
+    userId: isRoot && selectedUserId ? selectedUserId : undefined, // Для ROOT - фильтр по выбранному пользователю
     sortBy,
     sortOrder,
   });
 
   const { data: regions = [] } = useRegions();
   const { data: groups = [] } = useClientGroups();
+  // Для модалки управления группами: если выбран пользователь, получаем его группы
+  const { data: groupsInDialog = [] } = useClientGroups(isRoot && groupsDialogSelectedUserId ? groupsDialogSelectedUserId : undefined);
   const deleteMutation = useDeleteClient();
   const deleteGroupMutation = useDeleteClientGroup();
 
@@ -207,6 +223,31 @@ export function ClientsPage() {
         </Box>
       </Box>
 
+      {/* Селектор пользователя для ROOT */}
+      {isRoot && (
+        <Box sx={{ mb: 3 }}>
+          <FormControl sx={{ minWidth: 250 }}>
+            <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>База пользователя</InputLabel>
+            <StyledSelect
+              value={selectedUserId || ''}
+              onChange={(e) => {
+                setSelectedUserId(e.target.value || undefined);
+                setPage(1); // Сбрасываем на первую страницу при смене пользователя
+                setGroupId(undefined); // Сбрасываем фильтр группы при смене пользователя
+              }}
+              label="База пользователя"
+            >
+              <MenuItem value="">Все пользователи</MenuItem>
+              {users.map((u) => (
+                <MenuItem key={u.id} value={u.id}>
+                  {u.name || u.email} {u.role === 'ROOT' ? '(ROOT)' : ''}
+                </MenuItem>
+              ))}
+            </StyledSelect>
+          </FormControl>
+        </Box>
+      )}
+
       {/* Фильтры и поиск */}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
         <StyledTextField
@@ -242,24 +283,16 @@ export function ClientsPage() {
             </StyledSelect>
           </FormControl>
 
-          <FormControl sx={{ minWidth: 200 }}>
-            <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Группа</InputLabel>
-            <StyledSelect
-              value={groupId || ''}
-              onChange={(e) => {
-                setGroupId(e.target.value || undefined);
-                setPage(1);
-              }}
-              label="Группа"
-            >
-              <MenuItem value="">Все</MenuItem>
-              {groups.map((group) => (
-                <MenuItem key={group.id} value={group.id}>
-                  {group.name}
-                </MenuItem>
-              ))}
-            </StyledSelect>
-          </FormControl>
+          <ClientGroupSelector
+            value={groupId || null}
+            onChange={(val) => {
+              setGroupId(val || undefined);
+              setPage(1);
+            }}
+            label="Группа"
+            fullWidth={false}
+            userId={isRoot && selectedUserId ? selectedUserId : undefined}
+          />
 
           <FormControl sx={{ minWidth: 150 }}>
             <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Статус</InputLabel>
@@ -357,20 +390,27 @@ export function ClientsPage() {
         </Alert>
       )}
 
-      <CreateClientDialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} />
+      <CreateClientDialog
+        open={createDialogOpen}
+        onClose={() => setCreateDialogOpen(false)}
+        userId={isRoot && selectedUserId ? selectedUserId : undefined} // Для ROOT - передаем выбранного пользователя
+      />
       <EditClientDialog open={editDialogOpen} client={selectedClient} onClose={handleCloseEditDialog} />
 
       {/* Диалог управления группами */}
       <Dialog
         open={groupsDialogOpen}
-        onClose={() => setGroupsDialogOpen(false)}
+        onClose={() => {
+          setGroupsDialogOpen(false);
+          setGroupsDialogSelectedUserId(undefined); // Сбрасываем выбор пользователя при закрытии
+        }}
         maxWidth="md"
         fullWidth
         disableEnforceFocus
         PaperProps={{ sx: { backgroundColor: '#212121', borderRadius: '12px' } }}
       >
         <Box sx={{ px: 3, pt: 3, pb: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: isRoot ? 2 : 0 }}>
             <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
               Управление группами клиентов
             </Typography>
@@ -378,15 +418,36 @@ export function ClientsPage() {
               Создать группу
             </StyledButton>
           </Box>
+          
+          {/* Селектор пользователя для ROOT в модалке управления группами */}
+          {isRoot && (
+            <FormControl sx={{ minWidth: 250 }}>
+              <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>База пользователя</InputLabel>
+              <StyledSelect
+                value={groupsDialogSelectedUserId || ''}
+                onChange={(e) => {
+                  setGroupsDialogSelectedUserId(e.target.value || undefined);
+                }}
+                label="База пользователя"
+              >
+                <MenuItem value="">Текущий пользователь</MenuItem>
+                {users.map((u) => (
+                  <MenuItem key={u.id} value={u.id}>
+                    {u.name || u.email} {u.role === 'ROOT' ? '(ROOT)' : ''}
+                  </MenuItem>
+                ))}
+              </StyledSelect>
+            </FormControl>
+          )}
         </Box>
         <DialogContent sx={{ px: 3, pt: 3 }}>
-          {groups.length === 0 ? (
+          {groupsInDialog.length === 0 ? (
             <Alert severity="info" sx={{ borderRadius: '12px', backgroundColor: 'rgba(33, 150, 243, 0.1)', color: '#ffffff', border: 'none' }}>
               Группы не найдены. Создайте первую группу.
             </Alert>
           ) : (
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 2 }}>
-              {groups.map((group) => (
+              {groupsInDialog.map((group) => (
                 <Card
                   key={group.id}
                   sx={{
@@ -464,7 +525,14 @@ export function ClientsPage() {
         </DialogActions>
       </Dialog>
 
-      <CreateClientGroupDialog open={createGroupDialogOpen} onClose={() => setCreateGroupDialogOpen(false)} />
+      <CreateClientGroupDialog
+        open={createGroupDialogOpen}
+        onClose={() => {
+          setCreateGroupDialogOpen(false);
+          // Инвалидируем кэш групп для обновления списка в модалке
+        }}
+        userId={isRoot && groupsDialogSelectedUserId ? groupsDialogSelectedUserId : undefined} // Для ROOT - передаем выбранного пользователя из модалки
+      />
       <EditClientGroupDialog open={editGroupDialogOpen} group={selectedGroup} onClose={handleCloseEditGroupDialog} />
 
       {/* Диалог подтверждения удаления группы */}
@@ -478,7 +546,7 @@ export function ClientsPage() {
         <DialogContent>
           <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
             Вы уверены, что хотите удалить группу "{selectedGroup?.name}"?
-            Клиенты из этой группы останутся, но их группа будет сброшена.
+            Все клиенты из этой группы ({selectedGroup?._count?.clients || 0} клиентов) и их телефоны будут безвозвратно удалены.
             Это действие нельзя отменить.
           </Typography>
         </DialogContent>
