@@ -59,18 +59,47 @@ cd backend
 npx prisma migrate dev
 ```
 
+### Frontend
+
+1. Создайте файл `.env` в папке `frontend/` (опционально):
+```bash
+cd frontend
+```
+
+2. Заполните переменные окружения (если нужно изменить настройки по умолчанию):
+
+**Опциональные переменные:**
+- `VITE_API_URL` - URL backend API (по умолчанию: `http://localhost:3000`)
+
+**Примечание:** Frontend использует переменные окружения с префиксом `VITE_` для Vite bundler.
+
 ## Запуск
 
 ### Development
+
+**Запуск Backend:**
 ```bash
-# Backend
 cd backend
 npm run dev
+```
+Backend запустится на `http://localhost:3000`
 
-# Frontend
+**Запуск Frontend:**
+```bash
 cd frontend
 npm run dev
 ```
+Frontend запустится на `http://localhost:5173` (по умолчанию)
+
+**Frontend маршруты:**
+- `/login` - Страница входа (публичная, редиректит на `/` если уже авторизован)
+- `/` - Главная страница (требует авторизации)
+- `/admin/users` - Управление пользователями (только для ROOT)
+
+**Примечание:** Frontend автоматически обрабатывает авторизацию:
+- При 401 ошибке - очищает auth store и редиректит на `/login`
+- При наличии токенов - автоматически загружает данные пользователя
+- Блокирует доступ к защищенным страницам без авторизации
 
 ### API Документация (Swagger)
 
@@ -121,7 +150,8 @@ docker-compose build --no-cache
 - **ROOT** - администратор системы (создается из env переменных при первом запуске)
 - **USER** - обычный пользователь (создается только ROOT'ом)
 
-**Особенности:**
+### Backend особенности:
+
 - JWT токены (Access + Refresh)
 - Access токен в Authorization header (`Authorization: Bearer <token>`)
 - Refresh токен в теле запроса (body)
@@ -130,6 +160,20 @@ docker-compose build --no-cache
 - Хеширование паролей через argon2id
 - Инвалидация токенов при смене пароля (passwordVersion)
 - Защита от создания/обновления ROOT через API
+
+### Frontend особенности:
+
+- **API Client:** React Query + fetch для HTTP запросов
+- **State Management:** Zustand для хранения токенов и пользователя (с persist в localStorage)
+- **Route Protection:** React Router 7 с компонентами `ProtectedRoute`, `RootRoute`, `PublicRoute`
+- **Auto-login:** Автоматическая загрузка данных пользователя при наличии токенов
+- **Auto-logout:** Автоматическая очистка auth store и редирект на `/login` при 401 ошибке
+- **Security:**
+  - Токены хранятся в localStorage (с пониманием рисков XSS, см. `frontend/src/store/authStore.ts`)
+  - accessToken всегда отправляется в `Authorization: Bearer <token>` header
+  - При 401 ошибке - очищает auth store и редиректит на `/login`
+  - Не показывает технические детали ошибок пользователю
+  - Блокирует попытки редактирования ROOT пользователей
 
 **API Endpoints:**
 - `POST /api/auth/login` - вход в систему
@@ -140,5 +184,10 @@ docker-compose build --no-cache
 - `POST /api/users` - создание пользователя (только ROOT)
 - `PATCH /api/users/:id` - обновление пользователя (только ROOT)
 
-Подробнее см. `backend/ARCHITECTURE.md` и `backend/SECURITY.md`.
+**Frontend маршруты:**
+- `/login` - Страница входа (публичная)
+- `/` - Главная страница (требует авторизации)
+- `/admin/users` - Управление пользователями (только ROOT)
+
+Подробнее см. `backend/ARCHITECTURE.md`, `backend/SECURITY.md` и `stack&rule.md`.
 

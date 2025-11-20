@@ -6,6 +6,7 @@
  * - corsMiddleware: CORS для взаимодействия с frontend
  * - rateLimiter: глобальное ограничение количества запросов
  * - authRateLimiter: строгое ограничение для /auth/login
+ * - refreshRateLimiter: ограничение для /auth/refresh
  * - requestLogger: логирование HTTP запросов
  * - errorHandler: глобальный обработчик ошибок
  * - notFoundHandler: обработчик 404 ошибок
@@ -16,7 +17,7 @@
  * - requireRoot: проверка прав доступа ROOT
  */
 
-export { securityMiddleware, corsMiddleware, rateLimiter, authRateLimiter } from './security';
+export { securityMiddleware, corsMiddleware, rateLimiter, authRateLimiter, refreshRateLimiter } from './security';
 export { requestLogger } from './logger';
 export { errorHandler, type AppError } from './errorHandler';
 export { notFoundHandler } from './notFound';

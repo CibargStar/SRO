@@ -160,6 +160,38 @@ export const authRateLimiter = rateLimit({
 });
 
 /**
+ * Rate limiter для /auth/refresh - защита от brute force на refresh токены
+ * 
+ * Настройки:
+ * - windowMs: 1 минута (60000 мс)
+ * - max: 10 запросов за окно времени
+ * - message: сообщение об ошибке
+ * 
+ * Безопасность:
+ * - Строгий лимит для защиты от brute force атак на refresh токены
+ * - Применяется только к маршруту /auth/refresh
+ * - Блокирует IP после превышения лимита
+ * - Более строгий, чем глобальный лимит, но менее строгий, чем для login
+ * 
+ * @example
+ * ```typescript
+ * router.post('/auth/refresh', refreshRateLimiter, refreshHandler);
+ * ```
+ */
+export const refreshRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // limit each IP to 10 refresh attempts per minute
+  message: {
+    error: 'Too many refresh attempts from this IP, please try again later.',
+    retryAfter: '1 minute',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: false, // Считаем все запросы (и успешные, и неудачные)
+  skipFailedRequests: false, // Считаем неудачные попытки
+});
+
+/**
  * Типичные ошибки безопасности при настройке middleware:
  * 
  * 1. ❌ CORS с origin: '*' и credentials: true
@@ -197,5 +229,8 @@ export const authRateLimiter = rateLimit({
  * 
  * 12. ❌ Отсутствие обработки preflight запросов
  *     ✅ Настроить maxAge для OPTIONS запросов
+ * 
+ * 13. ❌ Отсутствие rate limiting для /auth/refresh
+ *     ✅ Использовать отдельный rate limiter для refresh endpoint (10 запросов/минуту)
  */
 

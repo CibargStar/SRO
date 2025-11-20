@@ -32,6 +32,15 @@ const swaggerOptions: swaggerJsdoc.Options = {
         ## Авторизация:
         Используйте Bearer токен в заголовке Authorization для доступа к защищенным эндпоинтам.
         Получите токен через POST /api/auth/login.
+        
+        **Frontend интеграция:**
+        - Frontend отправляет accessToken в заголовке \`Authorization: Bearer <token>\`
+        - Refresh токен хранится в localStorage (с пониманием рисков XSS)
+        - При любом 401 ошибке frontend автоматически очищает auth store и редиректит на /login
+        - Frontend не показывает технические детали ошибок пользователю
+        - Frontend блокирует попытки редактирования ROOT пользователей
+        
+        Подробнее о frontend архитектуре см. README.md и ARCHITECTURE.md.
       `,
       contact: {
         name: 'API Support',

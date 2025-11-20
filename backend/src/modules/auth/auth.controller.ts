@@ -11,14 +11,16 @@
 
 import { Response, NextFunction } from 'express';
 import { ValidatedRequest } from '../../middleware/zodValidate';
+import { AuthenticatedRequest } from '../../middleware/auth';
 import { LoginInput, RefreshInput } from './auth.schemas';
 import { verifyPassword } from './password.service';
 import {
   generateTokens,
   verifyRefreshToken,
   revokeRefreshToken,
+  revokeAllUserTokens,
 } from './token.service';
-import { prisma } from '../../config';
+import { prisma, env } from '../../config';
 import logger from '../../config/logger';
 
 /**
@@ -101,10 +103,25 @@ export async function loginHandler(
       role: user.role,
     });
 
+    // Вычисляем время истечения токенов (в секундах)
+    const parseTimeToSeconds = (timeStr: string): number => {
+      const match = timeStr.match(/^(\d+)([smhd])$/);
+      if (!match) return 0;
+      const [, number, unit] = match;
+      const num = parseInt(number, 10);
+      const multipliers: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
+      return num * (multipliers[unit] || 1);
+    };
+
+    const accessExpiresIn = parseTimeToSeconds(env.JWT_ACCESS_EXPIRES_IN);
+    const refreshExpiresIn = parseTimeToSeconds(env.JWT_REFRESH_EXPIRES_IN);
+
     // Возврат токенов и данных пользователя (без чувствительных полей)
     res.status(200).json({
       accessToken,
       refreshToken,
+      expiresIn: accessExpiresIn, // Время жизни access token в секундах
+      refreshExpiresIn, // Время жизни refresh token в секундах
       user: {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
         id: user.id,
@@ -158,6 +175,32 @@ export async function refreshHandler(
   _next: NextFunction
 ): Promise<void> {
   try {
+    // Проверка origin для дополнительной защиты от использования украденных токенов
+    const origin = req.headers.origin || req.headers.referer;
+    const frontendUrl = new URL(env.FRONTEND_URL);
+    const allowedOrigin = frontendUrl.origin;
+
+    if (origin) {
+      try {
+        const requestOrigin = new URL(origin).origin;
+        if (requestOrigin !== allowedOrigin) {
+          // Используем централизованное логирование безопасности
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { logInvalidOrigin } = require('../../utils/securityLogger');
+          logInvalidOrigin(requestOrigin, allowedOrigin, {
+            ip: req.ip,
+            userAgent: req.headers['user-agent'],
+          });
+          res.status(401).json({ message: 'Invalid refresh token' });
+          return;
+        }
+      } catch {
+        // Если origin невалидный URL, продолжаем (может быть отсутствует в некоторых случаях)
+        // Но логируем для мониторинга
+        logger.debug('Invalid origin format in refresh request', { origin });
+      }
+    }
+
     const { refreshToken } = req.body;
 
     // Верификация refresh токена
@@ -208,6 +251,19 @@ export async function refreshHandler(
     // Генерация новых токенов
     const { accessToken, refreshToken: newRefreshToken } = await generateTokens(prisma, user);
 
+    // Вычисляем время истечения токенов (в секундах)
+    const parseTimeToSeconds = (timeStr: string): number => {
+      const match = timeStr.match(/^(\d+)([smhd])$/);
+      if (!match) return 0;
+      const [, number, unit] = match;
+      const num = parseInt(number, 10);
+      const multipliers: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
+      return num * (multipliers[unit] || 1);
+    };
+
+    const accessExpiresIn = parseTimeToSeconds(env.JWT_ACCESS_EXPIRES_IN);
+    const refreshExpiresIn = parseTimeToSeconds(env.JWT_REFRESH_EXPIRES_IN);
+
     // Логирование успешного обновления (без токенов)
     logger.info('Tokens refreshed successfully (with rotation)', {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
@@ -220,6 +276,8 @@ export async function refreshHandler(
     res.status(200).json({
       accessToken,
       refreshToken: newRefreshToken,
+      expiresIn: accessExpiresIn, // Время жизни access token в секундах
+      refreshExpiresIn, // Время жизни refresh token в секундах
     });
   } catch (error) {
     // Обработка неожиданных ошибок
@@ -278,6 +336,78 @@ export async function logoutHandler(
     });
 
     // Всегда возвращаем успешный ответ
+    res.status(204).send();
+  }
+}
+
+/**
+ * Обработчик отзыва всех токенов пользователя
+ * 
+ * POST /auth/revoke-all
+ * 
+ * Логика:
+ * 1. Проверяет авторизацию (требуется access token)
+ * 2. Отзывает все refresh токены текущего пользователя
+ * 3. ROOT может отозвать токены другого пользователя, указав userId в body
+ * 
+ * Безопасность:
+ * - Только авторизованные пользователи могут отозвать свои токены
+ * - ROOT может отозвать токены любого пользователя
+ * - Всегда возвращает успешный ответ (204)
+ * - Логирует действие для аудита
+ * 
+ * @param req - Express Request (должен быть AuthenticatedRequest после authMiddleware)
+ * @param res - Express Response
+ * @param next - Express NextFunction
+ */
+export async function revokeAllHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  _next: NextFunction
+): Promise<void> {
+  try {
+    const authenticatedReq = req as AuthenticatedRequest;
+    const currentUser = authenticatedReq.user;
+
+    if (!currentUser) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    // ROOT может отозвать токены другого пользователя, указав userId
+    // Обычные пользователи могут отозвать только свои токены
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+    const targetUserId = (req.body as { userId?: string })?.userId;
+    
+    let userIdToRevoke: string;
+    
+    if (targetUserId && currentUser.role === 'ROOT') {
+      // ROOT отзывает токены другого пользователя
+      userIdToRevoke = targetUserId;
+      logger.info('ROOT revoking all tokens for another user', {
+        rootUserId: currentUser.id,
+        targetUserId: userIdToRevoke,
+      });
+    } else {
+      // Пользователь отзывает свои токены
+      userIdToRevoke = currentUser.id;
+      logger.info('User revoking all their tokens', {
+        userId: userIdToRevoke,
+      });
+    }
+
+    // Отзываем все токены
+    await revokeAllUserTokens(prisma, userIdToRevoke);
+
+    // Возвращаем успешный ответ
+    res.status(204).send();
+  } catch (error) {
+    // Обработка неожиданных ошибок
+    logger.error('Unexpected error during revoke all', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+
+    // Всегда возвращаем успешный ответ (безопасность)
     res.status(204).send();
   }
 }

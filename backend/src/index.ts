@@ -15,6 +15,7 @@ import swaggerUi from 'swagger-ui-express';
 import { env, logger, prisma } from './config';
 import { swaggerSpec } from './config/swagger';
 import { ensureRootUser } from './modules/auth';
+import { cleanupExpiredTokens } from './modules/auth/token.service';
 import {
   securityMiddleware,
   corsMiddleware,
@@ -71,6 +72,33 @@ app.use(errorHandler); // Глобальный обработчик ошибок
  * 
  * Если инициализация не удалась - приложение не стартует.
  */
+/**
+ * Настройка периодической очистки истекших токенов
+ * 
+ * Запускает очистку каждые 24 часа для поддержания БД в чистом состоянии.
+ */
+function setupTokenCleanup(): void {
+  // Очистка при старте
+  cleanupExpiredTokens(prisma).catch((error) => {
+    logger.error('Failed to cleanup expired tokens on startup', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  });
+
+  // Периодическая очистка каждые 24 часа
+  const cleanupInterval = 24 * 60 * 60 * 1000; // 24 часа в миллисекундах
+  
+  setInterval(() => {
+    cleanupExpiredTokens(prisma).catch((error) => {
+      logger.error('Failed to cleanup expired tokens', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    });
+  }, cleanupInterval);
+
+  logger.info('Token cleanup scheduled (every 24 hours)');
+}
+
 async function bootstrap(): Promise<void> {
   try {
     // ВАЖНО: Инициализация root-пользователя ДО старта сервера
@@ -78,6 +106,10 @@ async function bootstrap(): Promise<void> {
     logger.info('Initializing root user...');
     await ensureRootUser(prisma, env, logger);
     logger.info('Root user initialization completed');
+
+    // Очистка истекших токенов при старте и настройка периодической очистки
+    logger.info('Setting up token cleanup...');
+    setupTokenCleanup();
 
     // Запуск HTTP сервера только после успешной инициализации
     const server = app.listen(env.PORT, () => {

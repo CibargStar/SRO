@@ -8,6 +8,7 @@
  */
 
 import jwt from 'jsonwebtoken';
+import { timingSafeEqual } from 'crypto';
 // Prisma генерирует типы, которые ESLint не видит, но TypeScript видит
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - TypeScript видит типы, но ESLint нет
@@ -68,6 +69,42 @@ export interface JwtPayloadWithUserData {
   type: 'access';
   iat: number;
   exp: number;
+}
+
+/**
+ * Constant-time сравнение строк для защиты от timing attacks
+ * 
+ * Использует crypto.timingSafeEqual для безопасного сравнения токенов.
+ * Важно: обе строки должны быть одинаковой длины (Buffer).
+ * 
+ * @param a - Первая строка
+ * @param b - Вторая строка
+ * @returns true если строки равны, false иначе
+ * 
+ * @example
+ * ```typescript
+ * if (constantTimeCompare(token1, token2)) {
+ *   // Токены совпадают
+ * }
+ * ```
+ */
+function constantTimeCompare(a: string, b: string): boolean {
+  try {
+    // timingSafeEqual требует Buffer одинаковой длины
+    const aBuffer = Buffer.from(a, 'utf8');
+    const bBuffer = Buffer.from(b, 'utf8');
+    
+    // Если длины разные, токены точно не совпадают
+    if (aBuffer.length !== bBuffer.length) {
+      return false;
+    }
+    
+    // Constant-time сравнение
+    return timingSafeEqual(aBuffer, bBuffer);
+  } catch {
+    // В случае ошибки возвращаем false (безопасный вариант)
+    return false;
+  }
 }
 
 /**
@@ -311,10 +348,11 @@ export async function verifyRefreshToken(
       return null;
     }
 
-    // Проверяем наличие записи в БД
+    // Проверяем наличие записи в БД по tokenId (более безопасно, чем по токену)
+    // Используем tokenId из payload для поиска, затем проверяем токен с constant-time сравнением
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const refreshTokenRecord = await prisma.refreshToken.findUnique({
-      where: { token },
+      where: { id: decoded.tokenId },
       include: { user: true },
     });
 
@@ -322,11 +360,45 @@ export async function verifyRefreshToken(
       // DETECTION ПОВТОРНОГО ИСПОЛЬЗОВАНИЯ: Если токен не найден в БД,
       // но JWT валиден, это может означать попытку повторного использования
       // уже отозванного токена (подозрение на компрометацию)
-      // Логируем это событие для мониторинга
-      logger.warn('Attempt to use revoked or non-existent refresh token', {
+      // 
+      // КРИТИЧЕСКАЯ УГРОЗА: Это может быть попытка использования украденного токена
+      // после того, как пользователь уже отозвал его (например, после logout).
+      // 
+      // Действия:
+      // 1. Логируем как критическое событие безопасности через централизованный сервис
+      // 2. Отзываем ВСЕ токены пользователя для безопасности
+      // 3. В будущем можно добавить блокировку пользователя при множественных попытках
+      
+      // Используем централизованное логирование безопасности
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { logRevokedTokenUse } = require('../../utils/securityLogger');
+      logRevokedTokenUse(decoded.sub, decoded.tokenId);
+
+      // Отзываем все токены пользователя для безопасности
+      // Это предотвращает использование любых других скомпрометированных токенов
+      try {
+        await revokeAllUserTokens(prisma, decoded.sub);
+        logger.warn('All user tokens revoked due to suspicious activity', {
+          userId: decoded.sub,
+        });
+      } catch (revokeError) {
+        logger.error('Failed to revoke all user tokens after security alert', {
+          userId: decoded.sub,
+          error: revokeError instanceof Error ? revokeError.message : 'Unknown error',
+        });
+      }
+
+      return null;
+    }
+
+    // Дополнительная проверка токена с constant-time сравнением для защиты от timing attacks
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+    const storedToken = refreshTokenRecord.token;
+    if (!constantTimeCompare(token, storedToken)) {
+      // Токены не совпадают - возможна попытка использования поддельного токена
+      logger.warn('Token mismatch detected (possible token tampering)', {
         userId: decoded.sub,
         tokenId: decoded.tokenId,
-        // Не логируем сам токен, только факт попытки
       });
       return null;
     }
@@ -391,6 +463,9 @@ export async function verifyRefreshToken(
 /**
  * Отзывает (удаляет) Refresh токен
  * 
+ * Использует tokenId из payload JWT для безопасного удаления (защита от timing attacks).
+ * Если декодирование не удалось, использует fallback на прямое сравнение токена.
+ * 
  * @param prisma - Экземпляр Prisma Client
  * @param token - JWT Refresh токен для отзыва
  * 
@@ -400,23 +475,50 @@ export async function verifyRefreshToken(
  * ```
  * 
  * Безопасность:
+ * - Использует tokenId из payload для безопасного удаления (защита от timing attacks)
  * - Удаляет токен из БД (больше нельзя использовать)
  * - Не логирует токен
  * - Идемпотентна (безопасно вызывать многократно)
  */
 export async function revokeRefreshToken(prisma: PrismaClient, token: string): Promise<void> {
   try {
-    // Пытаемся найти и удалить токен
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-    const deleted = await prisma.refreshToken.deleteMany({
-      where: { token },
-    });
+    let deletedCount = 0;
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    if (deleted.count > 0) {
-      logger.debug('Refresh token revoked', {
+    // Пытаемся декодировать токен для получения tokenId (более безопасный способ)
+    try {
+      const decoded = jwt.decode(token) as RefreshTokenPayload | null;
+      
+      if (decoded && decoded.tokenId) {
+        // Удаляем по tokenId (более безопасно и быстрее)
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+        const deleted = await prisma.refreshToken.deleteMany({
+          where: { id: decoded.tokenId },
+        });
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-        count: deleted.count,
+        deletedCount = deleted.count;
+      } else {
+        // Если не удалось декодировать, используем fallback на прямое сравнение
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+        const deleted = await prisma.refreshToken.deleteMany({
+          where: { token },
+        });
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+        deletedCount = deleted.count;
+      }
+    } catch {
+      // Если декодирование не удалось, используем fallback на прямое сравнение
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+      const deleted = await prisma.refreshToken.deleteMany({
+        where: { token },
+      });
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+      deletedCount = deleted.count;
+    }
+
+    if (deletedCount > 0) {
+      logger.debug('Refresh token revoked', {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        count: deletedCount,
       });
     } else {
       // Токен уже был удален или не существует - это нормально (идемпотентность)
@@ -452,6 +554,103 @@ export function isPasswordVersionValid(
   userPasswordVersion: number
 ): boolean {
   return tokenPayload.passwordVersion === userPasswordVersion;
+}
+
+/**
+ * Очищает истекшие refresh токены из базы данных
+ * 
+ * Удаляет все refresh токены, у которых expiresAt < текущего времени.
+ * Используется для периодической очистки БД от неиспользуемых токенов.
+ * 
+ * @param prisma - Экземпляр Prisma Client
+ * @returns Количество удаленных токенов
+ * 
+ * @example
+ * ```typescript
+ * const deletedCount = await cleanupExpiredTokens(prisma);
+ * logger.info(`Cleaned up ${deletedCount} expired tokens`);
+ * ```
+ */
+export async function cleanupExpiredTokens(prisma: PrismaClient): Promise<number> {
+  try {
+    const now = new Date();
+    
+    // Удаляем все токены с expiresAt < now
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    const result = await prisma.refreshToken.deleteMany({
+      where: {
+        expiresAt: {
+          lt: now, // less than now
+        },
+      },
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+    const deletedCount = result.count;
+
+    if (deletedCount > 0) {
+      logger.info('Expired refresh tokens cleaned up', {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        count: deletedCount,
+      });
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return deletedCount;
+  } catch (error) {
+    logger.error('Failed to cleanup expired tokens', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    return 0;
+  }
+}
+
+/**
+ * Отзывает все refresh токены пользователя
+ * 
+ * Удаляет все refresh токены для указанного пользователя.
+ * Используется при подозрении на компрометацию или при принудительном logout всех устройств.
+ * 
+ * @param prisma - Экземпляр Prisma Client
+ * @param userId - ID пользователя, токены которого нужно отозвать
+ * @returns Количество удаленных токенов
+ * 
+ * @example
+ * ```typescript
+ * const deletedCount = await revokeAllUserTokens(prisma, userId);
+ * logger.info(`Revoked ${deletedCount} tokens for user ${userId}`);
+ * ```
+ */
+export async function revokeAllUserTokens(prisma: PrismaClient, userId: string): Promise<number> {
+  try {
+    // Удаляем все токены пользователя
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    const result = await prisma.refreshToken.deleteMany({
+      where: {
+        userId,
+      },
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+    const deletedCount = result.count;
+
+    if (deletedCount > 0) {
+      logger.info('All user refresh tokens revoked', {
+        userId,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        count: deletedCount,
+      });
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return deletedCount;
+  } catch (error) {
+    logger.error('Failed to revoke all user tokens', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      userId,
+    });
+    return 0;
+  }
 }
 
 /**

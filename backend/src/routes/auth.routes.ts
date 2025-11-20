@@ -10,9 +10,9 @@
  */
 
 import { Router } from 'express';
-import { authRateLimiter, validateBody } from '../middleware';
+import { authRateLimiter, refreshRateLimiter, validateBody, authMiddleware, requireAuth } from '../middleware';
 import { loginSchema, refreshSchema } from '../modules/auth/auth.schemas';
-import { loginHandler, refreshHandler, logoutHandler } from '../modules/auth/auth.controller';
+import { loginHandler, refreshHandler, logoutHandler, revokeAllHandler } from '../modules/auth/auth.controller';
 
 const router = Router();
 
@@ -137,7 +137,7 @@ router.post('/login', authRateLimiter, validateBody(loginSchema), loginHandler);
  *             example:
  *               message: Invalid refresh token
  */
-router.post('/refresh', validateBody(refreshSchema), refreshHandler);
+router.post('/refresh', refreshRateLimiter, validateBody(refreshSchema), refreshHandler);
 
 /**
  * @swagger
@@ -169,6 +169,45 @@ router.post('/refresh', validateBody(refreshSchema), refreshHandler);
  *               $ref: '#/components/schemas/ValidationError'
  */
 router.post('/logout', validateBody(refreshSchema), logoutHandler);
+
+/**
+ * @swagger
+ * /api/auth/revoke-all:
+ *   post:
+ *     summary: Отзыв всех токенов пользователя
+ *     description: |
+ *       Отзывает все refresh токены текущего пользователя.
+ *       ROOT может отозвать токены другого пользователя, указав userId в body.
+ *       
+ *       **Безопасность:** Требует авторизации (access token).
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 description: ID пользователя (только для ROOT)
+ *           example:
+ *             userId: "123e4567-e89b-12d3-a456-426614174000"
+ *     responses:
+ *       204:
+ *         description: Все токены успешно отозваны
+ *       401:
+ *         description: Не авторизован
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               message: Unauthorized
+ */
+router.post('/revoke-all', authMiddleware, requireAuth, revokeAllHandler);
 
 export default router;
 

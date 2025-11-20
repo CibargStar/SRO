@@ -59,6 +59,8 @@ export const refreshSchema = z.object({
   refreshToken: z
     .string({ required_error: 'Refresh token is required' })
     .min(1, { message: 'Refresh token cannot be empty' })
+    .min(20, { message: 'Refresh token is too short (minimum 20 characters)' }) // Минимальная длина JWT
+    .max(8000, { message: 'Refresh token is too long (maximum 8000 characters)' }) // Практический максимум для JWT
     .trim(),
 });
 

@@ -149,13 +149,21 @@ SRO/
 │   │   ├── modules/  # Бизнес-модули
 │   │   │   ├── auth/ # Модуль авторизации
 │   │   │   └── users/# Модуль управления пользователями
-│   │   ├── common/   # Общие модули (enums, types, utils)
-│   │   ├── config/   # Конфигурация (env, database, logger)
-│   │   └── middleware/# Middleware (security, validation, error handling)
+│   │   ├── config/   # Конфигурация (env, database, logger, swagger)
+│   │   ├── middleware/# Middleware (security, validation, error handling)
+│   │   ├── routes/   # Express маршруты
+│   │   └── tests/    # Тестовая инфраструктура
 │   ├── prisma/       # Prisma схемы и миграции
 │   └── Dockerfile    # Production образ
 ├── frontend/         # Frontend приложение
 │   ├── src/          # Исходный код
+│   │   ├── components/# React компоненты (AuthProvider, ProtectedRoute, etc.)
+│   │   ├── hooks/    # React Query хуки (useLogin, useCurrentUser, etc.)
+│   │   ├── pages/    # Страницы (LoginPage, UsersAdminPage)
+│   │   ├── store/    # Zustand store (authStore)
+│   │   ├── utils/    # Утилиты (API client)
+│   │   ├── types/    # TypeScript типы
+│   │   └── schemas/  # Zod схемы для валидации форм
 │   └── Dockerfile    # Production образ
 ├── docker-compose.yml        # Production конфигурация
 └── docker-compose.dev.yml    # Development конфигурация
@@ -163,7 +171,7 @@ SRO/
 
 ## Система авторизации
 
-### Особенности
+### Backend особенности
 - **Без саморегистрации** - только ROOT создает пользователей
 - **Две роли**: ROOT (администратор) и USER (обычный пользователь)
 - **JWT токены**: Access (15 мин) + Refresh (7 дней)
@@ -172,6 +180,21 @@ SRO/
 - **Защита от brute force**: строгий rate limiting для `/auth/login` (5 попыток / 15 минут)
 - **Инвалидация токенов**: при смене пароля все токены инвалидируются через passwordVersion
 - **Защита ROOT**: нельзя создать/обновить ROOT через API
+
+### Frontend особенности
+- **API Client**: React Query + fetch для HTTP запросов
+- **State Management**: Zustand для хранения токенов и пользователя (с persist в localStorage)
+- **Route Protection**: React Router 7 с компонентами `ProtectedRoute`, `RootRoute`, `PublicRoute`
+- **Auto-login**: Автоматическая загрузка данных пользователя при наличии токенов
+- **Auto-logout**: Автоматическая очистка auth store и редирект на `/login` при 401 ошибке
+- **Security требования**:
+  - Токены хранятся в localStorage (с пониманием рисков XSS, см. комментарии в коде)
+  - accessToken всегда отправляется в `Authorization: Bearer <token>` header
+  - refreshToken хранится в localStorage (с пониманием рисков)
+  - При любом 401 - очищает auth store и редиректит на `/login`
+  - Не показывает технические детали ошибок пользователю
+  - Не раскрывает детали ошибок авторизации
+  - Блокирует попытки редактирования ROOT пользователей
 
 ### Переменные окружения
 

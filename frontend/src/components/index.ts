@@ -1,13 +1,13 @@
 /**
- * React компоненты
+ * Компоненты приложения
  * 
- * Централизованный экспорт всех переиспользуемых компонентов.
- * Компоненты должны быть организованы по функциональности или по типам (UI, Forms, etc.).
- * 
- * @example
- * ```typescript
- * export { Button } from './Button';
- * export { Input } from './Input';
- * ```
+ * Экспорт всех переиспользуемых компонентов.
  */
 
+export { AuthProvider } from './AuthProvider';
+export { ProtectedRoute } from './ProtectedRoute';
+export { RootRoute } from './RootRoute';
+export { PublicRoute } from './PublicRoute';
+export { UserTable } from './UserTable';
+export { CreateUserDialog } from './CreateUserDialog';
+export { EditUserDialog } from './EditUserDialog';
