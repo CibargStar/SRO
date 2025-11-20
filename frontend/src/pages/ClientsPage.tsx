@@ -119,8 +119,6 @@ export function ClientsPage() {
   const [deleteGroupDialogOpen, setDeleteGroupDialogOpen] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<ClientGroup | null>(null);
   
-  // Состояние для выбора пользователя в модалке управления группами (только для ROOT)
-  const [groupsDialogSelectedUserId, setGroupsDialogSelectedUserId] = useState<string | undefined>(undefined);
 
   const { data: users = [] } = useUsers(); // Для ROOT - список пользователей для переключения
   const { data: clientsData, isLoading, error } = useClients({
@@ -137,8 +135,8 @@ export function ClientsPage() {
 
   const { data: regions = [] } = useRegions();
   const { data: groups = [] } = useClientGroups();
-  // Для модалки управления группами: если выбран пользователь, получаем его группы
-  const { data: groupsInDialog = [] } = useClientGroups(isRoot && groupsDialogSelectedUserId ? groupsDialogSelectedUserId : undefined);
+  // Для модалки управления группами: используем выбранного пользователя с главной страницы
+  const { data: groupsInDialog = [] } = useClientGroups(isRoot && selectedUserId ? selectedUserId : undefined);
   const deleteMutation = useDeleteClient();
   const deleteGroupMutation = useDeleteClientGroup();
 
@@ -395,14 +393,18 @@ export function ClientsPage() {
         onClose={() => setCreateDialogOpen(false)}
         userId={isRoot && selectedUserId ? selectedUserId : undefined} // Для ROOT - передаем выбранного пользователя
       />
-      <EditClientDialog open={editDialogOpen} client={selectedClient} onClose={handleCloseEditDialog} />
+      <EditClientDialog
+        open={editDialogOpen}
+        client={selectedClient}
+        onClose={handleCloseEditDialog}
+        userId={isRoot && selectedUserId ? selectedUserId : undefined} // Для ROOT - передаем выбранного пользователя для фильтрации групп
+      />
 
       {/* Диалог управления группами */}
       <Dialog
         open={groupsDialogOpen}
         onClose={() => {
           setGroupsDialogOpen(false);
-          setGroupsDialogSelectedUserId(undefined); // Сбрасываем выбор пользователя при закрытии
         }}
         maxWidth="md"
         fullWidth
@@ -410,7 +412,7 @@ export function ClientsPage() {
         PaperProps={{ sx: { backgroundColor: '#212121', borderRadius: '12px' } }}
       >
         <Box sx={{ px: 3, pt: 3, pb: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: isRoot ? 2 : 0 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
               Управление группами клиентов
             </Typography>
@@ -418,27 +420,6 @@ export function ClientsPage() {
               Создать группу
             </StyledButton>
           </Box>
-          
-          {/* Селектор пользователя для ROOT в модалке управления группами */}
-          {isRoot && (
-            <FormControl sx={{ minWidth: 250 }}>
-              <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>База пользователя</InputLabel>
-              <StyledSelect
-                value={groupsDialogSelectedUserId || ''}
-                onChange={(e) => {
-                  setGroupsDialogSelectedUserId(e.target.value || undefined);
-                }}
-                label="База пользователя"
-              >
-                <MenuItem value="">Текущий пользователь</MenuItem>
-                {users.map((u) => (
-                  <MenuItem key={u.id} value={u.id}>
-                    {u.name || u.email} {u.role === 'ROOT' ? '(ROOT)' : ''}
-                  </MenuItem>
-                ))}
-              </StyledSelect>
-            </FormControl>
-          )}
         </Box>
         <DialogContent sx={{ px: 3, pt: 3 }}>
           {groupsInDialog.length === 0 ? (
@@ -531,9 +512,14 @@ export function ClientsPage() {
           setCreateGroupDialogOpen(false);
           // Инвалидируем кэш групп для обновления списка в модалке
         }}
-        userId={isRoot && groupsDialogSelectedUserId ? groupsDialogSelectedUserId : undefined} // Для ROOT - передаем выбранного пользователя из модалки
+        userId={isRoot && selectedUserId ? selectedUserId : undefined} // Для ROOT - передаем выбранного пользователя с главной страницы
       />
-      <EditClientGroupDialog open={editGroupDialogOpen} group={selectedGroup} onClose={handleCloseEditGroupDialog} />
+      <EditClientGroupDialog
+        open={editGroupDialogOpen}
+        group={selectedGroup}
+        onClose={handleCloseEditGroupDialog}
+        ownerId={isRoot && selectedUserId ? selectedUserId : undefined} // Для ROOT - передаем выбранного пользователя с главной страницы
+      />
 
       {/* Диалог подтверждения удаления группы */}
       <Dialog

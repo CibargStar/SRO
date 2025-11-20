@@ -27,6 +27,7 @@ import { styled } from '@mui/material/styles';
 import { updateClientSchema, type UpdateClientFormData } from '@/schemas/client.schema';
 import { useUpdateClient } from '@/hooks/useClients';
 import { useRegions } from '@/hooks/useRegions';
+import { useAuthStore } from '@/store';
 import { ClientGroupSelector } from './ClientGroupSelector';
 import { ClientPhonesList } from './ClientPhonesList';
 import type { Client } from '@/types';
@@ -77,11 +78,19 @@ interface EditClientDialogProps {
   open: boolean;
   client: Client | null;
   onClose: () => void;
+  userId?: string; // Опциональный ID пользователя для ROOT (передается из родительского компонента для фильтрации групп)
 }
 
-export function EditClientDialog({ open, client, onClose }: EditClientDialogProps) {
+export function EditClientDialog({ open, client, onClose, userId: propUserId }: EditClientDialogProps) {
+  const user = useAuthStore((state) => state.user);
+  const isRoot = user?.role === 'ROOT';
   const updateMutation = useUpdateClient();
   const { data: regions = [] } = useRegions();
+  
+  // Определяем userId для фильтрации групп:
+  // - Если ROOT и передан propUserId - используем его (выбранный пользователь из селектора)
+  // - Иначе используем userId клиента (владелец клиента)
+  const groupFilterUserId = isRoot && propUserId ? propUserId : client?.userId;
 
   const {
     register,
@@ -215,6 +224,7 @@ export function EditClientDialog({ open, client, onClose }: EditClientDialogProp
                   required
                   error={!!fieldState.error}
                   helperText={fieldState.error?.message}
+                  userId={groupFilterUserId} // Фильтрация групп по выбранному пользователю (для ROOT) или владельцу клиента
                 />
               )}
             />

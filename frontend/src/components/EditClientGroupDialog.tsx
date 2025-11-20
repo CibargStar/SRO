@@ -57,9 +57,10 @@ interface EditClientGroupDialogProps {
   open: boolean;
   group: ClientGroup | null;
   onClose: () => void;
+  ownerId?: string; // Опциональный ID владельца группы для ROOT (передается из родительского компонента для консистентности)
 }
 
-export function EditClientGroupDialog({ open, group, onClose }: EditClientGroupDialogProps) {
+export function EditClientGroupDialog({ open, group, onClose, ownerId }: EditClientGroupDialogProps) {
   const updateMutation = useUpdateClientGroup();
 
   const {
