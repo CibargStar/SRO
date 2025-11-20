@@ -148,22 +148,62 @@ SRO/
 │   ├── src/          # Исходный код
 │   │   ├── modules/  # Бизнес-модули
 │   │   │   ├── auth/ # Модуль авторизации
-│   │   │   └── users/# Модуль управления пользователями
+│   │   │   ├── users/# Модуль управления пользователями
+│   │   │   └── clients/# Модуль управления клиентами
+│   │   │       ├── clients.controller.ts      # CRUD операции для клиентов
+│   │   │       ├── client.schemas.ts          # Zod схемы для клиентов
+│   │   │       ├── client-groups.controller.ts# CRUD операции для групп клиентов
+│   │   │       ├── client-group.schemas.ts    # Zod схемы для групп клиентов
+│   │   │       ├── regions.controller.ts      # CRUD операции для регионов
+│   │   │       ├── region.schemas.ts          # Zod схемы для регионов
+│   │   │       └── client-phones.controller.ts# CRUD операции для телефонов клиентов
+│   │   │           └── client-phone.schemas.ts# Zod схемы для телефонов
 │   │   ├── config/   # Конфигурация (env, database, logger, swagger)
 │   │   ├── middleware/# Middleware (security, validation, error handling)
 │   │   ├── routes/   # Express маршруты
+│   │   │   ├── auth.routes.ts
+│   │   │   ├── users.routes.ts
+│   │   │   ├── clients.routes.ts
+│   │   │   ├── client-groups.routes.ts
+│   │   │   └── regions.routes.ts
 │   │   └── tests/    # Тестовая инфраструктура
 │   ├── prisma/       # Prisma схемы и миграции
 │   └── Dockerfile    # Production образ
 ├── frontend/         # Frontend приложение
 │   ├── src/          # Исходный код
-│   │   ├── components/# React компоненты (AuthProvider, ProtectedRoute, etc.)
-│   │   ├── hooks/    # React Query хуки (useLogin, useCurrentUser, etc.)
-│   │   ├── pages/    # Страницы (LoginPage, UsersAdminPage)
+│   │   ├── components/# React компоненты
+│   │   │   ├── AuthProvider.tsx
+│   │   │   ├── ProtectedRoute.tsx
+│   │   │   ├── ClientTable.tsx
+│   │   │   ├── CreateClientDialog.tsx
+│   │   │   ├── EditClientDialog.tsx
+│   │   │   ├── ClientGroupSelector.tsx
+│   │   │   ├── RegionSelector.tsx
+│   │   │   ├── ClientPhonesList.tsx
+│   │   │   ├── ClientPhonesFormField.tsx
+│   │   │   ├── AddPhoneDialog.tsx
+│   │   │   ├── EditPhoneDialog.tsx
+│   │   │   ├── CreateClientGroupDialog.tsx
+│   │   │   └── EditClientGroupDialog.tsx
+│   │   ├── hooks/    # React Query хуки
+│   │   │   ├── useAuth.ts
+│   │   │   ├── useUsers.ts
+│   │   │   ├── useClients.ts
+│   │   │   ├── useClientGroups.ts
+│   │   │   ├── useRegions.ts
+│   │   │   └── useClientPhones.ts
+│   │   ├── pages/    # Страницы
+│   │   │   ├── LoginPage.tsx
+│   │   │   ├── UsersAdminPage.tsx
+│   │   │   └── ClientsPage.tsx
 │   │   ├── store/    # Zustand store (authStore)
 │   │   ├── utils/    # Утилиты (API client)
 │   │   ├── types/    # TypeScript типы
 │   │   └── schemas/  # Zod схемы для валидации форм
+│   │       ├── client.schema.ts
+│   │       ├── client-group.schema.ts
+│   │       ├── region.schema.ts
+│   │       └── client-phone.schema.ts
 │   └── Dockerfile    # Production образ
 ├── docker-compose.yml        # Production конфигурация
 └── docker-compose.dev.yml    # Development конфигурация
