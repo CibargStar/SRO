@@ -146,6 +146,9 @@ async function handleResponse<T>(response: Response): Promise<T> {
       error = { message: `HTTP ${response.status}: ${response.statusText}` };
     }
 
+    // Сохраняем статус код в объекте ошибки для специальной обработки
+    error.statusCode = response.status;
+
     throw error;
   }
 

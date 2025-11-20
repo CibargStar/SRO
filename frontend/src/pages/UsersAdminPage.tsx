@@ -9,20 +9,39 @@
 
 import React, { useState } from 'react';
 import {
-  Container,
   Box,
   Typography,
   Button,
-  Paper,
   Alert,
   CircularProgress,
 } from '@mui/material';
+import { styled } from '@mui/material/styles';
 import AddIcon from '@mui/icons-material/Add';
 import { useUsers } from '@/hooks/useUsers';
 import { UserTable } from '@/components/UserTable';
 import { CreateUserDialog } from '@/components/CreateUserDialog';
 import { EditUserDialog } from '@/components/EditUserDialog';
 import type { User } from '@/types';
+
+/**
+ * Стилизованная кнопка создания пользователя
+ * 
+ * Минималистичный дизайн в духе страницы логина.
+ */
+const StyledButton = styled(Button)(({ theme }) => ({
+  borderRadius: '12px',
+  backgroundColor: '#f5f5f5',
+  color: '#212121',
+  textTransform: 'none',
+  fontWeight: 500,
+  padding: theme.spacing(1.5, 3),
+  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  '&:hover': {
+    backgroundColor: '#ffffff',
+    transform: 'translateY(-2px)',
+    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+  },
+}));
 
 /**
  * Страница админки пользователей
@@ -52,37 +71,60 @@ export function UsersAdminPage() {
   const errorMessage = error ? 'Не удалось загрузить пользователей' : null;
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" component="h1">
+    <Box sx={{ width: '100%' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+        <Typography
+          variant="h4"
+          component="h1"
+          sx={{
+            color: '#f5f5f5',
+            fontWeight: 500,
+          }}
+        >
           Управление пользователями
         </Typography>
-        <Button
-          variant="contained"
+        <StyledButton
           startIcon={<AddIcon />}
           onClick={() => setCreateDialogOpen(true)}
         >
           Создать пользователя
-        </Button>
+        </StyledButton>
       </Box>
 
       {errorMessage && (
-        <Alert severity="error" sx={{ mb: 3 }}>
+        <Alert
+          severity="error"
+          sx={{
+            mb: 3,
+            borderRadius: '12px',
+            backgroundColor: 'rgba(244, 67, 54, 0.1)',
+            color: '#ffffff',
+            border: 'none',
+          }}
+        >
           {errorMessage}
         </Alert>
       )}
 
-      <Paper sx={{ p: 2 }}>
-        {isLoading ? (
-          <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
-            <CircularProgress />
-          </Box>
-        ) : users ? (
-          <UserTable users={users} isLoading={isLoading} onEdit={handleEdit} />
-        ) : (
-          <Alert severity="info">Не удалось загрузить пользователей</Alert>
-        )}
-      </Paper>
+      {isLoading ? (
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight={400}>
+          <CircularProgress sx={{ color: '#f5f5f5' }} />
+        </Box>
+      ) : users ? (
+        <UserTable users={users} isLoading={isLoading} onEdit={handleEdit} />
+      ) : (
+        <Alert
+          severity="info"
+          sx={{
+            borderRadius: '12px',
+            backgroundColor: 'rgba(33, 150, 243, 0.1)',
+            color: '#ffffff',
+            border: 'none',
+          }}
+        >
+          Не удалось загрузить пользователей
+        </Alert>
+      )}
 
       <CreateUserDialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} />
       <EditUserDialog
@@ -90,7 +132,7 @@ export function UsersAdminPage() {
         user={selectedUser}
         onClose={handleCloseEditDialog}
       />
-    </Container>
+    </Box>
   );
 }
 

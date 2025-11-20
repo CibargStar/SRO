@@ -104,11 +104,22 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage', // Ключ в localStorage
-      // Сохраняем только токены, user будет обновляться через API
-      // ВАЖНО: Токены хранятся в localStorage (см. комментарий выше о рисках XSS)
+      // Сохраняем токены и базовую информацию о пользователе для быстрого восстановления
+      // ВАЖНО: Токены и базовая информация хранятся в localStorage (см. комментарий выше о рисках XSS)
+      // Сохраняем только безопасные поля пользователя (id, email, role) для UX
       partialize: (state) => ({
         accessToken: state.accessToken,
         refreshToken: state.refreshToken,
+        // Сохраняем базовую информацию о пользователе для быстрого восстановления состояния
+        // Это предотвращает редирект на /login при перезагрузке страницы
+        user: state.user ? {
+          id: state.user.id,
+          email: state.user.email,
+          role: state.user.role,
+          name: state.user.name,
+          isActive: state.user.isActive,
+          // Не сохраняем createdAt и updatedAt - они будут обновлены при следующем запросе
+        } : null,
       }),
     }
   )

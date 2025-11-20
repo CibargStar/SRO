@@ -10,7 +10,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   Dialog,
-  DialogTitle,
   DialogContent,
   DialogActions,
   Button,
@@ -19,12 +18,245 @@ import {
   Alert,
   CircularProgress,
   FormControlLabel,
-  Checkbox,
-  Divider,
+  Switch,
+  Typography,
+  Collapse,
+  Fade,
+  InputAdornment,
 } from '@mui/material';
+import { styled } from '@mui/material/styles';
+import EmailIcon from '@mui/icons-material/Email';
+import LockIcon from '@mui/icons-material/Lock';
+import PersonIcon from '@mui/icons-material/Person';
 import { updateUserSchema, type UpdateUserFormData } from '@/schemas/user.schema';
 import { useUpdateUser } from '@/hooks/useUsers';
 import type { User } from '@/types';
+
+/**
+ * Стилизованное поле ввода
+ * 
+ * Минималистичный дизайн с скругленными углами в духе страницы логина.
+ */
+const StyledTextField = styled(TextField)(({ theme }) => ({
+  '& .MuiOutlinedInput-root': {
+    borderRadius: '12px',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    color: '#ffffff',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    outline: 'none',
+    
+    '& fieldset': {
+      border: 'none',
+      outline: 'none',
+    },
+    
+    '&:hover fieldset': {
+      border: 'none',
+      outline: 'none',
+    },
+    
+    '&.Mui-focused fieldset': {
+      border: 'none',
+      outline: 'none',
+    },
+    
+    '&.Mui-error fieldset': {
+      border: 'none',
+      outline: 'none',
+    },
+    
+    '&:focus': {
+      outline: 'none',
+    },
+    
+    '&:focus-visible': {
+      outline: 'none',
+    },
+    
+    // Переопределение стилей автозаполнения браузера (Chrome)
+    '& .MuiInputBase-input': {
+      outline: 'none',
+      '&:focus': {
+        outline: 'none',
+      },
+      '&:focus-visible': {
+        outline: 'none',
+      },
+      '&:-webkit-autofill': {
+        WebkitBoxShadow: '0 0 0 1000px #2c2c2c inset !important',
+        WebkitTextFillColor: '#ffffff !important',
+        backgroundColor: '#2c2c2c !important',
+        caretColor: '#ffffff',
+        borderRadius: '12px',
+        outline: 'none',
+        transition: 'background-color 5000s ease-in-out 0s',
+      },
+      
+      '&:-webkit-autofill:hover': {
+        WebkitBoxShadow: '0 0 0 1000px #2c2c2c inset !important',
+        WebkitTextFillColor: '#ffffff !important',
+        backgroundColor: '#2c2c2c !important',
+      },
+      
+      '&:-webkit-autofill:focus': {
+        WebkitBoxShadow: '0 0 0 1000px #2c2c2c inset !important',
+        WebkitTextFillColor: '#ffffff !important',
+        backgroundColor: '#2c2c2c !important',
+      },
+      
+      '&:-webkit-autofill:active': {
+        WebkitBoxShadow: '0 0 0 1000px #2c2c2c inset !important',
+        WebkitTextFillColor: '#ffffff !important',
+        backgroundColor: '#2c2c2c !important',
+      },
+    },
+  },
+  
+  '& .MuiInputLabel-root': {
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  
+  '& .MuiInputLabel-root.Mui-focused': {
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  
+  '& .MuiFormHelperText-root': {
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
+  
+  '& .MuiFormHelperText-root.Mui-error': {
+    color: '#f44336',
+  },
+}));
+
+/**
+ * Стилизованная кнопка
+ * 
+ * Молочно-белая кнопка в стиле страницы логина.
+ */
+const StyledButton = styled(Button)(({ theme }) => ({
+  borderRadius: '12px',
+  backgroundColor: '#f5f5f5',
+  color: '#212121',
+  textTransform: 'none',
+  fontWeight: 500,
+  padding: theme.spacing(1.5, 3),
+  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  '&:hover': {
+    backgroundColor: '#ffffff',
+    transform: 'translateY(-2px)',
+    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+  },
+  '&:disabled': {
+    backgroundColor: 'rgba(245, 245, 245, 0.5)',
+    color: 'rgba(33, 33, 33, 0.5)',
+  },
+}));
+
+/**
+ * Стилизованная кнопка отмены
+ * 
+ * Прозрачная кнопка с белым текстом.
+ */
+const CancelButton = styled(Button)(({ theme }) => ({
+  borderRadius: '12px',
+  backgroundColor: 'transparent',
+  color: 'rgba(255, 255, 255, 0.7)',
+  textTransform: 'none',
+  fontWeight: 500,
+  padding: theme.spacing(1.5, 3),
+  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  '&:hover': {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    color: '#ffffff',
+  },
+  '&:disabled': {
+    color: 'rgba(255, 255, 255, 0.3)',
+  },
+}));
+
+/**
+ * Стилизованный Switch
+ * 
+ * Плавный слайдер в минималистичном стиле.
+ */
+const StyledSwitch = styled(Switch)(({ theme }) => ({
+  width: 48,
+  height: 28,
+  padding: 0,
+  '& .MuiSwitch-switchBase': {
+    padding: 0,
+    margin: 2,
+    transitionDuration: '300ms',
+    '&.Mui-checked': {
+      transform: 'translateX(20px)',
+      color: '#fff',
+      '& + .MuiSwitch-track': {
+        backgroundColor: '#f5f5f5',
+        opacity: 1,
+        border: 0,
+      },
+      '&.Mui-disabled + .MuiSwitch-track': {
+        opacity: 0.3,
+      },
+    },
+    '&.Mui-focusVisible .MuiSwitch-thumb': {
+      color: '#f5f5f5',
+      border: '6px solid #fff',
+    },
+    '&.Mui-disabled .MuiSwitch-thumb': {
+      color: 'rgba(255, 255, 255, 0.3)',
+    },
+    '&.Mui-disabled + .MuiSwitch-track': {
+      opacity: 0.3,
+    },
+  },
+  '& .MuiSwitch-thumb': {
+    boxSizing: 'border-box',
+    width: 24,
+    height: 24,
+    backgroundColor: '#ffffff',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  },
+  '& .MuiSwitch-track': {
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    opacity: 1,
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  },
+}));
+
+/**
+ * Контейнер для ошибок валидации
+ */
+const AbsoluteErrorContainer = styled(Box)({
+  position: 'absolute',
+  top: '100%',
+  left: 0,
+  right: 0,
+  zIndex: 1,
+  pointerEvents: 'none',
+});
+
+/**
+ * Текст ошибки
+ */
+const ErrorText = styled(Typography)({
+  color: '#f44336',
+  display: 'block',
+  marginTop: 2,
+  marginLeft: 14,
+  fontSize: '0.75rem',
+  lineHeight: 1.66,
+  transition: 'opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+});
+
+/**
+ * Стилизованный Collapse для плавных анимаций
+ */
+const AnimatedCollapse = styled(Collapse)({
+  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+});
 
 interface EditUserDialogProps {
   open: boolean;
@@ -48,7 +280,6 @@ export function EditUserDialog({ open, user, onClose }: EditUserDialogProps) {
     formState: { errors },
     reset,
     watch,
-    setValue,
   } = useForm<UpdateUserFormData>({
     resolver: zodResolver(updateUserSchema),
     defaultValues: {
@@ -58,13 +289,21 @@ export function EditUserDialog({ open, user, onClose }: EditUserDialogProps) {
     },
   });
 
-  // Обновляем форму при изменении пользователя
+  // Обновляем форму при изменении пользователя или открытии диалога
   useEffect(() => {
     if (user && open) {
       reset({
         email: user.email,
         name: user.name || '',
-        isActive: user.isActive,
+        // ВАЖНО: Используем актуальное значение isActive из объекта пользователя
+        isActive: user.isActive ?? true,
+      });
+    } else if (!open) {
+      // Сбрасываем форму при закрытии диалога
+      reset({
+        email: '',
+        name: '',
+        isActive: true,
       });
     }
   }, [user, open, reset]);
@@ -135,88 +374,216 @@ export function EditUserDialog({ open, user, onClose }: EditUserDialogProps) {
     : null;
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      maxWidth="sm"
+      fullWidth
+      PaperProps={{
+        sx: {
+          backgroundColor: '#212121',
+          borderRadius: '12px',
+        },
+      }}
+    >
       <form onSubmit={handleSubmit(onSubmit)}>
-        <DialogTitle>Редактировать пользователя</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-            {errorMessage && (
-              <Alert severity={isRootError ? 'warning' : isEmailError ? 'warning' : 'error'}>
-                {errorMessage}
-              </Alert>
-            )}
+        {/* Полноценная шапка модалки */}
+        <Box
+          sx={{
+            px: 3,
+            pt: 3,
+            pb: 2,
+            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          }}
+        >
+          <Typography
+            variant="h6"
+            sx={{
+              color: '#f5f5f5',
+              fontWeight: 500,
+              fontSize: '1.25rem',
+            }}
+          >
+            Редактировать пользователя
+          </Typography>
+        </Box>
+        <DialogContent sx={{ pt: 1 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, pt: 1 }}>
+            {/* Сообщение об ошибке */}
+            <AnimatedCollapse in={!!errorMessage} timeout={300}>
+              {errorMessage && (
+                <Alert
+                  severity={isRootError ? 'warning' : isEmailError ? 'warning' : 'error'}
+                  sx={{
+                    borderRadius: '12px',
+                    backgroundColor: isRootError || isEmailError
+                      ? 'rgba(255, 152, 0, 0.1)'
+                      : 'rgba(244, 67, 54, 0.1)',
+                    color: '#ffffff',
+                    border: 'none',
+                  }}
+                >
+                  {errorMessage}
+                </Alert>
+              )}
+            </AnimatedCollapse>
 
-            <TextField
-              {...register('email')}
-              label="Email"
-              type="email"
-              fullWidth
-              error={!!errors.email || !!isEmailError}
-              helperText={errors.email?.message || (isEmailError ? 'Email уже используется' : '')}
-              disabled={updateMutation.isPending || user?.role === 'ROOT'}
-            />
+            {/* Поле Имя */}
+            <Box sx={{ position: 'relative' }}>
+              <StyledTextField
+                {...register('name')}
+                placeholder="Имя"
+                fullWidth
+                error={!!errors.name}
+                disabled={updateMutation.isPending || user?.role === 'ROOT'}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <PersonIcon sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              <Fade in={!!errors.name} timeout={300}>
+                <AbsoluteErrorContainer>
+                  <ErrorText variant="caption">
+                    {errors.name?.message}
+                  </ErrorText>
+                </AbsoluteErrorContainer>
+              </Fade>
+            </Box>
 
-            <Divider sx={{ my: 1 }}>
-              <small>Изменить пароль (оставьте пустым, чтобы не менять)</small>
-            </Divider>
+            {/* Поле Email */}
+            <Box sx={{ position: 'relative' }}>
+              <StyledTextField
+                {...register('email')}
+                placeholder="Email"
+                type="email"
+                fullWidth
+                error={!!errors.email || !!isEmailError}
+                disabled={updateMutation.isPending || user?.role === 'ROOT'}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <EmailIcon sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              <Fade in={!!errors.email && !isEmailError} timeout={300}>
+                <AbsoluteErrorContainer>
+                  <ErrorText variant="caption">
+                    {errors.email?.message}
+                  </ErrorText>
+                </AbsoluteErrorContainer>
+              </Fade>
+              {isEmailError && (
+                <Fade in={true} timeout={300}>
+                  <AbsoluteErrorContainer>
+                    <ErrorText variant="caption">
+                      Email уже используется
+                    </ErrorText>
+                  </AbsoluteErrorContainer>
+                </Fade>
+              )}
+            </Box>
 
-            <TextField
-              {...register('password')}
-              label="Новый пароль"
-              type="password"
-              fullWidth
-              error={!!errors.password}
-              helperText={errors.password?.message}
-              disabled={updateMutation.isPending || user?.role === 'ROOT'}
-              inputProps={{
-                autoComplete: 'new-password',
-              }}
-            />
+            {/* Поле Пароль */}
+            <Box sx={{ position: 'relative' }}>
+              <StyledTextField
+                {...register('password')}
+                placeholder="Изменить пароль (оставьте пустым, чтобы не менять)"
+                type="password"
+                fullWidth
+                error={!!errors.password}
+                disabled={updateMutation.isPending || user?.role === 'ROOT'}
+                inputProps={{
+                  autoComplete: 'new-password',
+                }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <LockIcon sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              <Fade in={!!errors.password} timeout={300}>
+                <AbsoluteErrorContainer>
+                  <ErrorText variant="caption">
+                    {errors.password?.message}
+                  </ErrorText>
+                </AbsoluteErrorContainer>
+              </Fade>
+            </Box>
 
-            {watchPassword && (
-              <Alert severity="info" sx={{ mt: -1 }}>
-                При смене пароля все токены пользователя будут инвалидированы.
-              </Alert>
-            )}
+            {/* Switch Активен */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, pl: 1.75 }}>
+              <StyledSwitch
+                {...register('isActive')}
+                checked={watch('isActive') ?? false}
+                disabled={updateMutation.isPending || user?.role === 'ROOT'}
+              />
+              <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                Активен
+              </Typography>
+            </Box>
 
-            <TextField
-              {...register('name')}
-              label="Имя"
-              fullWidth
-              error={!!errors.name}
-              helperText={errors.name?.message}
-              disabled={updateMutation.isPending || user?.role === 'ROOT'}
-            />
+            {/* Информация о смене пароля */}
+            <AnimatedCollapse in={!!watchPassword} timeout={300}>
+              {watchPassword && (
+                <Alert
+                  severity="info"
+                  sx={{
+                    borderRadius: '12px',
+                    backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                    color: '#ffffff',
+                    border: 'none',
+                  }}
+                >
+                  При смене пароля все токены пользователя будут инвалидированы.
+                </Alert>
+              )}
+            </AnimatedCollapse>
 
-            <FormControlLabel
-              control={
-                <Checkbox
-                  {...register('isActive')}
-                  disabled={updateMutation.isPending || user?.role === 'ROOT'}
-                />
-              }
-              label="Активен"
-            />
-
+            {/* Предупреждение для ROOT */}
             {user?.role === 'ROOT' && (
-              <Alert severity="warning">
+              <Alert
+                severity="warning"
+                sx={{
+                  borderRadius: '12px',
+                  backgroundColor: 'rgba(255, 152, 0, 0.1)',
+                  color: '#ffffff',
+                  border: 'none',
+                }}
+              >
                 ROOT пользователи не могут быть отредактированы через API.
               </Alert>
             )}
           </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleClose} disabled={updateMutation.isPending}>
+        <DialogActions sx={{ p: 3, pt: 2, gap: 2 }}>
+          <CancelButton onClick={handleClose} disabled={updateMutation.isPending}>
             Отмена
-          </Button>
-          <Button
+          </CancelButton>
+          <StyledButton
             type="submit"
-            variant="contained"
             disabled={updateMutation.isPending || user?.role === 'ROOT'}
-            startIcon={updateMutation.isPending ? <CircularProgress size={20} /> : null}
+            sx={{ position: 'relative' }}
           >
-            Сохранить
-          </Button>
+            {updateMutation.isPending && (
+              <CircularProgress
+                size={20}
+                sx={{
+                  position: 'absolute',
+                  color: '#212121',
+                }}
+              />
+            )}
+            <span style={{ opacity: updateMutation.isPending ? 0 : 1 }}>
+              Сохранить
+            </span>
+          </StyledButton>
         </DialogActions>
       </form>
     </Dialog>

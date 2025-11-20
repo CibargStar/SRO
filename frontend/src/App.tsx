@@ -10,7 +10,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import { AuthProvider, ProtectedRoute, RootRoute, PublicRoute } from '@/components';
+import { Box, Typography } from '@mui/material';
+import { AuthProvider, ProtectedRoute, RootRoute, PublicRoute, ErrorBoundary, Sidebar } from '@/components';
 import { LoginPage, UsersAdminPage } from '@/pages';
 import { useAuthStore } from '@/store';
 
@@ -44,23 +45,67 @@ const theme = createTheme({
 });
 
 /**
+ * Компонент-обертка для контента с сайдбаром
+ * 
+ * Обеспечивает правильное позиционирование контента относительно сайдбара.
+ * Добавляет отступ слева, равный ширине сайдбара (200px).
+ */
+function AppLayout({ children }: { children: React.ReactNode }) {
+  const user = useAuthStore((state) => state.user);
+
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        minHeight: '100vh',
+      }}
+    >
+      {/* Сайдбар отображается только для авторизованных пользователей */}
+      {user && <Sidebar />}
+      
+      {/* Контент с отступом под сайдбар */}
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          marginLeft: user ? '200px' : 0, // Отступ равен ширине сайдбара
+          transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)', // Плавный переход
+          padding: 3, // Внутренние отступы для контента
+        }}
+      >
+        {children}
+      </Box>
+    </Box>
+  );
+}
+
+/**
  * Главная страница (Dashboard)
  * 
  * Пока простая заглушка. В будущем будет заменена на полноценный dashboard.
  */
 function HomePage() {
-  const user = useAuthStore((state) => state.user);
-
   return (
-    <div>
-      <h1>BM Tools</h1>
-      {user && (
-        <div>
-          <p>Добро пожаловать, {user.email}!</p>
-          <p>Роль: {user.role}</p>
-        </div>
-      )}
-    </div>
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 'calc(100vh - 48px)', // Вычитаем padding из AppLayout
+      }}
+    >
+      <Typography
+        variant="h1"
+        sx={{
+          color: '#f5f5f5', // Молочный цвет
+          fontSize: '4rem', // Крупные буквы
+          fontWeight: 500,
+          textAlign: 'center',
+        }}
+      >
+        HelloWorld
+      </Typography>
+    </Box>
   );
 }
 
@@ -74,12 +119,13 @@ function HomePage() {
  */
 const App: React.FC = () => {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <BrowserRouter>
-          <AuthProvider>
-            <Routes>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          <BrowserRouter>
+            <AuthProvider>
+              <Routes>
               <Route
                 path="/login"
                 element={
@@ -92,7 +138,9 @@ const App: React.FC = () => {
                 path="/"
                 element={
                   <ProtectedRoute>
-                    <HomePage />
+                    <AppLayout>
+                      <HomePage />
+                    </AppLayout>
                   </ProtectedRoute>
                 }
               />
@@ -100,16 +148,19 @@ const App: React.FC = () => {
                 path="/admin/users"
                 element={
                   <RootRoute>
-                    <UsersAdminPage />
+                    <AppLayout>
+                      <UsersAdminPage />
+                    </AppLayout>
                   </RootRoute>
                 }
               />
               <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </AuthProvider>
-        </BrowserRouter>
-      </ThemeProvider>
-    </QueryClientProvider>
+              </Routes>
+            </AuthProvider>
+          </BrowserRouter>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 };
 

@@ -80,4 +80,14 @@ export interface ApiError {
   message: string;
   error?: string;
   details?: unknown;
+  statusCode?: number; // HTTP статус код для специальной обработки ошибок
 }
+
+/**
+ * Экспорт типов для Sidebar
+ */
+export type {
+  SidebarNavigationItem,
+  NavigationVisibility,
+  VisibilityChecker,
+} from './sidebar';

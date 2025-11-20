@@ -18,6 +18,10 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  optimizeDeps: {
+    // Принудительная оптимизация @mui/icons-material для корректной работы
+    include: ['@mui/icons-material'],
+  },
   server: {
     port: 5173, // Порт development сервера
     host: true, // Доступен на всех сетевых интерфейсах (для Docker)

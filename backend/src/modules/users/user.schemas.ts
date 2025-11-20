@@ -86,16 +86,25 @@ export const updateUserSchema = z
       .optional(),
 
     password: z
-      .string()
-      .min(1, { message: 'Password cannot be empty if provided' })
-      .min(12, { message: 'Password must be at least 12 characters long' })
-      .regex(/[A-Z]/, { message: 'Password must contain at least one uppercase letter' })
-      .regex(/[a-z]/, { message: 'Password must contain at least one lowercase letter' })
-      .regex(/[0-9]/, { message: 'Password must contain at least one number' })
-      .regex(/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/, {
-        message: 'Password must contain at least one special character',
-      })
-      .optional(),
+      .preprocess(
+        (val) => {
+          // Преобразуем пустую строку в undefined перед валидацией
+          if (typeof val === 'string' && val.trim() === '') {
+            return undefined;
+          }
+          return val;
+        },
+        z
+          .string()
+          .min(12, { message: 'Password must be at least 12 characters long' })
+          .regex(/[A-Z]/, { message: 'Password must contain at least one uppercase letter' })
+          .regex(/[a-z]/, { message: 'Password must contain at least one lowercase letter' })
+          .regex(/[0-9]/, { message: 'Password must contain at least one number' })
+          .regex(/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/, {
+            message: 'Password must contain at least one special character',
+          })
+          .optional()
+      ),
 
     name: z
       .string()
