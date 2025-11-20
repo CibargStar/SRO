@@ -120,7 +120,7 @@ export function ClientsPage() {
   const [selectedGroup, setSelectedGroup] = useState<ClientGroup | null>(null);
   
 
-  const { data: users = [] } = useUsers(); // Для ROOT - список пользователей для переключения
+  const { data: users = [] } = useUsers(isRoot); // Для ROOT - список пользователей для переключения (запрос выполняется только для ROOT)
   const { data: clientsData, isLoading, error } = useClients({
     page,
     limit,

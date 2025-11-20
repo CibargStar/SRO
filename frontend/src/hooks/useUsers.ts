@@ -27,16 +27,20 @@ export const usersKeys = {
  * Хук для получения списка пользователей
  * 
  * Требует ROOT роль. Backend также проверяет роль через middleware.
+ * Запрос выполняется только если enabled=true (по умолчанию true).
+ * 
+ * @param enabled - Включить ли выполнение запроса (по умолчанию true)
  * 
  * @example
  * ```typescript
- * const { data: users, isLoading } = useUsers();
+ * const { data: users, isLoading } = useUsers(isRoot);
  * ```
  */
-export function useUsers() {
+export function useUsers(enabled: boolean = true) {
   return useQuery({
     queryKey: usersKeys.list(),
     queryFn: () => listUsers(),
+    enabled, // Выполнять запрос только если enabled=true
     staleTime: 30 * 1000, // Данные актуальны 30 секунд
     retry: false, // Не повторять запрос при ошибке 401/403
   });
