@@ -110,10 +110,11 @@ export function validateBody<T>(schema: ZodSchema<T>): RequestHandler {
 /**
  * Расширенный Express Request с типобезопасным query
  * 
- * После успешной валидации req.query содержит данные, соответствующие схеме.
+ * После успешной валидации req.validatedQuery содержит данные, соответствующие схеме.
+ * req.query остается оригинальным объектом Express (read-only).
  */
 export interface ValidatedQueryRequest<T> extends Request {
-  query: T;
+  validatedQuery: T;
 }
 
 /**
@@ -133,6 +134,14 @@ export interface ValidatedQueryRequest<T> extends Request {
  *   listClientsHandler
  * );
  * ```
+ * 
+ * В контроллере:
+ * ```typescript
+ * const handler = (req: ValidatedQueryRequest<ListClientsQuery>, res: Response) => {
+ *   // req.validatedQuery содержит валидированные данные
+ *   const { page, limit } = req.validatedQuery;
+ * };
+ * ```
  */
 export function validateQuery<T>(schema: ZodSchema<T>): RequestHandler {
   return (req: Request, res: Response, next: NextFunction): void => {
@@ -140,9 +149,10 @@ export function validateQuery<T>(schema: ZodSchema<T>): RequestHandler {
       // Валидация req.query по схеме
       const validatedData = schema.parse(req.query);
 
-      // Заменяем req.query на валидированные данные
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      req.query = validatedData as Request['query'];
+      // Сохраняем валидированные данные в отдельное свойство
+      // req.query - read-only в Express, поэтому используем validatedQuery
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
+      (req as any).validatedQuery = validatedData;
 
       // Валидация прошла успешно
       next();

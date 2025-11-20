@@ -17,7 +17,7 @@
 
 import { Response, NextFunction } from 'express';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
-import { ValidatedRequest } from '../../middleware/zodValidate';
+import { ValidatedRequest, ValidatedQueryRequest } from '../../middleware/zodValidate';
 import { AuthenticatedRequest } from '../../middleware/auth';
 import { CreateClientInput, UpdateClientInput, ListClientsQuery } from './client.schemas';
 import { prisma } from '../../config';
@@ -166,7 +166,7 @@ export async function createClientHandler(
  * @param next - Express NextFunction
  */
 export async function listClientsHandler(
-  req: AuthenticatedRequest & { query: ListClientsQuery },
+  req: ValidatedQueryRequest<ListClientsQuery> & AuthenticatedRequest,
   res: Response,
   _next: NextFunction
 ): Promise<void> {
@@ -177,7 +177,7 @@ export async function listClientsHandler(
       return;
     }
 
-    const { page, limit, search, regionId, groupId, status, sortBy, sortOrder } = req.query;
+    const { page, limit, search, regionId, groupId, status, sortBy, sortOrder } = req.validatedQuery;
 
     // Построение условий фильтрации
     const where: Record<string, unknown> = {

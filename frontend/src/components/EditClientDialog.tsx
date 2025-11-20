@@ -28,6 +28,7 @@ import { updateClientSchema, type UpdateClientFormData } from '@/schemas/client.
 import { useUpdateClient } from '@/hooks/useClients';
 import { useRegions } from '@/hooks/useRegions';
 import { useClientGroups } from '@/hooks/useClientGroups';
+import { ClientPhonesList } from './ClientPhonesList';
 import type { Client } from '@/types';
 
 const StyledTextField = styled(TextField)({
@@ -234,6 +235,10 @@ export function EditClientDialog({ open, client, onClose }: EditClientDialogProp
                 )}
               />
             </FormControl>
+
+            <Box sx={{ mt: 1 }}>
+              <ClientPhonesList clientId={client.id} />
+            </Box>
           </Box>
         </DialogContent>
 

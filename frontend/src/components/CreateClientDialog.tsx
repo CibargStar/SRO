@@ -5,7 +5,7 @@
  * Использует MUI Dialog для отображения.
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
@@ -28,6 +28,8 @@ import { createClientSchema, type CreateClientFormData } from '@/schemas/client.
 import { useCreateClient } from '@/hooks/useClients';
 import { useRegions } from '@/hooks/useRegions';
 import { useClientGroups } from '@/hooks/useClientGroups';
+import { useCreateClientPhone } from '@/hooks/useClientPhones';
+import { ClientPhonesFormField } from './ClientPhonesFormField';
 
 const StyledTextField = styled(TextField)(({ theme }) => ({
   '& .MuiOutlinedInput-root': {
@@ -76,10 +78,25 @@ interface CreateClientDialogProps {
   onClose: () => void;
 }
 
+interface PhoneItem {
+  id: string;
+  phone: string;
+  isNew?: boolean;
+}
+
 export function CreateClientDialog({ open, onClose }: CreateClientDialogProps) {
   const createMutation = useCreateClient();
+  const createPhoneMutation = useCreateClientPhone();
   const { data: regions = [] } = useRegions();
   const { data: groups = [] } = useClientGroups();
+  const [phones, setPhones] = React.useState<PhoneItem[]>([]);
+
+  // Сброс телефонов при закрытии диалога
+  useEffect(() => {
+    if (!open) {
+      setPhones([]);
+    }
+  }, [open]);
 
   const {
     register,
@@ -101,16 +118,28 @@ export function CreateClientDialog({ open, onClose }: CreateClientDialogProps) {
 
   const onSubmit = (data: CreateClientFormData) => {
     createMutation.mutate(data, {
-      onSuccess: () => {
+      onSuccess: async (createdClient) => {
+        // Создаем телефоны после создания клиента
+        if (phones.length > 0) {
+          const phonePromises = phones.map((phone) =>
+            createPhoneMutation.mutateAsync({
+              clientId: createdClient.id,
+              phoneData: { phone: phone.phone },
+            })
+          );
+          await Promise.all(phonePromises);
+        }
         reset();
+        setPhones([]);
         onClose();
       },
     });
   };
 
   const handleClose = () => {
-    if (!createMutation.isPending) {
+    if (!createMutation.isPending && !createPhoneMutation.isPending) {
       reset();
+      setPhones([]);
       onClose();
     }
   };
@@ -213,6 +242,8 @@ export function CreateClientDialog({ open, onClose }: CreateClientDialogProps) {
                 )}
               />
             </FormControl>
+
+            <ClientPhonesFormField phones={phones} onChange={setPhones} />
           </Box>
         </DialogContent>
 
@@ -220,8 +251,8 @@ export function CreateClientDialog({ open, onClose }: CreateClientDialogProps) {
           <CancelButton onClick={handleClose} disabled={createMutation.isPending}>
             Отмена
           </CancelButton>
-          <StyledButton type="submit" disabled={createMutation.isPending}>
-            {createMutation.isPending ? <CircularProgress size={20} /> : 'Создать'}
+          <StyledButton type="submit" disabled={createMutation.isPending || createPhoneMutation.isPending}>
+            {createMutation.isPending || createPhoneMutation.isPending ? <CircularProgress size={20} /> : 'Создать'}
           </StyledButton>
         </DialogActions>
       </form>

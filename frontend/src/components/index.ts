@@ -20,6 +20,7 @@ export { EditClientDialog } from './EditClientDialog';
 export { RegionSelector } from './RegionSelector';
 export { ClientGroupSelector } from './ClientGroupSelector';
 export { ClientPhonesList } from './ClientPhonesList';
+export { ClientPhonesFormField } from './ClientPhonesFormField';
 export { AddPhoneDialog } from './AddPhoneDialog';
 export { EditPhoneDialog } from './EditPhoneDialog';
 export { CreateClientGroupDialog } from './CreateClientGroupDialog';

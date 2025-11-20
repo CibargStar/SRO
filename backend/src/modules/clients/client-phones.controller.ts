@@ -159,7 +159,7 @@ export async function listClientPhonesHandler(
     const phones = await prisma.clientPhone.findMany({
       where: { clientId },
       orderBy: {
-        createdAt: 'asc',
+        id: 'asc', // Сортировка по ID (в модели ClientPhone нет поля createdAt)
       },
     });
 
