@@ -22,7 +22,7 @@ export { requestLogger } from './logger';
 export { errorHandler, type AppError } from './errorHandler';
 export { notFoundHandler } from './notFound';
 export { validate } from './validation';
-export { validateBody, type ValidatedRequest } from './zodValidate';
+export { validateBody, validateQuery, type ValidatedRequest, type ValidatedQueryRequest } from './zodValidate';
 export {
   authMiddleware,
   requireAuth,

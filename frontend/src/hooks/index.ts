@@ -7,3 +7,7 @@
 
 export * from './useAuth';
 export * from './useUsers';
+export * from './useClients';
+export * from './useClientGroups';
+export * from './useRegions';
+export * from './useClientPhones';

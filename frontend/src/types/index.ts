@@ -84,6 +84,174 @@ export interface ApiError {
 }
 
 /**
+ * Статус клиента
+ */
+export type ClientStatus = 'NEW' | 'OLD';
+
+/**
+ * Регион
+ */
+export interface Region {
+  id: string;
+  name: string;
+  createdAt: string;
+  _count?: {
+    clients: number;
+  };
+}
+
+/**
+ * Группа клиентов
+ */
+export interface ClientGroup {
+  id: string;
+  userId: string;
+  name: string;
+  description: string | null;
+  color: string | null;
+  orderIndex: number | null;
+  createdAt: string;
+  updatedAt: string;
+  _count?: {
+    clients: number;
+  };
+}
+
+/**
+ * Телефон клиента
+ */
+export interface ClientPhone {
+  id: string;
+  clientId: string;
+  phone: string;
+}
+
+/**
+ * Клиент
+ */
+export interface Client {
+  id: string;
+  userId: string;
+  lastName: string;
+  firstName: string;
+  middleName: string | null;
+  regionId: string | null;
+  groupId: string | null;
+  status: ClientStatus;
+  createdAt: string;
+  region?: {
+    id: string;
+    name: string;
+  } | null;
+  group?: {
+    id: string;
+    name: string;
+  } | null;
+  phones?: ClientPhone[];
+}
+
+/**
+ * Ответ списка клиентов с пагинацией
+ */
+export interface ClientsListResponse {
+  data: Client[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
+}
+
+/**
+ * Query параметры для списка клиентов
+ */
+export interface ListClientsQuery {
+  page?: number;
+  limit?: number;
+  search?: string;
+  regionId?: string;
+  groupId?: string;
+  status?: ClientStatus;
+  sortBy?: 'createdAt' | 'lastName' | 'firstName' | 'regionId' | 'status';
+  sortOrder?: 'asc' | 'desc';
+}
+
+/**
+ * Данные для создания клиента
+ */
+export interface CreateClientInput {
+  lastName: string;
+  firstName: string;
+  middleName?: string | null;
+  regionId?: string | null;
+  groupId?: string | null;
+  status?: ClientStatus;
+}
+
+/**
+ * Данные для обновления клиента
+ */
+export interface UpdateClientInput {
+  lastName?: string;
+  firstName?: string;
+  middleName?: string | null;
+  regionId?: string | null;
+  groupId?: string | null;
+  status?: ClientStatus;
+}
+
+/**
+ * Данные для создания группы клиентов
+ */
+export interface CreateClientGroupInput {
+  name: string;
+  description?: string | null;
+  color?: string | null;
+  orderIndex?: number | null;
+}
+
+/**
+ * Данные для обновления группы клиентов
+ */
+export interface UpdateClientGroupInput {
+  name?: string;
+  description?: string | null;
+  color?: string | null;
+  orderIndex?: number | null;
+}
+
+/**
+ * Данные для создания региона
+ */
+export interface CreateRegionInput {
+  name: string;
+}
+
+/**
+ * Данные для обновления региона
+ */
+export interface UpdateRegionInput {
+  name?: string;
+}
+
+/**
+ * Данные для создания телефона клиента
+ */
+export interface CreateClientPhoneInput {
+  phone: string;
+}
+
+/**
+ * Данные для обновления телефона клиента
+ */
+export interface UpdateClientPhoneInput {
+  phone?: string;
+}
+
+/**
  * Экспорт типов для Sidebar
  */
 export type {

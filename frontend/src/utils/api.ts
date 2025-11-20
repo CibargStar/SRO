@@ -10,7 +10,29 @@
 
 import { API_BASE_URL } from '@/config';
 import { useAuthStore } from '@/store';
-import type { ApiError, LoginInput, LoginResponse, RefreshInput, RefreshResponse, LogoutInput, User } from '@/types';
+import type {
+  ApiError,
+  LoginInput,
+  LoginResponse,
+  RefreshInput,
+  RefreshResponse,
+  LogoutInput,
+  User,
+  Client,
+  ClientsListResponse,
+  ListClientsQuery,
+  CreateClientInput,
+  UpdateClientInput,
+  ClientGroup,
+  CreateClientGroupInput,
+  UpdateClientGroupInput,
+  Region,
+  CreateRegionInput,
+  UpdateRegionInput,
+  ClientPhone,
+  CreateClientPhoneInput,
+  UpdateClientPhoneInput,
+} from '@/types';
 import { isValidJWTFormat, isTokenExpired } from './jwt';
 
 /**
@@ -415,5 +437,458 @@ export async function updateUser(
   });
 
   return handleResponse<User>(response);
+}
+
+// ============================================
+// Clients API
+// ============================================
+
+/**
+ * Получение списка клиентов
+ * 
+ * Использует accessToken из store.
+ * Автоматически обновляет токен при истечении.
+ * 
+ * @param query - Query параметры (пагинация, поиск, фильтрация, сортировка)
+ * @returns Список клиентов с метаданными пагинации
+ */
+export async function listClients(query?: ListClientsQuery): Promise<ClientsListResponse> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  // Построение query строки
+  const queryParams = new URLSearchParams();
+  if (query?.page) queryParams.append('page', query.page.toString());
+  if (query?.limit) queryParams.append('limit', query.limit.toString());
+  if (query?.search) queryParams.append('search', query.search);
+  if (query?.regionId) queryParams.append('regionId', query.regionId);
+  if (query?.groupId) queryParams.append('groupId', query.groupId);
+  if (query?.status) queryParams.append('status', query.status);
+  if (query?.sortBy) queryParams.append('sortBy', query.sortBy);
+  if (query?.sortOrder) queryParams.append('sortOrder', query.sortOrder);
+
+  const queryString = queryParams.toString();
+  const url = `${API_BASE_URL}/clients${queryString ? `?${queryString}` : ''}`;
+
+  const response = await fetchWithAutoRefresh(url, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<ClientsListResponse>(response);
+}
+
+/**
+ * Получение клиента по ID
+ * 
+ * @param clientId - ID клиента
+ * @returns Данные клиента
+ */
+export async function getClient(clientId: string): Promise<Client> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/clients/${clientId}`, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<Client>(response);
+}
+
+/**
+ * Создание клиента
+ * 
+ * @param clientData - Данные для создания клиента
+ * @returns Созданный клиент
+ */
+export async function createClient(clientData: CreateClientInput): Promise<Client> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/clients`, {
+    method: 'POST',
+    headers: createHeaders(token),
+    body: JSON.stringify(clientData),
+  });
+
+  return handleResponse<Client>(response);
+}
+
+/**
+ * Обновление клиента
+ * 
+ * @param clientId - ID клиента
+ * @param clientData - Данные для обновления клиента
+ * @returns Обновленный клиент
+ */
+export async function updateClient(clientId: string, clientData: UpdateClientInput): Promise<Client> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/clients/${clientId}`, {
+    method: 'PATCH',
+    headers: createHeaders(token),
+    body: JSON.stringify(clientData),
+  });
+
+  return handleResponse<Client>(response);
+}
+
+/**
+ * Удаление клиента
+ * 
+ * @param clientId - ID клиента
+ */
+export async function deleteClient(clientId: string): Promise<void> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/clients/${clientId}`, {
+    method: 'DELETE',
+    headers: createHeaders(token),
+  });
+
+  await handleResponse<void>(response);
+}
+
+// ============================================
+// Client Groups API
+// ============================================
+
+/**
+ * Получение списка групп клиентов
+ * 
+ * @returns Список групп клиентов текущего пользователя
+ */
+export async function listClientGroups(): Promise<ClientGroup[]> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/client-groups`, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<ClientGroup[]>(response);
+}
+
+/**
+ * Получение группы клиентов по ID
+ * 
+ * @param groupId - ID группы
+ * @returns Данные группы
+ */
+export async function getClientGroup(groupId: string): Promise<ClientGroup> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/client-groups/${groupId}`, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<ClientGroup>(response);
+}
+
+/**
+ * Создание группы клиентов
+ * 
+ * @param groupData - Данные для создания группы
+ * @returns Созданная группа
+ */
+export async function createClientGroup(groupData: CreateClientGroupInput): Promise<ClientGroup> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/client-groups`, {
+    method: 'POST',
+    headers: createHeaders(token),
+    body: JSON.stringify(groupData),
+  });
+
+  return handleResponse<ClientGroup>(response);
+}
+
+/**
+ * Обновление группы клиентов
+ * 
+ * @param groupId - ID группы
+ * @param groupData - Данные для обновления группы
+ * @returns Обновленная группа
+ */
+export async function updateClientGroup(groupId: string, groupData: UpdateClientGroupInput): Promise<ClientGroup> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/client-groups/${groupId}`, {
+    method: 'PATCH',
+    headers: createHeaders(token),
+    body: JSON.stringify(groupData),
+  });
+
+  return handleResponse<ClientGroup>(response);
+}
+
+/**
+ * Удаление группы клиентов
+ * 
+ * @param groupId - ID группы
+ */
+export async function deleteClientGroup(groupId: string): Promise<void> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/client-groups/${groupId}`, {
+    method: 'DELETE',
+    headers: createHeaders(token),
+  });
+
+  await handleResponse<void>(response);
+}
+
+// ============================================
+// Regions API
+// ============================================
+
+/**
+ * Получение списка регионов
+ * 
+ * Доступно всем авторизованным пользователям.
+ * 
+ * @returns Список всех регионов
+ */
+export async function listRegions(): Promise<Region[]> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/regions`, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<Region[]>(response);
+}
+
+/**
+ * Получение региона по ID
+ * 
+ * @param regionId - ID региона
+ * @returns Данные региона
+ */
+export async function getRegion(regionId: string): Promise<Region> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/regions/${regionId}`, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<Region>(response);
+}
+
+/**
+ * Создание региона
+ * 
+ * Требует ROOT роль.
+ * 
+ * @param regionData - Данные для создания региона
+ * @returns Созданный регион
+ */
+export async function createRegion(regionData: CreateRegionInput): Promise<Region> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/regions`, {
+    method: 'POST',
+    headers: createHeaders(token),
+    body: JSON.stringify(regionData),
+  });
+
+  return handleResponse<Region>(response);
+}
+
+/**
+ * Обновление региона
+ * 
+ * Требует ROOT роль.
+ * 
+ * @param regionId - ID региона
+ * @param regionData - Данные для обновления региона
+ * @returns Обновленный регион
+ */
+export async function updateRegion(regionId: string, regionData: UpdateRegionInput): Promise<Region> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/regions/${regionId}`, {
+    method: 'PATCH',
+    headers: createHeaders(token),
+    body: JSON.stringify(regionData),
+  });
+
+  return handleResponse<Region>(response);
+}
+
+/**
+ * Удаление региона
+ * 
+ * Требует ROOT роль.
+ * 
+ * @param regionId - ID региона
+ */
+export async function deleteRegion(regionId: string): Promise<void> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/regions/${regionId}`, {
+    method: 'DELETE',
+    headers: createHeaders(token),
+  });
+
+  await handleResponse<void>(response);
+}
+
+// ============================================
+// Client Phones API
+// ============================================
+
+/**
+ * Получение списка телефонов клиента
+ * 
+ * @param clientId - ID клиента
+ * @returns Список телефонов клиента
+ */
+export async function listClientPhones(clientId: string): Promise<ClientPhone[]> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/clients/${clientId}/phones`, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<ClientPhone[]>(response);
+}
+
+/**
+ * Создание телефона клиента
+ * 
+ * @param clientId - ID клиента
+ * @param phoneData - Данные для создания телефона
+ * @returns Созданный телефон
+ */
+export async function createClientPhone(clientId: string, phoneData: CreateClientPhoneInput): Promise<ClientPhone> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/clients/${clientId}/phones`, {
+    method: 'POST',
+    headers: createHeaders(token),
+    body: JSON.stringify(phoneData),
+  });
+
+  return handleResponse<ClientPhone>(response);
+}
+
+/**
+ * Обновление телефона клиента
+ * 
+ * @param clientId - ID клиента
+ * @param phoneId - ID телефона
+ * @param phoneData - Данные для обновления телефона
+ * @returns Обновленный телефон
+ */
+export async function updateClientPhone(
+  clientId: string,
+  phoneId: string,
+  phoneData: UpdateClientPhoneInput
+): Promise<ClientPhone> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/clients/${clientId}/phones/${phoneId}`, {
+    method: 'PATCH',
+    headers: createHeaders(token),
+    body: JSON.stringify(phoneData),
+  });
+
+  return handleResponse<ClientPhone>(response);
+}
+
+/**
+ * Удаление телефона клиента
+ * 
+ * @param clientId - ID клиента
+ * @param phoneId - ID телефона
+ */
+export async function deleteClientPhone(clientId: string, phoneId: string): Promise<void> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/clients/${clientId}/phones/${phoneId}`, {
+    method: 'DELETE',
+    headers: createHeaders(token),
+  });
+
+  await handleResponse<void>(response);
 }
 

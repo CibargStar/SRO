@@ -7,4 +7,6 @@
 
 export { LoginPage } from './LoginPage';
 export { UsersAdminPage } from './UsersAdminPage';
+export { ClientsPage } from './ClientsPage';
+export { ClientGroupsPage } from './ClientGroupsPage';
 

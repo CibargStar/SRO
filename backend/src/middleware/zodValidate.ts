@@ -108,6 +108,82 @@ export function validateBody<T>(schema: ZodSchema<T>): RequestHandler {
 }
 
 /**
+ * Расширенный Express Request с типобезопасным query
+ * 
+ * После успешной валидации req.query содержит данные, соответствующие схеме.
+ */
+export interface ValidatedQueryRequest<T> extends Request {
+  query: T;
+}
+
+/**
+ * Создает middleware для валидации query параметров по Zod схеме
+ * 
+ * @template T - Тип данных, который должна валидировать схема
+ * @param schema - Zod схема для валидации req.query
+ * @returns Express middleware функция
+ * 
+ * @example
+ * ```typescript
+ * import { listClientsQuerySchema } from '../modules/clients/client.schemas';
+ * import { validateQuery } from '../middleware/zodValidate';
+ * 
+ * router.get('/clients',
+ *   validateQuery(listClientsQuerySchema),
+ *   listClientsHandler
+ * );
+ * ```
+ */
+export function validateQuery<T>(schema: ZodSchema<T>): RequestHandler {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    try {
+      // Валидация req.query по схеме
+      const validatedData = schema.parse(req.query);
+
+      // Заменяем req.query на валидированные данные
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      req.query = validatedData as Request['query'];
+
+      // Валидация прошла успешно
+      next();
+    } catch (error) {
+      // Обработка ошибок валидации Zod
+      if (error instanceof ZodError) {
+        // Форматируем ошибки для клиента
+        const errors = error.errors.map((err) => ({
+          field: err.path.join('.') || 'root',
+          message: err.message,
+        }));
+
+        logger.warn('Request query validation failed', {
+          path: req.path,
+          method: req.method,
+          errorCount: errors.length,
+        });
+
+        // Возвращаем 400 с аккуратным JSON
+        res.status(400).json({
+          error: 'Validation error',
+          details: errors,
+        });
+        return;
+      }
+
+      // Неожиданная ошибка
+      logger.error('Unexpected error during query validation', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        path: req.path,
+        method: req.method,
+      });
+
+      res.status(500).json({
+        error: 'Internal server error during validation',
+      });
+    }
+  };
+}
+
+/**
  * Типичные ошибки безопасности при валидации входных данных:
  * 
  * 1. ❌ Логирование паролей при ошибках валидации

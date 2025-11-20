@@ -56,8 +56,14 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 // API Routes
 import authRoutes from './routes/auth.routes';
 import usersRoutes from './routes/users.routes';
+import clientsRoutes from './routes/clients.routes';
+import clientGroupsRoutes from './routes/client-groups.routes';
+import regionsRoutes from './routes/regions.routes';
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/clients', clientsRoutes);
+app.use('/api/client-groups', clientGroupsRoutes);
+app.use('/api/regions', regionsRoutes);
 
 // Обработчики ошибок должны быть последними
 app.use(notFoundHandler); // 404 для несуществующих маршрутов
