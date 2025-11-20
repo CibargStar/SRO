@@ -56,6 +56,8 @@ const router = Router();
  *             example:
  *               accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
  *               refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *               expiresIn: 900
+ *               refreshExpiresIn: 604800
  *               user:
  *                 id: 123e4567-e89b-12d3-a456-426614174000
  *                 email: user@example.com
@@ -103,6 +105,8 @@ router.post('/login', authRateLimiter, validateBody(loginSchema), loginHandler);
  *       При успешном обновлении старый refresh токен инвалидируется (ротация токенов).
  *       
  *       **Важно:** После смены пароля все refresh токены инвалидируются через passwordVersion.
+ *       
+ *       **Rate Limiting:** 10 запросов / 1 минута с одного IP
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -122,6 +126,8 @@ router.post('/login', authRateLimiter, validateBody(loginSchema), loginHandler);
  *             example:
  *               accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
  *               refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *               expiresIn: 900
+ *               refreshExpiresIn: 604800
  *       400:
  *         description: Ошибка валидации входных данных
  *         content:

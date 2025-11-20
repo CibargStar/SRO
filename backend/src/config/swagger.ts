@@ -36,7 +36,9 @@ const swaggerOptions: swaggerJsdoc.Options = {
         **Frontend интеграция:**
         - Frontend отправляет accessToken в заголовке \`Authorization: Bearer <token>\`
         - Refresh токен хранится в localStorage (с пониманием рисков XSS)
-        - При любом 401 ошибке frontend автоматически очищает auth store и редиректит на /login
+        - Автоматический refresh токенов при 401 ошибке с защитой от race conditions
+        - Проверка истечения access token перед запросами (деконодирование JWT)
+        - Валидация формата JWT токенов перед отправкой на сервер
         - Frontend не показывает технические детали ошибок пользователю
         - Frontend блокирует попытки редактирования ROOT пользователей
         
@@ -151,11 +153,21 @@ const swaggerOptions: swaggerJsdoc.Options = {
               description: 'JWT Refresh токен (время жизни: 7 дней)',
               example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
             },
+            expiresIn: {
+              type: 'number',
+              description: 'Время жизни access token в секундах',
+              example: 900,
+            },
+            refreshExpiresIn: {
+              type: 'number',
+              description: 'Время жизни refresh token в секундах',
+              example: 604800,
+            },
             user: {
               $ref: '#/components/schemas/User',
             },
           },
-          required: ['accessToken', 'refreshToken', 'user'],
+          required: ['accessToken', 'refreshToken', 'expiresIn', 'refreshExpiresIn', 'user'],
         },
         RefreshResponse: {
           type: 'object',
@@ -170,8 +182,18 @@ const swaggerOptions: swaggerJsdoc.Options = {
               description: 'Новый JWT Refresh токен (старый токен инвалидирован)',
               example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
             },
+            expiresIn: {
+              type: 'number',
+              description: 'Время жизни access token в секундах',
+              example: 900,
+            },
+            refreshExpiresIn: {
+              type: 'number',
+              description: 'Время жизни refresh token в секундах',
+              example: 604800,
+            },
           },
-          required: ['accessToken', 'refreshToken'],
+          required: ['accessToken', 'refreshToken', 'expiresIn', 'refreshExpiresIn'],
         },
         
         // User schemas

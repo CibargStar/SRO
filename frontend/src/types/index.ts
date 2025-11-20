@@ -39,6 +39,8 @@ export interface LoginInput {
 export interface LoginResponse {
   accessToken: string;
   refreshToken: string;
+  expiresIn: number; // Время жизни access token в секундах
+  refreshExpiresIn: number; // Время жизни refresh token в секундах
   user: {
     id: string;
     email: string;
@@ -60,6 +62,8 @@ export interface RefreshInput {
 export interface RefreshResponse {
   accessToken: string;
   refreshToken: string;
+  expiresIn: number; // Время жизни access token в секундах
+  refreshExpiresIn: number; // Время жизни refresh token в секундах
 }
 
 /**

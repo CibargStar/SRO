@@ -29,15 +29,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { data: user, isLoading, error } = useCurrentUser();
 
   useEffect(() => {
-    // Если есть refresh token, но нет access token или пользователя, 
-    // можно попытаться обновить токен (но это будет в следующих этапах)
-    if (refreshToken && !accessToken) {
-      // Здесь можно вызвать refresh, но пока просто очищаем
-      // В следующих этапах добавим автоматический refresh
-    }
-
+    // Автоматический refresh реализован в api.ts через fetchWithAutoRefresh
+    // При получении 401 ошибки автоматически выполняется refresh и повтор запроса
+    // Если refresh не удался, происходит автоматический logout и редирект на /login
+    
     // Если есть access token, но нет пользователя и запрос завершился с ошибкой,
     // очищаем состояние (токен невалидный)
+    // Это fallback на случай, если автоматический refresh не сработал
     if (accessToken && !user && error && !isLoading) {
       useAuthStore.getState().clearAuth();
     }

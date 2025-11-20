@@ -22,6 +22,7 @@ import {
 } from './token.service';
 import { prisma, env } from '../../config';
 import logger from '../../config/logger';
+import { logInvalidOrigin } from '../../utils/securityLogger';
 
 /**
  * Обработчик входа в систему
@@ -185,8 +186,6 @@ export async function refreshHandler(
         const requestOrigin = new URL(origin).origin;
         if (requestOrigin !== allowedOrigin) {
           // Используем централизованное логирование безопасности
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const { logInvalidOrigin } = require('../../utils/securityLogger');
           logInvalidOrigin(requestOrigin, allowedOrigin, {
             ip: req.ip,
             userAgent: req.headers['user-agent'],

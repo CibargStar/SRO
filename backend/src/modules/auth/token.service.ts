@@ -19,6 +19,7 @@ import type { User } from '@prisma/client';
 import { PrismaClient, UserRole } from '@prisma/client';
 import { env } from '../../config/env';
 import logger from '../../config/logger';
+import { logRevokedTokenUse } from '../../utils/securityLogger';
 
 /**
  * Payload для Access токена
@@ -370,8 +371,6 @@ export async function verifyRefreshToken(
       // 3. В будущем можно добавить блокировку пользователя при множественных попытках
       
       // Используем централизованное логирование безопасности
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { logRevokedTokenUse } = require('../../utils/securityLogger');
       logRevokedTokenUse(decoded.sub, decoded.tokenId);
 
       // Отзываем все токены пользователя для безопасности
