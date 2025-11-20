@@ -22,6 +22,14 @@ enum UserRole {
   USER
 }
 
+/// Статус клиента
+/// NEW - новый клиент
+/// OLD - старый клиент
+enum ClientStatus {
+  NEW
+  OLD
+}
+
 // ============================================
 // Models
 // ============================================
@@ -47,6 +55,10 @@ model User {
 
   // Связь с refresh токенами (каскадное удаление)
   refreshTokens  RefreshToken[]
+  
+  // Связи с клиентами и группами клиентов
+  clientGroups   ClientGroup[]
+  clients        Client[]
 
   // Индексы для оптимизации запросов
   @@index([email]) // Быстрый поиск по email (уже есть @unique, но явный индекс для ясности)
@@ -74,5 +86,82 @@ model RefreshToken {
   @@index([expiresAt]) // Быстрая очистка истекших токенов (запросы по времени)
   @@index([token]) // Быстрая проверка существования токена (уже есть @unique, но явный индекс)
   @@map("refresh_tokens") // Явное имя таблицы в БД
+}
+
+/// Справочник регионов
+/// Статический справочник, общий для всех пользователей
+model Region {
+  id        String   @id @default(uuid())
+  name      String   @unique // Название региона (уникальное)
+  createdAt DateTime @default(now())
+  
+  // Связь с клиентами
+  clients   Client[]
+  
+  @@index([name]) // Быстрый поиск по названию
+  @@map("regions")
+}
+
+/// Группы клиентов конкретного пользователя
+/// Каждый пользователь может создавать свои группы для организации клиентов
+model ClientGroup {
+  id          String    @id @default(uuid())
+  userId      String    // ID пользователя-владельца
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String    // Название группы
+  description String?   // Описание (опционально)
+  color       String?   // HEX цвет или название цвета (опционально)
+  orderIndex  Int?      // Порядок сортировки (опционально)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Связь с клиентами
+  clients     Client[]
+  
+  // Индексы для оптимизации запросов
+  @@index([userId]) // Быстрый поиск групп пользователя
+  @@index([userId, name]) // Уникальность названия группы для пользователя
+  @@map("client_groups")
+}
+
+/// Карточка клиента
+/// Основная информация о клиенте, принадлежащая конкретному пользователю
+model Client {
+  id         String       @id @default(uuid())
+  userId     String       // ID пользователя-владельца
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastName   String       // Фамилия
+  firstName  String       // Имя
+  middleName String?      // Отчество (опционально)
+  regionId   String?      // ID региона (опционально)
+  region     Region?      @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  groupId    String?      // ID группы клиентов (опционально)
+  group      ClientGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  status     ClientStatus @default(NEW) // Статус клиента (NEW или OLD)
+  createdAt  DateTime     @default(now())
+  
+  // Связь с телефонами клиента
+  phones     ClientPhone[]
+  
+  // Индексы для оптимизации запросов
+  @@index([userId]) // Быстрый поиск клиентов пользователя
+  @@index([regionId]) // Быстрый поиск по региону
+  @@index([groupId]) // Быстрый поиск по группе
+  @@index([status]) // Быстрый поиск по статусу
+  @@index([userId, status]) // Комбинированный поиск клиентов пользователя по статусу
+  @@map("clients")
+}
+
+/// Телефоны клиента
+/// Один клиент может иметь несколько телефонов (связь один-ко-многим)
+model ClientPhone {
+  id       String   @id @default(uuid())
+  clientId String   // ID клиента
+  client   Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  phone    String   // Номер телефона
+  
+  // Индексы для оптимизации запросов
+  @@index([clientId]) // Быстрый поиск телефонов клиента
+  @@map("client_phones")
 }
 
