@@ -271,6 +271,7 @@ export function CreateUserDialog({ open, onClose }: CreateUserDialogProps) {
       onClose={handleClose}
       maxWidth="sm"
       fullWidth
+      disableEnforceFocus
       PaperProps={{
         sx: {
           backgroundColor: '#212121',

@@ -145,6 +145,7 @@ export function EditClientDialog({ open, client, onClose }: EditClientDialogProp
       onClose={handleClose}
       maxWidth="sm"
       fullWidth
+      disableEnforceFocus
       PaperProps={{ sx: { backgroundColor: '#212121', borderRadius: '12px' } }}
     >
       <form onSubmit={handleSubmit(onSubmit)}>

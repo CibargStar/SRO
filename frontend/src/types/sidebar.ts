@@ -51,3 +51,4 @@ export interface SidebarNavigationItem {
  */
 export type VisibilityChecker = (user: { role: UserRole; [key: string]: unknown } | null) => boolean;
 
+

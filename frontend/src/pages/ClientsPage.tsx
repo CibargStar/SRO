@@ -1,7 +1,7 @@
 /**
  * Страница управления клиентами
  * 
- * Предоставляет интерфейс для управления клиентами:
+ * Предоставляет интерфейс для управления клиентами и группами клиентов:
  * - Список клиентов с пагинацией
  * - Поиск по ФИО
  * - Фильтрация по региону, группе, статусу
@@ -9,6 +9,7 @@
  * - Создание клиента
  * - Редактирование клиента
  * - Удаление клиента
+ * - Управление группами клиентов (создание, редактирование, удаление)
  */
 
 import React, { useState } from 'react';
@@ -32,13 +33,22 @@ import {
 import { styled } from '@mui/material/styles';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
+import GroupIcon from '@mui/icons-material/Group';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import IconButton from '@mui/material/IconButton';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
 import { useClients, useDeleteClient } from '@/hooks/useClients';
 import { useRegions } from '@/hooks/useRegions';
-import { useClientGroups } from '@/hooks/useClientGroups';
+import { useClientGroups, useDeleteClientGroup } from '@/hooks/useClientGroups';
 import { ClientTable } from '@/components/ClientTable';
 import { CreateClientDialog } from '@/components/CreateClientDialog';
 import { EditClientDialog } from '@/components/EditClientDialog';
-import type { Client, ClientStatus } from '@/types';
+import { CreateClientGroupDialog } from '@/components/CreateClientGroupDialog';
+import { EditClientGroupDialog } from '@/components/EditClientGroupDialog';
+import type { Client, ClientStatus, ClientGroup } from '@/types';
 
 const StyledButton = styled(Button)(({ theme }) => ({
   borderRadius: '12px',
@@ -93,6 +103,13 @@ export function ClientsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
+  // Состояния для управления группами
+  const [groupsDialogOpen, setGroupsDialogOpen] = useState(false);
+  const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false);
+  const [editGroupDialogOpen, setEditGroupDialogOpen] = useState(false);
+  const [deleteGroupDialogOpen, setDeleteGroupDialogOpen] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState<ClientGroup | null>(null);
+
   const { data: clientsData, isLoading, error } = useClients({
     page,
     limit,
@@ -107,6 +124,7 @@ export function ClientsPage() {
   const { data: regions = [] } = useRegions();
   const { data: groups = [] } = useClientGroups();
   const deleteMutation = useDeleteClient();
+  const deleteGroupMutation = useDeleteClientGroup();
 
   const handleEdit = (client: Client) => {
     setSelectedClient(client);
@@ -139,6 +157,38 @@ export function ClientsPage() {
     setSelectedClient(null);
   };
 
+  // Обработчики для управления группами
+  const handleEditGroup = (group: ClientGroup) => {
+    setSelectedGroup(group);
+    setEditGroupDialogOpen(true);
+  };
+
+  const handleDeleteGroup = (group: ClientGroup) => {
+    setSelectedGroup(group);
+    setDeleteGroupDialogOpen(true);
+  };
+
+  const handleConfirmDeleteGroup = () => {
+    if (selectedGroup) {
+      deleteGroupMutation.mutate(selectedGroup.id, {
+        onSuccess: () => {
+          setDeleteGroupDialogOpen(false);
+          setSelectedGroup(null);
+        },
+      });
+    }
+  };
+
+  const handleCloseEditGroupDialog = () => {
+    setEditGroupDialogOpen(false);
+    setSelectedGroup(null);
+  };
+
+  const handleCloseDeleteGroupDialog = () => {
+    setDeleteGroupDialogOpen(false);
+    setSelectedGroup(null);
+  };
+
   const errorMessage = error ? 'Не удалось загрузить клиентов' : null;
 
   return (
@@ -147,9 +197,14 @@ export function ClientsPage() {
         <Typography variant="h4" component="h1" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
           Управление клиентами
         </Typography>
-        <StyledButton startIcon={<AddIcon />} onClick={() => setCreateDialogOpen(true)}>
-          Создать клиента
-        </StyledButton>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <StyledButton startIcon={<GroupIcon />} onClick={() => setGroupsDialogOpen(true)}>
+            Управление группами
+          </StyledButton>
+          <StyledButton startIcon={<AddIcon />} onClick={() => setCreateDialogOpen(true)}>
+            Создать клиента
+          </StyledButton>
+        </Box>
       </Box>
 
       {/* Фильтры и поиск */}
@@ -305,10 +360,143 @@ export function ClientsPage() {
       <CreateClientDialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} />
       <EditClientDialog open={editDialogOpen} client={selectedClient} onClose={handleCloseEditDialog} />
 
-      {/* Диалог подтверждения удаления */}
+      {/* Диалог управления группами */}
+      <Dialog
+        open={groupsDialogOpen}
+        onClose={() => setGroupsDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+        disableEnforceFocus
+        PaperProps={{ sx: { backgroundColor: '#212121', borderRadius: '12px' } }}
+      >
+        <Box sx={{ px: 3, pt: 3, pb: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
+              Управление группами клиентов
+            </Typography>
+            <StyledButton startIcon={<AddIcon />} onClick={() => setCreateGroupDialogOpen(true)} size="small">
+              Создать группу
+            </StyledButton>
+          </Box>
+        </Box>
+        <DialogContent sx={{ px: 3, pt: 3 }}>
+          {groups.length === 0 ? (
+            <Alert severity="info" sx={{ borderRadius: '12px', backgroundColor: 'rgba(33, 150, 243, 0.1)', color: '#ffffff', border: 'none' }}>
+              Группы не найдены. Создайте первую группу.
+            </Alert>
+          ) : (
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 2 }}>
+              {groups.map((group) => (
+                <Card
+                  key={group.id}
+                  sx={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    borderRadius: '12px',
+                    border: 'none',
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                      transform: 'translateY(-2px)',
+                    },
+                  }}
+                >
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                      <Box>
+                        <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500, mb: 1 }}>
+                          {group.name}
+                        </Typography>
+                        {group.description && (
+                          <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1 }}>
+                            {group.description}
+                          </Typography>
+                        )}
+                      </Box>
+                      <Box>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleEditGroup(group)}
+                          sx={{
+                            color: 'rgba(255, 255, 255, 0.7)',
+                            '&:hover': { color: '#ffffff', backgroundColor: 'rgba(255, 255, 255, 0.1)' },
+                          }}
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleDeleteGroup(group)}
+                          sx={{
+                            color: 'rgba(255, 255, 255, 0.7)',
+                            '&:hover': { color: '#ffffff', backgroundColor: 'rgba(255, 255, 255, 0.1)' },
+                          }}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    </Box>
+
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+                      {group.color && (
+                        <Chip
+                          label={group.color}
+                          size="small"
+                          sx={{
+                            backgroundColor: group.color,
+                            color: '#ffffff',
+                            fontSize: '0.7rem',
+                            height: 20,
+                          }}
+                        />
+                      )}
+                      <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>
+                        Клиентов: {group._count?.clients || 0}
+                      </Typography>
+                    </Box>
+                  </CardContent>
+                </Card>
+              ))}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <CancelButton onClick={() => setGroupsDialogOpen(false)}>Закрыть</CancelButton>
+        </DialogActions>
+      </Dialog>
+
+      <CreateClientGroupDialog open={createGroupDialogOpen} onClose={() => setCreateGroupDialogOpen(false)} />
+      <EditClientGroupDialog open={editGroupDialogOpen} group={selectedGroup} onClose={handleCloseEditGroupDialog} />
+
+      {/* Диалог подтверждения удаления группы */}
+      <Dialog
+        open={deleteGroupDialogOpen}
+        onClose={handleCloseDeleteGroupDialog}
+        disableEnforceFocus
+        PaperProps={{ sx: { backgroundColor: '#212121', borderRadius: '12px' } }}
+      >
+        <DialogTitle sx={{ color: '#f5f5f5' }}>Подтверждение удаления</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+            Вы уверены, что хотите удалить группу "{selectedGroup?.name}"?
+            Клиенты из этой группы останутся, но их группа будет сброшена.
+            Это действие нельзя отменить.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <CancelButton onClick={handleCloseDeleteGroupDialog} disabled={deleteGroupMutation.isPending}>
+            Отмена
+          </CancelButton>
+          <StyledButton onClick={handleConfirmDeleteGroup} disabled={deleteGroupMutation.isPending}>
+            {deleteGroupMutation.isPending ? <CircularProgress size={20} /> : 'Удалить'}
+          </StyledButton>
+        </DialogActions>
+      </Dialog>
+
+      {/* Диалог подтверждения удаления клиента */}
       <Dialog
         open={deleteDialogOpen}
         onClose={handleCloseDeleteDialog}
+        disableEnforceFocus
         PaperProps={{ sx: { backgroundColor: '#212121', borderRadius: '12px' } }}
       >
         <DialogTitle sx={{ color: '#f5f5f5' }}>Подтверждение удаления</DialogTitle>

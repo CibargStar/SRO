@@ -51,7 +51,9 @@ const NavigationItemContainer = styled(Box)(({ theme }) => ({
  * Минималистичный дизайн с плавными анимациями для темной темы.
  * Для кнопки выхода (isLogout) при наведении меняется только цвет текста.
  */
-const NavigationButton = styled(Button)<{ isActive?: boolean; isLogout?: boolean }>(({ theme, isActive, isLogout }) => ({
+const NavigationButton = styled(Button, {
+  shouldForwardProp: (prop) => prop !== 'isActive' && prop !== 'isLogout',
+})<{ isActive?: boolean; isLogout?: boolean }>(({ theme, isActive, isLogout }) => ({
   width: '100%',
   maxWidth: 160, // Ограничение ширины для центрирования
   justifyContent: 'center', // Центрирование содержимого

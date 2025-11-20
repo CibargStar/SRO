@@ -98,6 +98,7 @@ export function AddPhoneDialog({ open, clientId, onClose }: AddPhoneDialogProps)
       onClose={handleClose}
       maxWidth="sm"
       fullWidth
+      disableEnforceFocus
       PaperProps={{ sx: { backgroundColor: '#212121', borderRadius: '12px' } }}
     >
       <form onSubmit={handleSubmit(onSubmit)}>

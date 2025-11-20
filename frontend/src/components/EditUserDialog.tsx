@@ -379,6 +379,7 @@ export function EditUserDialog({ open, user, onClose }: EditUserDialogProps) {
       onClose={handleClose}
       maxWidth="sm"
       fullWidth
+      disableEnforceFocus
       PaperProps={{
         sx: {
           backgroundColor: '#212121',

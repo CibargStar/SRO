@@ -97,7 +97,9 @@ const RoleBadge = styled(Box)(({ theme }) => ({
  * 
  * Минималистичный дизайн с разными оттенками для активного/неактивного.
  */
-const StatusBadge = styled(Box)<{ active?: boolean }>(({ theme, active }) => ({
+const StatusBadge = styled(Box, {
+  shouldForwardProp: (prop) => prop !== 'active',
+})<{ active?: boolean }>(({ theme, active }) => ({
   display: 'inline-block',
   padding: theme.spacing(0.5, 1.5),
   borderRadius: '8px',
