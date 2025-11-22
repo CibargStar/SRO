@@ -100,8 +100,8 @@ export async function importClientsHandler(
       success: result.success,
       statistics: result.statistics,
       message: result.success
-        ? 'Import completed successfully'
-        : `Import completed with ${result.statistics.errors} errors`,
+        ? 'Импорт завершен успешно'
+        : `Импорт завершен с ${result.statistics.errors} ошибками`,
       errors: result.errors.length > 0 ? result.errors : undefined,
       groupId: result.groupId,
       groupName: result.groupName,

@@ -28,7 +28,7 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import { useImportClients } from '@/hooks/useImport';
-import { useClientGroups } from '@/hooks/useClientGroups';
+import { useClientGroups, useClientGroup } from '@/hooks/useClientGroups';
 import { ClientGroupSelector } from './ClientGroupSelector';
 import { CreateClientGroupDialog } from './CreateClientGroupDialog';
 import type { ImportClientsResponse } from '@/utils/api';
@@ -87,9 +87,11 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
   const [groupId, setGroupId] = useState<string>('');
   const [importResult, setImportResult] = useState<ImportClientsResponse | null>(null);
   const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false);
+  const [warningDialogOpen, setWarningDialogOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: groups = [], isLoading: groupsLoading } = useClientGroups();
+  const { data: selectedGroup } = useClientGroup(groupId);
   const importMutation = useImportClients();
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -116,14 +118,32 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
       return;
     }
 
+    // Проверка: если группа не пустая, показываем предупреждение
+    const clientsCount = selectedGroup?._count?.clients ?? 0;
+    if (clientsCount > 0) {
+      setWarningDialogOpen(true);
+      return;
+    }
+
+    // Если группа пустая - импортируем сразу
+    await performImport();
+  };
+
+  const performImport = async () => {
+    if (!selectedFile || !groupId) {
+      return;
+    }
+
     try {
       const result = await importMutation.mutateAsync({
         groupId,
         file: selectedFile,
       });
       setImportResult(result);
+      setWarningDialogOpen(false);
     } catch (error) {
       // Ошибка обрабатывается через mutation.error
+      setWarningDialogOpen(false);
     }
   };
 
@@ -132,6 +152,7 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
     setGroupId('');
     setImportResult(null);
     setCreateGroupDialogOpen(false);
+    setWarningDialogOpen(false);
     importMutation.reset();
     onClose();
   };
@@ -162,42 +183,44 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
 
       <DialogContent sx={{ px: 3, pt: 3 }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          {/* Выбор группы */}
-          <Box>
-            <Typography variant="body2" sx={{ mb: 1, color: 'rgba(255, 255, 255, 0.7)' }}>
-              Выберите группу для импорта:
-            </Typography>
-            {!groupsLoading && !hasGroups ? (
-              <Alert 
-                severity="warning" 
-                sx={{ 
-                  mb: 2, 
-                  borderRadius: '12px', 
-                  backgroundColor: 'rgba(255, 152, 0, 0.1)', 
-                  color: '#ffffff', 
-                  border: 'none' 
-                }}
-              >
-                <Typography variant="body2" sx={{ mb: 1, color: '#ffffff' }}>
-                  У вас нет групп клиентов. Создайте группу перед импортом.
-                </Typography>
-                <StyledButton
-                  size="small"
-                  onClick={() => setCreateGroupDialogOpen(true)}
-                  sx={{ mt: 1 }}
+          {/* Выбор группы (скрывается после завершения импорта) */}
+          {!importResult && (
+            <Box>
+              <Typography variant="body2" sx={{ mb: 1, color: 'rgba(255, 255, 255, 0.7)' }}>
+                Выберите группу для импорта:
+              </Typography>
+              {!groupsLoading && !hasGroups ? (
+                <Alert 
+                  severity="warning" 
+                  sx={{ 
+                    mb: 2, 
+                    borderRadius: '12px', 
+                    backgroundColor: 'rgba(255, 152, 0, 0.1)', 
+                    color: '#ffffff', 
+                    border: 'none' 
+                  }}
                 >
-                  Создать группу
-                </StyledButton>
-              </Alert>
-            ) : (
-              <ClientGroupSelector
-                value={groupId || null}
-                onChange={(val) => setGroupId(val || '')}
-                required
-                disabled={isLoading}
-              />
-            )}
-          </Box>
+                  <Typography variant="body2" sx={{ mb: 1, color: '#ffffff' }}>
+                    У вас нет групп клиентов. Создайте группу перед импортом.
+                  </Typography>
+                  <StyledButton
+                    size="small"
+                    onClick={() => setCreateGroupDialogOpen(true)}
+                    sx={{ mt: 1 }}
+                  >
+                    Создать группу
+                  </StyledButton>
+                </Alert>
+              ) : (
+                <ClientGroupSelector
+                  value={groupId || null}
+                  onChange={(val) => setGroupId(val || '')}
+                  required
+                  disabled={isLoading}
+                />
+              )}
+            </Box>
+          )}
 
           {/* Загрузка файла */}
           {!importResult && (
@@ -263,16 +286,19 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
                 </Typography>
               </Box>
 
-              <Typography variant="body2" sx={{ mb: 2, color: 'rgba(255, 255, 255, 0.7)' }}>
-                {importResult.message}
-              </Typography>
-
               {/* Статистика */}
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
                 <Chip
                   label={`Всего: ${importResult.statistics.total}`}
-                  color="default"
                   size="small"
+                  sx={{
+                    backgroundColor: 'rgba(33, 150, 243, 0.2)',
+                    color: '#ffffff',
+                    fontWeight: 500,
+                    '& .MuiChip-label': {
+                      color: '#ffffff',
+                    },
+                  }}
                 />
                 <Chip
                   label={`Создано: ${importResult.statistics.created}`}
@@ -405,6 +431,94 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
         onClose={() => setCreateGroupDialogOpen(false)}
         onSuccess={handleGroupCreated}
       />
+
+      {/* Диалог предупреждения о дедупликации */}
+      <Dialog
+        open={warningDialogOpen}
+        onClose={() => setWarningDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { backgroundColor: '#212121', borderRadius: '12px' } }}
+      >
+        <Box sx={{ px: 3, pt: 3, pb: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+          <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
+            Внимание!
+          </Typography>
+        </Box>
+
+        <DialogContent sx={{ px: 3, pt: 3 }}>
+          <Typography variant="body1" sx={{ mb: 2, color: 'rgba(255, 255, 255, 0.9)' }}>
+            При загрузке базы клиентов в группу, в которой уже имеются контакты будет включен автоматический поиск дубликатов.
+          </Typography>
+
+          <Typography variant="body2" sx={{ mb: 1, color: 'rgba(255, 255, 255, 0.7)', fontWeight: 500 }}>
+            Логика обработки дубликатов:
+          </Typography>
+          
+          <Box component="ul" sx={{ pl: 2, mb: 2, color: 'rgba(255, 255, 255, 0.7)' }}>
+            <li style={{ marginBottom: '8px' }}>
+              <Typography variant="body2" component="span">
+                <strong>Поиск дубликатов</strong> выполняется по номерам телефонов среди всех клиентов владельца группы (не только в выбранной группе).
+              </Typography>
+            </li>
+            <li style={{ marginBottom: '8px' }}>
+              <Typography variant="body2" component="span">
+                Если найден клиент с таким же телефоном:
+              </Typography>
+              <Box component="ul" sx={{ pl: 2, mt: 0.5 }}>
+                <li>
+                  <Typography variant="body2" component="span">
+                    У существующего клиента нет ФИО, а в импорте есть → <strong>обновляется ФИО</strong> существующего клиента
+                  </Typography>
+                </li>
+                <li>
+                  <Typography variant="body2" component="span">
+                    Есть новые номера телефонов → <strong>добавляются</strong> к существующему клиенту
+                  </Typography>
+                </li>
+                <li>
+                  <Typography variant="body2" component="span">
+                    Полное совпадение (телефоны и ФИО) → <strong>пропускается</strong> (дубликат)
+                  </Typography>
+                </li>
+              </Box>
+            </li>
+            <li>
+              <Typography variant="body2" component="span">
+                Если клиент не найден → <strong>создается новый</strong> клиент
+              </Typography>
+            </li>
+          </Box>
+
+          <Alert 
+            severity="info" 
+            sx={{ 
+              borderRadius: '12px', 
+              backgroundColor: 'rgba(33, 150, 243, 0.1)', 
+              color: '#ffffff', 
+              border: 'none',
+              mt: 2
+            }}
+          >
+            <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.9)' }}>
+              Вы можете отменить импорт, если не хотите выполнять дедупликацию.
+            </Typography>
+          </Alert>
+        </DialogContent>
+
+        <DialogActions sx={{ px: 3, pb: 3, pt: 2 }}>
+          <CancelButton onClick={() => setWarningDialogOpen(false)}>
+            Отмена
+          </CancelButton>
+          <StyledButton
+            onClick={performImport}
+            disabled={importMutation.isPending}
+            startIcon={importMutation.isPending ? <CircularProgress size={20} /> : null}
+          >
+            Продолжить импорт
+          </StyledButton>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   );
 }

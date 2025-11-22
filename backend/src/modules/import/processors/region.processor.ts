@@ -26,37 +26,50 @@ export function clearRegionCache(): void {
 }
 
 /**
+ * Результат поиска/создания региона
+ */
+export interface RegionResult {
+  id: string | null;
+  wasCreated: boolean; // true если регион был создан, false если найден
+}
+
+/**
  * Находит или создает регион
  * 
  * @param regionName - Название региона
  * @param currentUserId - ID текущего пользователя (для логирования)
  * @param userRole - Роль текущего пользователя
  * @param prisma - Prisma клиент
- * @returns ID региона или null если регион пустой или не удалось создать
+ * @returns Результат с ID региона и флагом создания
  */
 export async function findOrCreateRegion(
   regionName: string,
   currentUserId: string,
   userRole: UserRole,
   prisma: PrismaClient
-): Promise<string | null> {
+): Promise<RegionResult> {
   // Если регион пустой
   if (!regionName || typeof regionName !== 'string') {
-    return null;
+    return { id: null, wasCreated: false };
   }
 
   const normalized = regionName.trim();
 
   if (normalized.length === 0) {
-    return null;
+    return { id: null, wasCreated: false };
   }
 
   const normalizedKey = normalized.toLowerCase();
 
-  // Проверка кэша
-  const cachedId = regionCache.get(normalizedKey);
-  if (cachedId) {
-    return cachedId;
+  // Проверка кэша (храним информацию о том, был ли регион создан)
+  // Используем Map с объектом { id, wasCreated }
+  const cached = regionCache.get(normalizedKey);
+  if (cached) {
+    // cached может быть строкой (старый формат) или объектом
+    if (typeof cached === 'string') {
+      return { id: cached, wasCreated: false }; // Старый формат - считаем что найден
+    }
+    return cached as RegionResult;
   }
 
   try {
@@ -76,8 +89,9 @@ export async function findOrCreateRegion(
 
     if (existingRegion) {
       // Регион найден - сохраняем в кэш и возвращаем
-      regionCache.set(normalizedKey, existingRegion.id);
-      return existingRegion.id;
+      const result: RegionResult = { id: existingRegion.id, wasCreated: false };
+      regionCache.set(normalizedKey, result);
+      return result;
     }
 
     // Регион не найден - создаем (только ROOT)
@@ -88,7 +102,7 @@ export async function findOrCreateRegion(
         userRole,
       });
       // Не создаем регион, но не прерываем импорт
-      return null;
+      return { id: null, wasCreated: false };
     }
 
     // Создание нового региона
@@ -111,17 +125,20 @@ export async function findOrCreateRegion(
     });
 
     // Сохраняем в кэш
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-    regionCache.set(normalizedKey, newRegion.id);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access
-    return newRegion.id;
+    const result: RegionResult = { 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+      id: newRegion.id, 
+      wasCreated: true 
+    };
+    regionCache.set(normalizedKey, result);
+    return result;
   } catch (error) {
     logger.error('Error finding or creating region', {
       error: error instanceof Error ? error.message : 'Unknown error',
       regionName: normalized,
       userId: currentUserId,
     });
-    return null;
+    return { id: null, wasCreated: false };
   }
 }
 

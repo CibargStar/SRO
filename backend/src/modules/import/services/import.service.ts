@@ -13,10 +13,10 @@ import logger from '../../../config/logger';
 import { parseExcelFile } from '../parsers/excel.parser';
 import { parseFullName } from '../parsers/name.parser';
 import { parsePhones } from '../parsers/phone.parser';
-import { findOrCreateRegion, clearRegionCache } from '../processors/region.processor';
+import { findOrCreateRegion, clearRegionCache, type RegionResult } from '../processors/region.processor';
 import { findExistingClient, determineStrategy } from '../processors/deduplication.processor';
 import { createClient, updateClientName, addPhonesToClient } from '../processors/client.processor';
-import type { ImportResult, ImportStatistics, ProcessedRow } from '../types';
+import type { ImportResult, ImportStatistics, ProcessedRow, DeduplicationStrategy } from '../types';
 
 /**
  * Импортирует клиентов из файла
@@ -42,7 +42,16 @@ export async function importClients(
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
   const group = await prisma.clientGroup.findUnique({
     where: { id: groupId },
-    select: { id: true, userId: true, name: true },
+    select: {
+      id: true,
+      userId: true,
+      name: true,
+      _count: {
+        select: {
+          clients: true, // Количество клиентов в группе
+        },
+      },
+    },
   });
 
   if (!group) {
@@ -54,6 +63,10 @@ export async function importClients(
   const clientOwnerId = group.userId;
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
   const groupName = group.name;
+  
+  // Проверка: пустая ли группа (нет клиентов)
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+  const isGroupEmpty = group._count.clients === 0;
 
   logger.info('Starting import', {
     groupId,
@@ -62,6 +75,7 @@ export async function importClients(
     clientOwnerId,
     filename: file.originalname,
     fileSize: file.size,
+    isGroupEmpty, // Флаг пустой группы (сухой импорт без дедупликации)
   });
 
   const statistics: ImportStatistics = {
@@ -74,7 +88,7 @@ export async function importClients(
   };
 
   const processedRows: ProcessedRow[] = [];
-  const regionCache = new Map<string, string>();
+  const regionCache = new Map<string, RegionResult>();
 
   try {
     // 2. Парсинг файла
@@ -102,36 +116,55 @@ export async function importClients(
         }
 
         // 3.3 Обработка региона
-        const regionId = await findOrCreateRegion(
+        const regionResult: RegionResult = await findOrCreateRegion(
           row.region,
           currentUserId,
           userRole,
           prisma
         );
 
-        // Подсчет созданных регионов (через кэш)
-        if (regionId && row.region) {
+        // Подсчет созданных регионов (только реально созданные, не найденные)
+        if (regionResult.wasCreated && row.region) {
+          const normalizedKey = row.region.toLowerCase().trim();
+          // Проверяем, не считали ли мы уже этот регион
+          const cached = regionCache.get(normalizedKey);
+          if (!cached || !cached.wasCreated) {
+            // Это новый созданный регион, который еще не был посчитан
+            regionCache.set(normalizedKey, regionResult);
+            statistics.regionsCreated++;
+          }
+        } else if (regionResult.id && row.region) {
+          // Регион найден (не создан) - сохраняем в кэш для избежания повторных запросов
           const normalizedKey = row.region.toLowerCase().trim();
           if (!regionCache.has(normalizedKey)) {
-            regionCache.set(normalizedKey, regionId);
-            if (userRole === 'ROOT') {
-              statistics.regionsCreated++;
-            }
+            regionCache.set(normalizedKey, regionResult);
           }
         }
 
-        // 3.4 Дедупликация (поиск среди клиентов владельца группы)
-        const existingClientResult = await findExistingClient(
-          validPhones,
-          clientOwnerId,
-          prisma
-        );
+        // 3.4 Дедупликация (только если группа не пустая)
+        // Если группа пустая - пропускаем дедупликацию и создаем всех как новых
+        let strategy: DeduplicationStrategy;
+        
+        if (isGroupEmpty) {
+          // Сухой импорт: группа пустая, создаем всех как новых без проверки дубликатов
+          strategy = {
+            action: 'create',
+            reason: 'New client (empty group)',
+          };
+        } else {
+          // Обычный импорт: ищем дубликаты среди клиентов владельца группы
+          const existingClientResult = await findExistingClient(
+            validPhones,
+            clientOwnerId,
+            prisma
+          );
 
-        const strategy = determineStrategy(
-          existingClientResult.client,
-          parsedName,
-          parsedPhones
-        );
+          strategy = determineStrategy(
+            existingClientResult.client,
+            parsedName,
+            parsedPhones
+          );
+        }
 
         // 3.5 Выполнение действия
         let clientId: string | undefined;
@@ -139,7 +172,7 @@ export async function importClients(
           const client = await createClient(
             {
               parsedName,
-              regionId,
+              regionId: regionResult.id,
               phones: parsedPhones,
               groupId,
               userId: clientOwnerId,
@@ -174,7 +207,7 @@ export async function importClients(
           parsedRow: row,
           parsedName,
           parsedPhones,
-          regionId,
+          regionId: regionResult.id,
           status:
             strategy.action === 'create'
               ? 'new'
