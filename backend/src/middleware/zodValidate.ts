@@ -8,7 +8,7 @@
  */
 
 import { Request, Response, NextFunction, RequestHandler } from 'express';
-import { ZodSchema, ZodError } from 'zod';
+import { ZodSchema, ZodType, ZodError } from 'zod';
 import logger from '../config/logger';
 
 /**
@@ -143,7 +143,7 @@ export interface ValidatedQueryRequest<T> extends Request {
  * };
  * ```
  */
-export function validateQuery<T>(schema: ZodSchema<T>): RequestHandler {
+export function validateQuery<T>(schema: ZodType<T, any, any>): RequestHandler {
   return (req: Request, res: Response, next: NextFunction): void => {
     try {
       // Валидация req.query по схеме

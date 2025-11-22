@@ -449,7 +449,7 @@ export async function updateClientHandler(
         logger.warn('Attempt to update client with non-existent region', {
           regionId: updateData.regionId,
           clientId: id,
-          userId,
+          userId: currentUser.id,
         });
         res.status(404).json({ message: 'Region not found' });
         return;
@@ -467,18 +467,18 @@ export async function updateClientHandler(
         logger.warn('Attempt to update client with non-existent group', {
           groupId: updateData.groupId,
           clientId: id,
-          userId,
+          userId: currentUser.id,
         });
         res.status(404).json({ message: 'Client group not found' });
         return;
       }
 
       // Проверка принадлежности группы пользователю
-      if (group.userId !== userId) {
+      if (group.userId !== currentUser.id) {
         logger.warn('Attempt to update client with group from another user', {
           groupId: updateData.groupId,
           clientId: id,
-          userId,
+          userId: currentUser.id,
         });
         res.status(403).json({ message: 'Client group does not belong to you' });
         return;

@@ -48,8 +48,9 @@ export class ErrorBoundary extends Component<Props, State> {
     };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
     // Логируем ошибку для мониторинга
+    // eslint-disable-next-line no-console
     console.error('ErrorBoundary caught an error:', error, errorInfo);
     
     this.setState({
@@ -58,7 +59,7 @@ export class ErrorBoundary extends Component<Props, State> {
     });
   }
 
-  handleReset = () => {
+  handleReset = (): void => {
     this.setState({
       hasError: false,
       error: null,
@@ -66,7 +67,7 @@ export class ErrorBoundary extends Component<Props, State> {
     });
   };
 
-  render() {
+  render(): ReactNode {
     if (this.state.hasError) {
       // Если есть кастомный fallback, используем его
       if (this.props.fallback) {

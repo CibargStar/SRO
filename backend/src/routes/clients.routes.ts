@@ -175,7 +175,7 @@ router.post('/', authMiddleware, requireAuth, validateBody(createClientSchema), 
  *       401:
  *         description: Не авторизован
  */
-router.get('/', authMiddleware, requireAuth, validateQuery(listClientsQuerySchema), listClientsHandler);
+router.get('/', authMiddleware, requireAuth, validateQuery(listClientsQuerySchema), listClientsHandler as any);
 
 /**
  * @swagger
