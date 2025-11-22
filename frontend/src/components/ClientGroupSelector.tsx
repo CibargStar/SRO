@@ -27,6 +27,7 @@ interface ClientGroupSelectorProps {
   required?: boolean;
   error?: boolean;
   helperText?: string;
+  disabled?: boolean;
   userId?: string; // Опциональный ID пользователя для ROOT (для фильтрации групп)
 }
 
@@ -38,18 +39,19 @@ export function ClientGroupSelector({
   required = false,
   error = false,
   helperText,
+  disabled = false,
   userId,
 }: ClientGroupSelectorProps) {
   const { data: groups = [], isLoading } = useClientGroups(userId);
 
   return (
-    <FormControl fullWidth={fullWidth} required={required} error={error}>
+    <FormControl fullWidth={fullWidth} required={required} error={error} disabled={disabled || isLoading}>
       <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>{label}</InputLabel>
       <StyledSelect
         value={value || ''}
         onChange={(e) => onChange(e.target.value ? (e.target.value as string) : null)}
         label={label}
-        disabled={isLoading}
+        disabled={disabled || isLoading}
         required={required}
         sx={!fullWidth ? { minWidth: 200 } : undefined}
       >

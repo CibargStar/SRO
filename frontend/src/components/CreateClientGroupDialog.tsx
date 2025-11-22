@@ -57,9 +57,10 @@ interface CreateClientGroupDialogProps {
   open: boolean;
   onClose: () => void;
   userId?: string; // Опциональный ID пользователя для ROOT (передается из родительского компонента)
+  onSuccess?: (groupId: string) => void; // Callback при успешном создании группы
 }
 
-export function CreateClientGroupDialog({ open, onClose, userId: propUserId }: CreateClientGroupDialogProps) {
+export function CreateClientGroupDialog({ open, onClose, userId: propUserId, onSuccess }: CreateClientGroupDialogProps) {
   const user = useAuthStore((state) => state.user);
   const isRoot = user?.role === 'ROOT';
   const createMutation = useCreateClientGroup();
@@ -87,9 +88,13 @@ export function CreateClientGroupDialog({ open, onClose, userId: propUserId }: C
         userId: isRoot && propUserId ? propUserId : undefined, // Для ROOT - создание от имени переданного пользователя
       },
       {
-        onSuccess: () => {
+        onSuccess: (createdGroup) => {
           reset();
           onClose();
+          // Вызываем callback с ID созданной группы
+          if (onSuccess) {
+            onSuccess(createdGroup.id);
+          }
         },
       }
     );

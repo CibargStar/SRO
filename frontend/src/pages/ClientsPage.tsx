@@ -36,6 +36,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import GroupIcon from '@mui/icons-material/Group';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 import IconButton from '@mui/material/IconButton';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
@@ -51,6 +52,8 @@ import { CreateClientDialog } from '@/components/CreateClientDialog';
 import { EditClientDialog } from '@/components/EditClientDialog';
 import { CreateClientGroupDialog } from '@/components/CreateClientGroupDialog';
 import { EditClientGroupDialog } from '@/components/EditClientGroupDialog';
+import { ImportClientsDialog } from '@/components/ImportClientsDialog';
+import { formatClientName } from '@/utils';
 import type { Client, ClientStatus, ClientGroup } from '@/types';
 
 const StyledButton = styled(Button)(({ theme }) => ({
@@ -118,6 +121,9 @@ export function ClientsPage() {
   const [editGroupDialogOpen, setEditGroupDialogOpen] = useState(false);
   const [deleteGroupDialogOpen, setDeleteGroupDialogOpen] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<ClientGroup | null>(null);
+
+  // Состояние для импорта
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   
 
   const { data: users = [] } = useUsers(isRoot); // Для ROOT - список пользователей для переключения (запрос выполняется только для ROOT)
@@ -214,6 +220,9 @@ export function ClientsPage() {
         <Box sx={{ display: 'flex', gap: 2 }}>
           <StyledButton startIcon={<GroupIcon />} onClick={() => setGroupsDialogOpen(true)}>
             Управление группами
+          </StyledButton>
+          <StyledButton startIcon={<UploadFileIcon />} onClick={() => setImportDialogOpen(true)}>
+            Импорт клиентов
           </StyledButton>
           <StyledButton startIcon={<AddIcon />} onClick={() => setCreateDialogOpen(true)}>
             Создать клиента
@@ -556,8 +565,8 @@ export function ClientsPage() {
         <DialogTitle sx={{ color: '#f5f5f5' }}>Подтверждение удаления</DialogTitle>
         <DialogContent>
           <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-            Вы уверены, что хотите удалить клиента {selectedClient ? `${selectedClient.lastName} ${selectedClient.firstName}` : ''}?
-            Это действие нельзя отменить.
+            Вы уверены, что хотите удалить клиента{' '}
+            {selectedClient ? formatClientName(selectedClient) : ''}? Это действие нельзя отменить.
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3 }}>
@@ -569,6 +578,12 @@ export function ClientsPage() {
           </StyledButton>
         </DialogActions>
       </Dialog>
+
+      {/* Диалог импорта клиентов */}
+      <ImportClientsDialog
+        open={importDialogOpen}
+        onClose={() => setImportDialogOpen(false)}
+      />
     </Box>
   );
 }

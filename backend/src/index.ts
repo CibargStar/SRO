@@ -59,11 +59,13 @@ import usersRoutes from './routes/users.routes';
 import clientsRoutes from './routes/clients.routes';
 import clientGroupsRoutes from './routes/client-groups.routes';
 import regionsRoutes from './routes/regions.routes';
+import importRoutes from './routes/import.routes';
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/clients', clientsRoutes);
 app.use('/api/client-groups', clientGroupsRoutes);
 app.use('/api/regions', regionsRoutes);
+app.use('/api/import', importRoutes);
 
 // Обработчики ошибок должны быть последними
 app.use(notFoundHandler); // 404 для несуществующих маршрутов

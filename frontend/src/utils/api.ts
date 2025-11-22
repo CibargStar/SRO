@@ -903,3 +903,60 @@ export async function deleteClientPhone(clientId: string, phoneId: string): Prom
   await handleResponse<void>(response);
 }
 
+/**
+ * Результат импорта клиентов
+ */
+export interface ImportClientsResponse {
+  success: boolean;
+  statistics: {
+    total: number;
+    created: number;
+    updated: number;
+    skipped: number;
+    errors: number;
+    regionsCreated: number;
+  };
+  message: string;
+  errors?: Array<{
+    rowNumber: number;
+    message: string;
+    data?: {
+      name: string | null;
+      phone: string;
+      region: string;
+    };
+  }>;
+  groupId: string;
+  groupName: string;
+}
+
+/**
+ * Импорт клиентов из Excel файла
+ * 
+ * @param groupId - ID группы клиентов
+ * @param file - Excel файл для импорта
+ * @returns Результат импорта со статистикой
+ */
+export async function importClients(groupId: string, file: File): Promise<ImportClientsResponse> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  // Создаем FormData для загрузки файла
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/import/clients?groupId=${groupId}`, {
+    method: 'POST',
+    headers: {
+      // НЕ устанавливаем Content-Type - браузер установит автоматически с boundary для multipart/form-data
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  return handleResponse<ImportClientsResponse>(response);
+}
+

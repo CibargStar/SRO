@@ -23,6 +23,7 @@ import { styled } from '@mui/material/styles';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import type { Client } from '@/types';
+import { formatClientName } from '@/utils';
 
 /**
  * Стилизованный контейнер таблицы
@@ -131,13 +132,6 @@ export function ClientTable({ clients, isLoading, onEdit, onDelete }: ClientTabl
     });
   };
 
-  const getFullName = (client: Client) => {
-    const parts = [client.lastName, client.firstName];
-    if (client.middleName) {
-      parts.push(client.middleName);
-    }
-    return parts.join(' ');
-  };
 
   return (
     <StyledTableContainer>
@@ -156,7 +150,7 @@ export function ClientTable({ clients, isLoading, onEdit, onDelete }: ClientTabl
         <TableBody>
           {clients.map((client) => (
             <StyledTableRow key={client.id}>
-              <StyledTableCell>{getFullName(client)}</StyledTableCell>
+              <StyledTableCell>{formatClientName(client)}</StyledTableCell>
               <StyledTableCell sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
                 {client.region?.name || '-'}
               </StyledTableCell>

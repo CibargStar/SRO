@@ -25,3 +25,4 @@ export { AddPhoneDialog } from './AddPhoneDialog';
 export { EditPhoneDialog } from './EditPhoneDialog';
 export { CreateClientGroupDialog } from './CreateClientGroupDialog';
 export { EditClientGroupDialog } from './EditClientGroupDialog';
+export { ImportClientsDialog } from './ImportClientsDialog';
