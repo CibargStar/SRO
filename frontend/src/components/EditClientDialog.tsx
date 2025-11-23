@@ -21,9 +21,9 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
-  Select,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
+import { StyledSelect, MenuProps, selectInputLabelStyles } from './common/SelectStyles';
 import { updateClientSchema, type UpdateClientFormData } from '@/schemas/client.schema';
 import { useUpdateClient } from '@/hooks/useClients';
 import { useRegions } from '@/hooks/useRegions';
@@ -45,44 +45,6 @@ const StyledTextField = styled(TextField)({
   '& .MuiInputLabel-root.Mui-focused': { color: 'rgba(255, 255, 255, 0.9)' },
 });
 
-const StyledSelect = styled(Select)({
-  borderRadius: '12px',
-  backgroundColor: 'rgba(255, 255, 255, 0.05)',
-  color: '#ffffff',
-  '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-  '&:hover .MuiOutlinedInput-notchedOutline': { border: 'none' },
-  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { border: 'none' },
-  '& .MuiSelect-icon': { color: 'rgba(255, 255, 255, 0.7)' },
-});
-
-const MenuProps = {
-  PaperProps: {
-    sx: {
-      backgroundColor: '#212121',
-      borderRadius: '12px',
-      marginTop: '8px',
-      '& .MuiMenuItem-root': {
-        color: 'rgba(255, 255, 255, 0.9)',
-        '&:hover': {
-          backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        },
-        '&.Mui-selected': {
-          backgroundColor: 'rgba(255, 255, 255, 0.1)',
-          color: 'rgba(255, 255, 255, 0.9)',
-          '&:hover': {
-            backgroundColor: 'rgba(255, 255, 255, 0.15)',
-          },
-          '&.Mui-focusVisible': {
-            backgroundColor: 'rgba(255, 255, 255, 0.1)',
-          },
-        },
-        '&.Mui-focusVisible': {
-          backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        },
-      },
-    },
-  },
-};
 
 const StyledButton = styled(Button)(({ theme }) => ({
   borderRadius: '12px',
@@ -237,17 +199,7 @@ export function EditClientDialog({ open, client, onClose, userId: propUserId }: 
             />
 
             <FormControl fullWidth>
-              <InputLabel 
-                sx={{ 
-                  color: 'rgba(255, 255, 255, 0.7)',
-                  '&.Mui-focused': {
-                    color: 'rgba(255, 255, 255, 0.7)',
-                  },
-                  '&.MuiInputLabel-shrink': {
-                    color: 'rgba(255, 255, 255, 0.7)',
-                  },
-                }}
-              >
+              <InputLabel sx={selectInputLabelStyles}>
                 Регион
               </InputLabel>
               <Controller

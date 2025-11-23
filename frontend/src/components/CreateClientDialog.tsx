@@ -21,15 +21,15 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
-  Select,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
+import { StyledSelect, MenuProps, selectInputLabelStyles } from './common/SelectStyles';
 import { createClientSchema, type CreateClientFormData } from '@/schemas/client.schema';
 import { useCreateClient } from '@/hooks/useClients';
 import { useRegions } from '@/hooks/useRegions';
+import { useClientGroups } from '@/hooks/useClientGroups';
 import { useCreateClientPhone } from '@/hooks/useClientPhones';
 import { useAuthStore } from '@/store';
-import { ClientGroupSelector } from './ClientGroupSelector';
 import { ClientPhonesFormField } from './ClientPhonesFormField';
 
 const StyledTextField = styled(TextField)(({ theme }) => ({
@@ -45,44 +45,6 @@ const StyledTextField = styled(TextField)(({ theme }) => ({
   '& .MuiInputLabel-root.Mui-focused': { color: 'rgba(255, 255, 255, 0.9)' },
 }));
 
-const StyledSelect = styled(Select)({
-  borderRadius: '12px',
-  backgroundColor: 'rgba(255, 255, 255, 0.05)',
-  color: '#ffffff',
-  '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-  '&:hover .MuiOutlinedInput-notchedOutline': { border: 'none' },
-  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { border: 'none' },
-  '& .MuiSelect-icon': { color: 'rgba(255, 255, 255, 0.7)' },
-});
-
-const MenuProps = {
-  PaperProps: {
-    sx: {
-      backgroundColor: '#212121',
-      borderRadius: '12px',
-      marginTop: '8px',
-      '& .MuiMenuItem-root': {
-        color: 'rgba(255, 255, 255, 0.9)',
-        '&:hover': {
-          backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        },
-        '&.Mui-selected': {
-          backgroundColor: 'rgba(255, 255, 255, 0.1)',
-          color: 'rgba(255, 255, 255, 0.9)',
-          '&:hover': {
-            backgroundColor: 'rgba(255, 255, 255, 0.15)',
-          },
-          '&.Mui-focusVisible': {
-            backgroundColor: 'rgba(255, 255, 255, 0.1)',
-          },
-        },
-        '&.Mui-focusVisible': {
-          backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        },
-      },
-    },
-  },
-};
 
 const StyledButton = styled(Button)(({ theme }) => ({
   borderRadius: '12px',
@@ -121,6 +83,7 @@ export function CreateClientDialog({ open, onClose, userId: propUserId }: Create
   const createMutation = useCreateClient();
   const createPhoneMutation = useCreateClientPhone();
   const { data: regions = [] } = useRegions();
+  const { data: groups = [] } = useClientGroups(isRoot && propUserId ? propUserId : undefined);
   const [phones, setPhones] = React.useState<PhoneItem[]>([]);
 
   // Сброс телефонов при закрытии диалога
@@ -244,17 +207,7 @@ export function CreateClientDialog({ open, onClose, userId: propUserId }: Create
             />
 
             <FormControl fullWidth>
-              <InputLabel 
-                sx={{ 
-                  color: 'rgba(255, 255, 255, 0.7)',
-                  '&.Mui-focused': {
-                    color: 'rgba(255, 255, 255, 0.7)',
-                  },
-                  '&.MuiInputLabel-shrink': {
-                    color: 'rgba(255, 255, 255, 0.7)',
-                  },
-                }}
-              >
+              <InputLabel sx={selectInputLabelStyles}>
                 Регион
               </InputLabel>
               <Controller
@@ -273,41 +226,45 @@ export function CreateClientDialog({ open, onClose, userId: propUserId }: Create
               />
             </FormControl>
 
-            <Controller
-              name="groupId"
-              control={control}
-              render={({ field, fieldState }) => (
-                <ClientGroupSelector
-                  {...field}
-                  value={field.value || null}
-                  onChange={(val) => field.onChange(val)}
-                  required
-                  error={!!fieldState.error}
-                  helperText={fieldState.error?.message}
-                  userId={isRoot && propUserId ? propUserId : undefined} // Для ROOT - фильтрация групп по переданному пользователю
-                />
+            <FormControl fullWidth required>
+              <InputLabel sx={selectInputLabelStyles}>
+                Группа
+              </InputLabel>
+              <Controller
+                name="groupId"
+                control={control}
+                render={({ field, fieldState }) => (
+                  <StyledSelect 
+                    {...field} 
+                    label="Группа" 
+                    value={field.value || ''} 
+                    MenuProps={MenuProps}
+                    error={!!fieldState.error}
+                  >
+                    {groups.map((group) => (
+                      <MenuItem key={group.id} value={group.id}>
+                        {group.name}
+                      </MenuItem>
+                    ))}
+                  </StyledSelect>
+                )}
+              />
+              {errors.groupId && (
+                <Typography variant="caption" sx={{ color: '#f44336', mt: 0.5, ml: 1.75 }}>
+                  {errors.groupId.message}
+                </Typography>
               )}
-            />
+            </FormControl>
 
             <FormControl fullWidth>
-              <InputLabel 
-                sx={{ 
-                  color: 'rgba(255, 255, 255, 0.7)',
-                  '&.Mui-focused': {
-                    color: 'rgba(255, 255, 255, 0.7)',
-                  },
-                  '&.MuiInputLabel-shrink': {
-                    color: 'rgba(255, 255, 255, 0.7)',
-                  },
-                }}
-              >
+              <InputLabel sx={selectInputLabelStyles}>
                 Статус
               </InputLabel>
               <Controller
                 name="status"
                 control={control}
                 render={({ field }) => (
-                  <StyledSelect {...field} label="Статус">
+                  <StyledSelect {...field} label="Статус" MenuProps={MenuProps}>
                     <MenuItem value="NEW">Новый</MenuItem>
                     <MenuItem value="OLD">Старый</MenuItem>
                   </StyledSelect>

@@ -5,48 +5,9 @@
  */
 
 import React from 'react';
-import { FormControl, InputLabel, Select, MenuItem } from '@mui/material';
-import { styled } from '@mui/material/styles';
+import { FormControl, InputLabel, MenuItem } from '@mui/material';
 import { useRegions } from '@/hooks/useRegions';
-
-const StyledSelect = styled(Select)({
-  borderRadius: '12px',
-  backgroundColor: 'rgba(255, 255, 255, 0.05)',
-  color: '#ffffff',
-  '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-  '&:hover .MuiOutlinedInput-notchedOutline': { border: 'none' },
-  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { border: 'none' },
-  '& .MuiSelect-icon': { color: 'rgba(255, 255, 255, 0.7)' },
-});
-
-const MenuProps = {
-  PaperProps: {
-    sx: {
-      backgroundColor: '#212121',
-      borderRadius: '12px',
-      marginTop: '8px',
-      '& .MuiMenuItem-root': {
-        color: 'rgba(255, 255, 255, 0.9)',
-        '&:hover': {
-          backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        },
-        '&.Mui-selected': {
-          backgroundColor: 'rgba(255, 255, 255, 0.1)',
-          color: 'rgba(255, 255, 255, 0.9)',
-          '&:hover': {
-            backgroundColor: 'rgba(255, 255, 255, 0.15)',
-          },
-          '&.Mui-focusVisible': {
-            backgroundColor: 'rgba(255, 255, 255, 0.1)',
-          },
-        },
-        '&.Mui-focusVisible': {
-          backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        },
-      },
-    },
-  },
-};
+import { StyledSelect, MenuProps, selectInputLabelStyles } from './common/SelectStyles';
 
 interface RegionSelectorProps {
   value: string | null;
@@ -60,17 +21,7 @@ export function RegionSelector({ value, onChange, label = 'Регион', fullWi
 
   return (
     <FormControl fullWidth={fullWidth}>
-      <InputLabel 
-        sx={{ 
-          color: 'rgba(255, 255, 255, 0.7)',
-          '&.Mui-focused': {
-            color: 'rgba(255, 255, 255, 0.7)',
-          },
-          '&.MuiInputLabel-shrink': {
-            color: 'rgba(255, 255, 255, 0.7)',
-          },
-        }}
-      >
+      <InputLabel sx={selectInputLabelStyles}>
         {label}
       </InputLabel>
       <StyledSelect

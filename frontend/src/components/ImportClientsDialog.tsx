@@ -24,7 +24,6 @@ import {
   Chip,
   FormControl,
   InputLabel,
-  Select,
   MenuItem,
   InputAdornment,
 } from '@mui/material';
@@ -41,6 +40,7 @@ import { useImportConfigs, useDefaultImportConfig } from '@/hooks/useImportConfi
 import { ClientGroupSelector } from './ClientGroupSelector';
 import { CreateClientGroupDialog } from './CreateClientGroupDialog';
 import { ImportConfigDialog } from './ImportConfigDialog';
+import { StyledSelect, MenuProps, selectInputLabelStyles } from './common/SelectStyles';
 import type { ImportClientsResponse, ImportConfig } from '@/utils/api';
 
 const StyledButton = styled(Button)(({ theme }) => ({
@@ -92,64 +92,6 @@ const HiddenInput = styled('input')({
   display: 'none',
 });
 
-const StyledSelect = styled(Select)({
-  borderRadius: '12px',
-  backgroundColor: 'rgba(255, 255, 255, 0.05)',
-  color: '#ffffff',
-  '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-  '&:hover .MuiOutlinedInput-notchedOutline': { border: 'none' },
-  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { border: 'none' },
-  '& .MuiSelect-icon': { color: 'rgba(255, 255, 255, 0.7)' },
-  '&.Mui-disabled': {
-    color: '#ffffff',
-    '& .MuiSelect-icon': { 
-      display: 'none',
-    },
-    '& .MuiInputBase-input': { 
-      color: '#ffffff',
-      WebkitTextFillColor: '#ffffff',
-    },
-    '& .MuiSelect-select': {
-      color: '#ffffff',
-      WebkitTextFillColor: '#ffffff',
-    },
-  },
-  '& .MuiInputBase-input': {
-    color: '#ffffff',
-  },
-  '& .MuiSelect-select': {
-    color: '#ffffff',
-  },
-});
-
-const MenuProps = {
-  PaperProps: {
-    sx: {
-      backgroundColor: '#212121',
-      borderRadius: '12px',
-      marginTop: '8px',
-      '& .MuiMenuItem-root': {
-        color: 'rgba(255, 255, 255, 0.9)',
-        '&:hover': {
-          backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        },
-        '&.Mui-selected': {
-          backgroundColor: 'rgba(255, 255, 255, 0.1)',
-          color: 'rgba(255, 255, 255, 0.9)',
-          '&:hover': {
-            backgroundColor: 'rgba(255, 255, 255, 0.15)',
-          },
-          '&.Mui-focusVisible': {
-            backgroundColor: 'rgba(255, 255, 255, 0.1)',
-          },
-        },
-        '&.Mui-focusVisible': {
-          backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        },
-      },
-    },
-  },
-};
 
 interface ImportClientsDialogProps {
   open: boolean;

@@ -22,7 +22,6 @@ import {
   TextField,
   FormControl,
   InputLabel,
-  Select,
   MenuItem,
   Pagination,
   Dialog,
@@ -31,6 +30,7 @@ import {
   DialogActions,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
+import { StyledSelect, MenuProps, selectInputLabelStyles } from '@/components/common/SelectStyles';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import GroupIcon from '@mui/icons-material/Group';
@@ -84,44 +84,6 @@ const StyledTextField = styled(TextField)({
   '& .MuiInputLabel-root.Mui-focused': { color: 'rgba(255, 255, 255, 0.9)' },
 });
 
-const StyledSelect = styled(Select)({
-  borderRadius: '12px',
-  backgroundColor: 'rgba(255, 255, 255, 0.05)',
-  color: '#ffffff',
-  '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-  '&:hover .MuiOutlinedInput-notchedOutline': { border: 'none' },
-  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { border: 'none' },
-  '& .MuiSelect-icon': { color: 'rgba(255, 255, 255, 0.7)' },
-});
-
-const MenuProps = {
-  PaperProps: {
-    sx: {
-      backgroundColor: '#212121',
-      borderRadius: '12px',
-      marginTop: '8px',
-      '& .MuiMenuItem-root': {
-        color: 'rgba(255, 255, 255, 0.9)',
-        '&:hover': {
-          backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        },
-        '&.Mui-selected': {
-          backgroundColor: 'rgba(255, 255, 255, 0.1)',
-          color: 'rgba(255, 255, 255, 0.9)',
-          '&:hover': {
-            backgroundColor: 'rgba(255, 255, 255, 0.15)',
-          },
-          '&.Mui-focusVisible': {
-            backgroundColor: 'rgba(255, 255, 255, 0.1)',
-          },
-        },
-        '&.Mui-focusVisible': {
-          backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        },
-      },
-    },
-  },
-};
 
 export function ClientsPage() {
   const user = useAuthStore((state) => state.user);
@@ -325,15 +287,7 @@ export function ClientsPage() {
           <FormControl sx={{ minWidth: 200 }}>
             <InputLabel 
               shrink
-              sx={{ 
-                color: 'rgba(255, 255, 255, 0.7)',
-                '&.Mui-focused': {
-                  color: 'rgba(255, 255, 255, 0.7)',
-                },
-                '&.MuiInputLabel-shrink': {
-                  color: 'rgba(255, 255, 255, 0.7)',
-                },
-              }}
+              sx={selectInputLabelStyles}
             >
               Регион
             </InputLabel>
@@ -376,15 +330,7 @@ export function ClientsPage() {
           <FormControl sx={{ minWidth: 150 }}>
             <InputLabel 
               shrink
-              sx={{ 
-                color: 'rgba(255, 255, 255, 0.7)',
-                '&.Mui-focused': {
-                  color: 'rgba(255, 255, 255, 0.7)',
-                },
-                '&.MuiInputLabel-shrink': {
-                  color: 'rgba(255, 255, 255, 0.7)',
-                },
-              }}
+              sx={selectInputLabelStyles}
             >
               Статус
             </InputLabel>
@@ -411,17 +357,7 @@ export function ClientsPage() {
           </FormControl>
 
           <FormControl sx={{ minWidth: 150 }}>
-            <InputLabel 
-              sx={{ 
-                color: 'rgba(255, 255, 255, 0.7)',
-                '&.Mui-focused': {
-                  color: 'rgba(255, 255, 255, 0.7)',
-                },
-                '&.MuiInputLabel-shrink': {
-                  color: 'rgba(255, 255, 255, 0.7)',
-                },
-              }}
-            >
+            <InputLabel sx={selectInputLabelStyles}>
               Сортировка
             </InputLabel>
             <StyledSelect
@@ -439,17 +375,7 @@ export function ClientsPage() {
           </FormControl>
 
           <FormControl sx={{ minWidth: 120 }}>
-            <InputLabel 
-              sx={{ 
-                color: 'rgba(255, 255, 255, 0.7)',
-                '&.Mui-focused': {
-                  color: 'rgba(255, 255, 255, 0.7)',
-                },
-                '&.MuiInputLabel-shrink': {
-                  color: 'rgba(255, 255, 255, 0.7)',
-                },
-              }}
-            >
+            <InputLabel sx={selectInputLabelStyles}>
               Порядок
             </InputLabel>
             <StyledSelect 

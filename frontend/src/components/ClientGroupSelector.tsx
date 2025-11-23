@@ -5,70 +5,11 @@
  */
 
 import React from 'react';
-import { FormControl, InputLabel, Select, MenuItem, FormHelperText, Typography, Box } from '@mui/material';
-import { styled } from '@mui/material/styles';
+import { FormControl, InputLabel, MenuItem, Typography, Box } from '@mui/material';
 import LockIcon from '@mui/icons-material/Lock';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import { useClientGroups } from '@/hooks/useClientGroups';
-
-const StyledSelect = styled(Select)({
-  borderRadius: '12px',
-  backgroundColor: 'rgba(255, 255, 255, 0.05)',
-  color: '#ffffff',
-  '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
-  '&:hover .MuiOutlinedInput-notchedOutline': { border: 'none' },
-  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { border: 'none' },
-  '& .MuiSelect-icon': { color: 'rgba(255, 255, 255, 0.7)' },
-  '&.Mui-disabled': {
-    color: '#ffffff',
-    '& .MuiSelect-icon': { 
-      display: 'none',
-    },
-    '& .MuiInputBase-input': { 
-      color: '#ffffff',
-      WebkitTextFillColor: '#ffffff',
-    },
-    '& .MuiSelect-select': {
-      color: '#ffffff',
-      WebkitTextFillColor: '#ffffff',
-    },
-  },
-  '& .MuiInputBase-input': {
-    color: '#ffffff',
-  },
-  '& .MuiSelect-select': {
-    color: '#ffffff',
-  },
-});
-
-const MenuProps = {
-  PaperProps: {
-    sx: {
-      backgroundColor: '#212121',
-      borderRadius: '12px',
-      marginTop: '8px',
-      '& .MuiMenuItem-root': {
-        color: 'rgba(255, 255, 255, 0.9)',
-        '&:hover': {
-          backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        },
-        '&.Mui-selected': {
-          backgroundColor: 'rgba(255, 255, 255, 0.1)',
-          color: 'rgba(255, 255, 255, 0.9)',
-          '&:hover': {
-            backgroundColor: 'rgba(255, 255, 255, 0.15)',
-          },
-          '&.Mui-focusVisible': {
-            backgroundColor: 'rgba(255, 255, 255, 0.1)',
-          },
-        },
-        '&.Mui-focusVisible': {
-          backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        },
-      },
-    },
-  },
-};
+import { StyledSelect, MenuProps, selectInputLabelStyles } from './common/SelectStyles';
 
 interface ClientGroupSelectorProps {
   value: string | null;
@@ -99,18 +40,7 @@ export function ClientGroupSelector({
     <FormControl fullWidth={fullWidth} required={required} error={error} disabled={disabled || isLoading}>
       <InputLabel 
         shrink={!required}
-        sx={{ 
-          color: 'rgba(255, 255, 255, 0.7)',
-          '&.Mui-disabled': {
-            color: 'rgba(255, 255, 255, 0.5)',
-          },
-          '&.Mui-focused': {
-            color: 'rgba(255, 255, 255, 0.7)',
-          },
-          '&.MuiInputLabel-shrink': {
-            color: 'rgba(255, 255, 255, 0.7)',
-          },
-        }}
+        sx={selectInputLabelStyles}
       >
         {label}
       </InputLabel>
