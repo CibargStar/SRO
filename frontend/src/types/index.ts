@@ -118,12 +118,19 @@ export interface ClientGroup {
 }
 
 /**
+ * Статус мессенджера для телефона
+ */
+export type MessengerStatus = 'Valid' | 'Invalid' | 'Unknown';
+
+/**
  * Телефон клиента
  */
 export interface ClientPhone {
   id: string;
   clientId: string;
   phone: string;
+  whatsAppStatus: MessengerStatus;
+  telegramStatus: MessengerStatus;
 }
 
 /**
@@ -243,6 +250,8 @@ export interface UpdateRegionInput {
  */
 export interface CreateClientPhoneInput {
   phone: string;
+  whatsAppStatus?: MessengerStatus;
+  telegramStatus?: MessengerStatus;
 }
 
 /**
@@ -250,6 +259,8 @@ export interface CreateClientPhoneInput {
  */
 export interface UpdateClientPhoneInput {
   phone?: string;
+  whatsAppStatus?: MessengerStatus;
+  telegramStatus?: MessengerStatus;
 }
 
 /**

@@ -30,6 +30,16 @@ enum ClientStatus {
   OLD
 }
 
+/// Статус мессенджера для телефона
+/// Valid - номер валиден в мессенджере
+/// Invalid - номер невалиден в мессенджере
+/// Unknown - статус неизвестен (по умолчанию)
+enum MessengerStatus {
+  Valid
+  Invalid
+  Unknown
+}
+
 // ============================================
 // Models
 // ============================================
@@ -156,10 +166,12 @@ model Client {
 /// Телефоны клиента
 /// Один клиент может иметь несколько телефонов (связь один-ко-многим)
 model ClientPhone {
-  id       String   @id @default(uuid())
-  clientId String   // ID клиента
-  client   Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  phone    String   // Номер телефона
+  id             String          @id @default(uuid())
+  clientId      String          // ID клиента
+  client         Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  phone          String          // Номер телефона
+  whatsAppStatus MessengerStatus @default(Unknown) // Статус WhatsApp (Valid, Invalid, Unknown)
+  telegramStatus MessengerStatus @default(Unknown) // Статус Telegram (Valid, Invalid, Unknown)
   
   // Индексы для оптимизации запросов
   @@index([clientId]) // Быстрый поиск телефонов клиента

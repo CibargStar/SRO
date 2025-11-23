@@ -25,9 +25,18 @@ import { z } from 'zod';
 const phoneRegex = /^[\+]?[(]?[0-9]{1,4}[)]?[-\s\.]?[(]?[0-9]{1,4}[)]?[-\s\.]?[0-9]{1,9}$/;
 
 /**
+ * Enum для статусов мессенджеров
+ */
+export const MessengerStatusEnum = z.enum(['Valid', 'Invalid', 'Unknown'], {
+  errorMap: () => ({ message: 'Status must be Valid, Invalid, or Unknown' }),
+});
+
+/**
  * Схема валидации для создания телефона клиента
  * 
  * @property phone - Номер телефона (обязательно, валидный формат)
+ * @property whatsAppStatus - Статус WhatsApp (опционально, по умолчанию Unknown)
+ * @property telegramStatus - Статус Telegram (опционально, по умолчанию Unknown)
  * 
  * @example
  * ```typescript
@@ -41,6 +50,8 @@ export const createClientPhoneSchema = z.object({
     .max(20, { message: 'Phone must be at most 20 characters long' })
     .trim()
     .regex(phoneRegex, { message: 'Invalid phone number format' }),
+  whatsAppStatus: MessengerStatusEnum.optional().default('Unknown'),
+  telegramStatus: MessengerStatusEnum.optional().default('Unknown'),
 });
 
 /**
@@ -52,6 +63,8 @@ export type CreateClientPhoneInput = z.infer<typeof createClientPhoneSchema>;
  * Схема валидации для обновления телефона клиента
  * 
  * @property phone - Номер телефона (опционально, валидный формат)
+ * @property whatsAppStatus - Статус WhatsApp (опционально)
+ * @property telegramStatus - Статус Telegram (опционально)
  * 
  * @example
  * ```typescript
@@ -65,7 +78,10 @@ export const updateClientPhoneSchema = z
       .min(1, { message: 'Phone cannot be empty if provided' })
       .max(20, { message: 'Phone must be at most 20 characters long' })
       .trim()
-      .regex(phoneRegex, { message: 'Invalid phone number format' }),
+      .regex(phoneRegex, { message: 'Invalid phone number format' })
+      .optional(),
+    whatsAppStatus: MessengerStatusEnum.optional(),
+    telegramStatus: MessengerStatusEnum.optional(),
   })
   .refine(
     (data) => {

@@ -5,7 +5,7 @@
  * Включает стилизованные TextField, Button и CancelButton.
  */
 
-import { TextField, Button } from '@mui/material';
+import { TextField, Button, Select } from '@mui/material';
 import { styled } from '@mui/material/styles';
 
 /**
@@ -54,4 +54,25 @@ export const CancelButton = styled(Button)(({ theme }) => ({
     color: '#ffffff',
   },
 }));
+
+/**
+ * Стилизованный Select компонент с единым дизайном
+ */
+export const StyledSelect = styled(Select)({
+  borderRadius: '12px',
+  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  color: '#ffffff',
+  '& .MuiOutlinedInput-notchedOutline': {
+    border: 'none',
+  },
+  '&:hover .MuiOutlinedInput-notchedOutline': {
+    border: 'none',
+  },
+  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+    border: 'none',
+  },
+  '& .MuiSelect-icon': {
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+});
 

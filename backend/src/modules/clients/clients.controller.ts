@@ -126,6 +126,8 @@ export async function createClientHandler(
           select: {
             id: true,
             phone: true,
+            whatsAppStatus: true,
+            telegramStatus: true,
           },
         },
       },
@@ -262,6 +264,8 @@ export async function listClientsHandler(
           select: {
             id: true,
             phone: true,
+            whatsAppStatus: true,
+            telegramStatus: true,
           },
         },
       },
@@ -354,6 +358,8 @@ export async function getClientHandler(
           select: {
             id: true,
             phone: true,
+            whatsAppStatus: true,
+            telegramStatus: true,
           },
         },
       },
@@ -529,6 +535,8 @@ export async function updateClientHandler(
           select: {
             id: true,
             phone: true,
+            whatsAppStatus: true,
+            telegramStatus: true,
           },
         },
       },

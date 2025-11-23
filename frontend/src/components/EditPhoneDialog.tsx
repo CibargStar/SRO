@@ -15,13 +15,17 @@ import {
   Alert,
   CircularProgress,
   Typography,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
-import { StyledTextField, StyledButton, CancelButton } from './common/FormStyles';
+import { StyledTextField, StyledButton, CancelButton, StyledSelect } from './common/FormStyles';
 import { dialogPaperProps, dialogTitleStyles, dialogContentStyles, dialogActionsStyles } from './common/DialogStyles';
 import { LOADING_ICON_SIZE } from './common/Constants';
 import { updateClientPhoneSchema, type UpdateClientPhoneFormData } from '@/schemas/client-phone.schema';
 import { useUpdateClientPhone } from '@/hooks/useClientPhones';
-import type { ClientPhone } from '@/types';
+import type { ClientPhone, MessengerStatus } from '@/types';
 
 interface EditPhoneDialogProps {
   open: boolean;
@@ -38,14 +42,27 @@ export function EditPhoneDialog({ open, clientId, phone, onClose }: EditPhoneDia
     handleSubmit,
     formState: { errors },
     reset,
+    watch,
+    setValue,
   } = useForm<UpdateClientPhoneFormData>({
     resolver: zodResolver(updateClientPhoneSchema),
-    defaultValues: { phone: '' },
+    defaultValues: { 
+      phone: '',
+      whatsAppStatus: 'Unknown',
+      telegramStatus: 'Unknown',
+    },
   });
+
+  const whatsAppStatus = watch('whatsAppStatus');
+  const telegramStatus = watch('telegramStatus');
 
   useEffect(() => {
     if (phone && open) {
-      reset({ phone: phone.phone });
+      reset({ 
+        phone: phone.phone,
+        whatsAppStatus: phone.whatsAppStatus || 'Unknown',
+        telegramStatus: phone.telegramStatus || 'Unknown',
+      });
     }
   }, [phone, open, reset]);
 
@@ -102,7 +119,42 @@ export function EditPhoneDialog({ open, clientId, phone, onClose }: EditPhoneDia
             helperText={errors.phone?.message}
             fullWidth
             placeholder="+7 (999) 123-45-67"
+            sx={{ mb: 2 }}
           />
+
+          <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+            <FormControl fullWidth>
+              <InputLabel id="whatsapp-status-label" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                Статус WhatsApp
+              </InputLabel>
+              <StyledSelect
+                labelId="whatsapp-status-label"
+                label="Статус WhatsApp"
+                value={whatsAppStatus || phone?.whatsAppStatus || 'Unknown'}
+                onChange={(e) => setValue('whatsAppStatus', e.target.value as MessengerStatus)}
+              >
+                <MenuItem value="Unknown">Неизвестно</MenuItem>
+                <MenuItem value="Valid">Валиден</MenuItem>
+                <MenuItem value="Invalid">Невалиден</MenuItem>
+              </StyledSelect>
+            </FormControl>
+
+            <FormControl fullWidth>
+              <InputLabel id="telegram-status-label" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                Статус Telegram
+              </InputLabel>
+              <StyledSelect
+                labelId="telegram-status-label"
+                label="Статус Telegram"
+                value={telegramStatus || phone?.telegramStatus || 'Unknown'}
+                onChange={(e) => setValue('telegramStatus', e.target.value as MessengerStatus)}
+              >
+                <MenuItem value="Unknown">Неизвестно</MenuItem>
+                <MenuItem value="Valid">Валиден</MenuItem>
+                <MenuItem value="Invalid">Невалиден</MenuItem>
+              </StyledSelect>
+            </FormControl>
+          </Box>
         </DialogContent>
 
         <DialogActions sx={dialogActionsStyles}>

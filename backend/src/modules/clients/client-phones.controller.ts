@@ -66,7 +66,7 @@ export async function createClientPhoneHandler(
     }
 
     const { id: clientId } = req.params;
-    const { phone } = req.body;
+    const { phone, whatsAppStatus, telegramStatus } = req.body;
 
     // Проверка принадлежности клиента пользователю
     const isOwner = await checkClientOwnership(clientId, userId);
@@ -82,6 +82,8 @@ export async function createClientPhoneHandler(
       data: {
         clientId,
         phone,
+        whatsAppStatus: whatsAppStatus || 'Unknown',
+        telegramStatus: telegramStatus || 'Unknown',
       },
     });
 
@@ -247,6 +249,14 @@ export async function updateClientPhoneHandler(
 
     if (updateData.phone !== undefined) {
       updatePayload.phone = updateData.phone;
+    }
+
+    if (updateData.whatsAppStatus !== undefined) {
+      updatePayload.whatsAppStatus = updateData.whatsAppStatus;
+    }
+
+    if (updateData.telegramStatus !== undefined) {
+      updatePayload.telegramStatus = updateData.telegramStatus;
     }
 
     // Обновление телефона

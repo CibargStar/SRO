@@ -21,6 +21,13 @@ import { z } from 'zod';
 const phoneRegex = /^[\+]?[(]?[0-9]{1,4}[)]?[-\s\.]?[(]?[0-9]{1,4}[)]?[-\s\.]?[0-9]{1,9}$/;
 
 /**
+ * Enum для статусов мессенджеров
+ */
+const MessengerStatusEnum = z.enum(['Valid', 'Invalid', 'Unknown'], {
+  errorMap: () => ({ message: 'Статус должен быть Valid, Invalid или Unknown' }),
+});
+
+/**
  * Схема валидации для создания телефона клиента
  */
 export const createClientPhoneSchema = z.object({
@@ -30,6 +37,8 @@ export const createClientPhoneSchema = z.object({
     .max(20, { message: 'Номер телефона не должен превышать 20 символов' })
     .trim()
     .regex(phoneRegex, { message: 'Неверный формат номера телефона' }),
+  whatsAppStatus: MessengerStatusEnum.optional().default('Unknown'),
+  telegramStatus: MessengerStatusEnum.optional().default('Unknown'),
 });
 
 /**
@@ -47,7 +56,10 @@ export const updateClientPhoneSchema = z
       .min(1, { message: 'Номер телефона не может быть пустым, если указан' })
       .max(20, { message: 'Номер телефона не должен превышать 20 символов' })
       .trim()
-      .regex(phoneRegex, { message: 'Неверный формат номера телефона' }),
+      .regex(phoneRegex, { message: 'Неверный формат номера телефона' })
+      .optional(),
+    whatsAppStatus: MessengerStatusEnum.optional(),
+    telegramStatus: MessengerStatusEnum.optional(),
   })
   .refine(
     (data) => {
