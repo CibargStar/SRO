@@ -221,7 +221,28 @@ export function ClientsPage() {
   const errorMessage = error ? 'Не удалось загрузить клиентов' : null;
 
   return (
-    <Box sx={{ width: '100%' }}>
+    <Box
+      sx={{
+        width: '100%',
+        overflowY: 'auto',
+        '&::-webkit-scrollbar': {
+          display: 'none',
+          width: 0,
+          height: 0,
+        },
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none',
+        '& *': {
+          '&::-webkit-scrollbar': {
+            display: 'none',
+            width: 0,
+            height: 0,
+          },
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        },
+      }}
+    >
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
         <Typography variant="h4" component="h1" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
           Управление клиентами
@@ -242,7 +263,7 @@ export function ClientsPage() {
       {/* Селектор пользователя для ROOT */}
       {isRoot && (
         <Box sx={{ mb: 3 }}>
-          <FormControl sx={{ minWidth: 250 }}>
+          <FormControl sx={{ minWidth: 270 }}>
             <InputLabel 
               sx={{ 
                 color: 'rgba(255, 255, 255, 0.7)',
@@ -266,7 +287,6 @@ export function ClientsPage() {
               label="База пользователя"
               MenuProps={MenuProps}
             >
-              <MenuItem value="">Все пользователи</MenuItem>
               {users.map((u) => (
                 <MenuItem key={u.id} value={u.id}>
                   {u.name || u.email} {u.role === 'ROOT' ? '(ROOT)' : ''}
@@ -281,7 +301,7 @@ export function ClientsPage() {
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
         <StyledTextField
           fullWidth
-          placeholder="Поиск по ФИО..."
+          placeholder="Поиск по ФИО или номеру телефона..."
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);

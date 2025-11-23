@@ -71,6 +71,25 @@ function AppLayout({ children }: { children: React.ReactNode }) {
           marginLeft: user ? '200px' : 0, // Отступ равен ширине сайдбара
           transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)', // Плавный переход
           padding: 3, // Внутренние отступы для контента
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          height: '100vh',
+          '&::-webkit-scrollbar': {
+            display: 'none',
+            width: 0,
+            height: 0,
+          },
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+          '& *': {
+            '&::-webkit-scrollbar': {
+              display: 'none',
+              width: 0,
+              height: 0,
+            },
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+          },
         }}
       >
         {children}

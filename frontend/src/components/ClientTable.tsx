@@ -32,6 +32,13 @@ import { PhoneChips } from './PhoneChips';
 const StyledTableContainer = styled(TableContainer)({
   borderRadius: '12px',
   backgroundColor: 'transparent',
+  '&::-webkit-scrollbar': {
+    display: 'none',
+    width: 0,
+    height: 0,
+  },
+  scrollbarWidth: 'none',
+  msOverflowStyle: 'none',
 });
 
 /**

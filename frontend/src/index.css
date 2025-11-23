@@ -35,6 +35,16 @@ body {
   /* Сглаживание шрифтов для лучшей читаемости */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Скрытие скроллбара */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+  width: 0;
+  height: 0;
 }
 
 /* 
@@ -48,6 +58,15 @@ body {
   min-height: 100vh;
   background-color: #212121; /* Темный фон приложения */
   color: #ffffff; /* Белый текст для контраста */
+  /* Скрытие скроллбара */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+#root::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+  width: 0;
+  height: 0;
 }
 
 /* 

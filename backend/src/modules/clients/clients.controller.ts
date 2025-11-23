@@ -233,7 +233,7 @@ export async function listClientsHandler(
       where.status = status;
     }
 
-    // Поиск по ФИО
+    // Поиск по ФИО и номеру телефона
     // Примечание: SQLite не поддерживает case-insensitive поиск через Prisma
     // Для case-insensitive поиска можно использовать raw SQL или нормализовать данные
     if (search) {
@@ -241,6 +241,7 @@ export async function listClientsHandler(
         { lastName: { contains: search } },
         { firstName: { contains: search } },
         { middleName: { contains: search } },
+        { phones: { some: { phone: { contains: search } } } },
       ];
     }
 
