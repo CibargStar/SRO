@@ -12,7 +12,7 @@
  * - Управление группами клиентов (создание, редактирование, удаление)
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -94,6 +94,35 @@ const StyledSelect = styled(Select)({
   '& .MuiSelect-icon': { color: 'rgba(255, 255, 255, 0.7)' },
 });
 
+const MenuProps = {
+  PaperProps: {
+    sx: {
+      backgroundColor: '#212121',
+      borderRadius: '12px',
+      marginTop: '8px',
+      '& .MuiMenuItem-root': {
+        color: 'rgba(255, 255, 255, 0.9)',
+        '&:hover': {
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        },
+        '&.Mui-selected': {
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+          color: 'rgba(255, 255, 255, 0.9)',
+          '&:hover': {
+            backgroundColor: 'rgba(255, 255, 255, 0.15)',
+          },
+          '&.Mui-focusVisible': {
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+          },
+        },
+        '&.Mui-focusVisible': {
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        },
+      },
+    },
+  },
+};
+
 export function ClientsPage() {
   const user = useAuthStore((state) => state.user);
   const isRoot = user?.role === 'ROOT';
@@ -101,14 +130,24 @@ export function ClientsPage() {
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
   const [search, setSearch] = useState('');
-  const [regionId, setRegionId] = useState<string | undefined>(undefined);
-  const [groupId, setGroupId] = useState<string | undefined>(undefined);
-  const [status, setStatus] = useState<ClientStatus | undefined>(undefined);
+  const [regionId, setRegionId] = useState<string | undefined>('');
+  const [groupId, setGroupId] = useState<string | undefined>('');
+  const [status, setStatus] = useState<ClientStatus | undefined>('');
   const [sortBy, setSortBy] = useState<'createdAt' | 'lastName' | 'firstName' | 'regionId' | 'status'>('createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   
   // Состояние для выбора пользователя (только для ROOT)
-  const [selectedUserId, setSelectedUserId] = useState<string | undefined>(undefined);
+  // По умолчанию выбираем ROOT пользователя
+  const { data: users = [] } = useUsers(isRoot);
+  const rootUser = users.find(u => u.role === 'ROOT');
+  const [selectedUserId, setSelectedUserId] = useState<string | undefined>(rootUser?.id);
+
+  // Обновляем selectedUserId когда rootUser загрузится
+  useEffect(() => {
+    if (isRoot && rootUser && !selectedUserId) {
+      setSelectedUserId(rootUser.id);
+    }
+  }, [isRoot, rootUser, selectedUserId]);
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -126,7 +165,6 @@ export function ClientsPage() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   
 
-  const { data: users = [] } = useUsers(isRoot); // Для ROOT - список пользователей для переключения (запрос выполняется только для ROOT)
   const { data: clientsData, isLoading, error } = useClients({
     page,
     limit,
@@ -234,15 +272,28 @@ export function ClientsPage() {
       {isRoot && (
         <Box sx={{ mb: 3 }}>
           <FormControl sx={{ minWidth: 250 }}>
-            <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>База пользователя</InputLabel>
+            <InputLabel 
+              sx={{ 
+                color: 'rgba(255, 255, 255, 0.7)',
+                '&.Mui-focused': {
+                  color: 'rgba(255, 255, 255, 0.7)',
+                },
+                '&.MuiInputLabel-shrink': {
+                  color: 'rgba(255, 255, 255, 0.7)',
+                },
+              }}
+            >
+              База пользователя
+            </InputLabel>
             <StyledSelect
               value={selectedUserId || ''}
               onChange={(e) => {
                 setSelectedUserId(e.target.value || undefined);
                 setPage(1); // Сбрасываем на первую страницу при смене пользователя
-                setGroupId(undefined); // Сбрасываем фильтр группы при смене пользователя
+                setGroupId(''); // Сбрасываем фильтр группы при смене пользователя
               }}
               label="База пользователя"
+              MenuProps={MenuProps}
             >
               <MenuItem value="">Все пользователи</MenuItem>
               {users.map((u) => (
@@ -272,7 +323,20 @@ export function ClientsPage() {
 
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
           <FormControl sx={{ minWidth: 200 }}>
-            <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Регион</InputLabel>
+            <InputLabel 
+              shrink
+              sx={{ 
+                color: 'rgba(255, 255, 255, 0.7)',
+                '&.Mui-focused': {
+                  color: 'rgba(255, 255, 255, 0.7)',
+                },
+                '&.MuiInputLabel-shrink': {
+                  color: 'rgba(255, 255, 255, 0.7)',
+                },
+              }}
+            >
+              Регион
+            </InputLabel>
             <StyledSelect
               value={regionId || ''}
               onChange={(e) => {
@@ -280,6 +344,14 @@ export function ClientsPage() {
                 setPage(1);
               }}
               label="Регион"
+              MenuProps={MenuProps}
+              displayEmpty
+              renderValue={(selected) => {
+                if (!selected || selected === '') {
+                  return 'Все';
+                }
+                return regions.find(r => r.id === selected)?.name || selected;
+              }}
             >
               <MenuItem value="">Все</MenuItem>
               {regions.map((region) => (
@@ -302,7 +374,20 @@ export function ClientsPage() {
           />
 
           <FormControl sx={{ minWidth: 150 }}>
-            <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Статус</InputLabel>
+            <InputLabel 
+              shrink
+              sx={{ 
+                color: 'rgba(255, 255, 255, 0.7)',
+                '&.Mui-focused': {
+                  color: 'rgba(255, 255, 255, 0.7)',
+                },
+                '&.MuiInputLabel-shrink': {
+                  color: 'rgba(255, 255, 255, 0.7)',
+                },
+              }}
+            >
+              Статус
+            </InputLabel>
             <StyledSelect
               value={status || ''}
               onChange={(e) => {
@@ -310,6 +395,14 @@ export function ClientsPage() {
                 setPage(1);
               }}
               label="Статус"
+              MenuProps={MenuProps}
+              displayEmpty
+              renderValue={(selected) => {
+                if (!selected || selected === '') {
+                  return 'Все';
+                }
+                return selected === 'NEW' ? 'Новый' : selected === 'OLD' ? 'Старый' : selected;
+              }}
             >
               <MenuItem value="">Все</MenuItem>
               <MenuItem value="NEW">Новый</MenuItem>
@@ -318,11 +411,24 @@ export function ClientsPage() {
           </FormControl>
 
           <FormControl sx={{ minWidth: 150 }}>
-            <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Сортировка</InputLabel>
+            <InputLabel 
+              sx={{ 
+                color: 'rgba(255, 255, 255, 0.7)',
+                '&.Mui-focused': {
+                  color: 'rgba(255, 255, 255, 0.7)',
+                },
+                '&.MuiInputLabel-shrink': {
+                  color: 'rgba(255, 255, 255, 0.7)',
+                },
+              }}
+            >
+              Сортировка
+            </InputLabel>
             <StyledSelect
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
               label="Сортировка"
+              MenuProps={MenuProps}
             >
               <MenuItem value="createdAt">По дате</MenuItem>
               <MenuItem value="lastName">По фамилии</MenuItem>
@@ -333,8 +439,25 @@ export function ClientsPage() {
           </FormControl>
 
           <FormControl sx={{ minWidth: 120 }}>
-            <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Порядок</InputLabel>
-            <StyledSelect value={sortOrder} onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)} label="Порядок">
+            <InputLabel 
+              sx={{ 
+                color: 'rgba(255, 255, 255, 0.7)',
+                '&.Mui-focused': {
+                  color: 'rgba(255, 255, 255, 0.7)',
+                },
+                '&.MuiInputLabel-shrink': {
+                  color: 'rgba(255, 255, 255, 0.7)',
+                },
+              }}
+            >
+              Порядок
+            </InputLabel>
+            <StyledSelect 
+              value={sortOrder} 
+              onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)} 
+              label="Порядок"
+              MenuProps={MenuProps}
+            >
               <MenuItem value="asc">По возрастанию</MenuItem>
               <MenuItem value="desc">По убыванию</MenuItem>
             </StyledSelect>

@@ -55,6 +55,35 @@ const StyledSelect = styled(Select)({
   '& .MuiSelect-icon': { color: 'rgba(255, 255, 255, 0.7)' },
 });
 
+const MenuProps = {
+  PaperProps: {
+    sx: {
+      backgroundColor: '#212121',
+      borderRadius: '12px',
+      marginTop: '8px',
+      '& .MuiMenuItem-root': {
+        color: 'rgba(255, 255, 255, 0.9)',
+        '&:hover': {
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        },
+        '&.Mui-selected': {
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+          color: 'rgba(255, 255, 255, 0.9)',
+          '&:hover': {
+            backgroundColor: 'rgba(255, 255, 255, 0.15)',
+          },
+          '&.Mui-focusVisible': {
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+          },
+        },
+        '&.Mui-focusVisible': {
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        },
+      },
+    },
+  },
+};
+
 const StyledButton = styled(Button)(({ theme }) => ({
   borderRadius: '12px',
   backgroundColor: '#f5f5f5',
@@ -215,12 +244,24 @@ export function CreateClientDialog({ open, onClose, userId: propUserId }: Create
             />
 
             <FormControl fullWidth>
-              <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Регион</InputLabel>
+              <InputLabel 
+                sx={{ 
+                  color: 'rgba(255, 255, 255, 0.7)',
+                  '&.Mui-focused': {
+                    color: 'rgba(255, 255, 255, 0.7)',
+                  },
+                  '&.MuiInputLabel-shrink': {
+                    color: 'rgba(255, 255, 255, 0.7)',
+                  },
+                }}
+              >
+                Регион
+              </InputLabel>
               <Controller
                 name="regionId"
                 control={control}
                 render={({ field }) => (
-                  <StyledSelect {...field} label="Регион" value={field.value || ''}>
+                  <StyledSelect {...field} label="Регион" value={field.value || ''} MenuProps={MenuProps}>
                     <MenuItem value="">Не выбран</MenuItem>
                     {regions.map((region) => (
                       <MenuItem key={region.id} value={region.id}>
@@ -249,7 +290,19 @@ export function CreateClientDialog({ open, onClose, userId: propUserId }: Create
             />
 
             <FormControl fullWidth>
-              <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Статус</InputLabel>
+              <InputLabel 
+                sx={{ 
+                  color: 'rgba(255, 255, 255, 0.7)',
+                  '&.Mui-focused': {
+                    color: 'rgba(255, 255, 255, 0.7)',
+                  },
+                  '&.MuiInputLabel-shrink': {
+                    color: 'rgba(255, 255, 255, 0.7)',
+                  },
+                }}
+              >
+                Статус
+              </InputLabel>
               <Controller
                 name="status"
                 control={control}

@@ -41,6 +41,35 @@ const StyledSelect = styled(Select)({
   },
 });
 
+const MenuProps = {
+  PaperProps: {
+    sx: {
+      backgroundColor: '#212121',
+      borderRadius: '12px',
+      marginTop: '8px',
+      '& .MuiMenuItem-root': {
+        color: 'rgba(255, 255, 255, 0.9)',
+        '&:hover': {
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        },
+        '&.Mui-selected': {
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+          color: 'rgba(255, 255, 255, 0.9)',
+          '&:hover': {
+            backgroundColor: 'rgba(255, 255, 255, 0.15)',
+          },
+          '&.Mui-focusVisible': {
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+          },
+        },
+        '&.Mui-focusVisible': {
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        },
+      },
+    },
+  },
+};
+
 interface ClientGroupSelectorProps {
   value: string | null;
   onChange: (value: string | null) => void;
@@ -69,10 +98,17 @@ export function ClientGroupSelector({
   return (
     <FormControl fullWidth={fullWidth} required={required} error={error} disabled={disabled || isLoading}>
       <InputLabel 
+        shrink={!required}
         sx={{ 
           color: 'rgba(255, 255, 255, 0.7)',
           '&.Mui-disabled': {
             color: 'rgba(255, 255, 255, 0.5)',
+          },
+          '&.Mui-focused': {
+            color: 'rgba(255, 255, 255, 0.7)',
+          },
+          '&.MuiInputLabel-shrink': {
+            color: 'rgba(255, 255, 255, 0.7)',
           },
         }}
       >
@@ -88,6 +124,15 @@ export function ClientGroupSelector({
           sx={!fullWidth ? { minWidth: 200 } : undefined}
           IconComponent={ArrowDropDownIcon}
           fullWidth={fullWidth}
+          MenuProps={MenuProps}
+          displayEmpty={!required}
+          renderValue={(selected) => {
+            if (!selected || selected === '') {
+              return fullWidth ? 'Не выбрана' : 'Все';
+            }
+            const group = groups.find(g => g.id === selected);
+            return group?.name || selected;
+          }}
         >
         {!required && <MenuItem value="">{fullWidth ? 'Не выбрана' : 'Все'}</MenuItem>}
         {groups.map((group) => (

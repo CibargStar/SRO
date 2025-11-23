@@ -122,6 +122,35 @@ const StyledSelect = styled(Select)({
   },
 });
 
+const MenuProps = {
+  PaperProps: {
+    sx: {
+      backgroundColor: '#212121',
+      borderRadius: '12px',
+      marginTop: '8px',
+      '& .MuiMenuItem-root': {
+        color: 'rgba(255, 255, 255, 0.9)',
+        '&:hover': {
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        },
+        '&.Mui-selected': {
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+          color: 'rgba(255, 255, 255, 0.9)',
+          '&:hover': {
+            backgroundColor: 'rgba(255, 255, 255, 0.15)',
+          },
+          '&.Mui-focusVisible': {
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+          },
+        },
+        '&.Mui-focusVisible': {
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        },
+      },
+    },
+  },
+};
+
 interface ImportClientsDialogProps {
   open: boolean;
   onClose: () => void;
@@ -364,6 +393,12 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
                       '&.Mui-disabled': {
                         color: 'rgba(255, 255, 255, 0.5)',
                       },
+                      '&.Mui-focused': {
+                        color: 'rgba(255, 255, 255, 0.7)',
+                      },
+                      '&.MuiInputLabel-shrink': {
+                        color: 'rgba(255, 255, 255, 0.7)',
+                      },
                     }}
                   >
                     Выберите конфигурацию
@@ -380,6 +415,7 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
                       disabled={isLoading || configsLoading || defaultConfigLoading || !hasSavedConfigs}
                       IconComponent={ArrowDropDownIcon}
                       fullWidth
+                      MenuProps={MenuProps}
                     >
                   {defaultConfigLoading || configsLoading ? (
                     <MenuItem value="" disabled>

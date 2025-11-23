@@ -19,6 +19,35 @@ const StyledSelect = styled(Select)({
   '& .MuiSelect-icon': { color: 'rgba(255, 255, 255, 0.7)' },
 });
 
+const MenuProps = {
+  PaperProps: {
+    sx: {
+      backgroundColor: '#212121',
+      borderRadius: '12px',
+      marginTop: '8px',
+      '& .MuiMenuItem-root': {
+        color: 'rgba(255, 255, 255, 0.9)',
+        '&:hover': {
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        },
+        '&.Mui-selected': {
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+          color: 'rgba(255, 255, 255, 0.9)',
+          '&:hover': {
+            backgroundColor: 'rgba(255, 255, 255, 0.15)',
+          },
+          '&.Mui-focusVisible': {
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+          },
+        },
+        '&.Mui-focusVisible': {
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        },
+      },
+    },
+  },
+};
+
 interface RegionSelectorProps {
   value: string | null;
   onChange: (value: string | null) => void;
@@ -31,12 +60,25 @@ export function RegionSelector({ value, onChange, label = 'Регион', fullWi
 
   return (
     <FormControl fullWidth={fullWidth}>
-      <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>{label}</InputLabel>
+      <InputLabel 
+        sx={{ 
+          color: 'rgba(255, 255, 255, 0.7)',
+          '&.Mui-focused': {
+            color: 'rgba(255, 255, 255, 0.7)',
+          },
+          '&.MuiInputLabel-shrink': {
+            color: 'rgba(255, 255, 255, 0.7)',
+          },
+        }}
+      >
+        {label}
+      </InputLabel>
       <StyledSelect
         value={value || ''}
         onChange={(e) => onChange(e.target.value ? (e.target.value as string) : null)}
         label={label}
         disabled={isLoading}
+        MenuProps={MenuProps}
       >
         <MenuItem value="">Не выбран</MenuItem>
         {regions.map((region) => (

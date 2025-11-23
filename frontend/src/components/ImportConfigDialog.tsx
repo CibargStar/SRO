@@ -42,6 +42,11 @@ import InfoIcon from '@mui/icons-material/Info';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import DeleteIcon from '@mui/icons-material/Delete';
+import SearchIcon from '@mui/icons-material/Search';
+import SettingsIcon from '@mui/icons-material/Settings';
+import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
+import TuneIcon from '@mui/icons-material/Tune';
+import PreviewIcon from '@mui/icons-material/Preview';
 import { useImportConfigs, useCreateImportConfig, useUpdateImportConfig, useCreateConfigFromTemplate, useDeleteImportConfig } from '@/hooks/useImportConfigs';
 import { useAuthStore } from '@/store';
 import { getImportConfig } from '@/utils/api';
@@ -81,6 +86,30 @@ const StyledPaper = styled(Paper)(({ theme }) => ({
   backgroundColor: 'rgba(255, 255, 255, 0.05)',
   borderRadius: '12px',
 }));
+
+const SectionCard = styled(Box)(({ theme }) => ({
+  padding: theme.spacing(2.5),
+  backgroundColor: 'rgba(255, 255, 255, 0.03)',
+  borderRadius: '12px',
+  border: 'none',
+  marginBottom: theme.spacing(2.5),
+}));
+
+const SectionTitle = styled(Typography)({
+  color: 'rgba(255, 255, 255, 0.9)',
+  fontWeight: 600,
+  fontSize: '0.95rem',
+  marginBottom: '0.5rem',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+});
+
+const SectionDescription = styled(Typography)({
+  color: 'rgba(255, 255, 255, 0.5)',
+  fontSize: '0.8rem',
+  marginBottom: '1rem',
+});
 
 const StyledTextField = styled(TextField)({
   '& .MuiOutlinedInput-root': {
@@ -457,39 +486,17 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
             rows={2}
             sx={{ mb: 2 }}
           />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={config.isDefault || false}
-                onChange={(e) => setConfig({ ...config, isDefault: e.target.checked })}
-                sx={{
-                  color: '#ffffff',
-                  '&.Mui-checked': { color: '#ffffff' },
-                }}
-              />
-            }
-            label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                  Использовать по умолчанию
-                </Typography>
-                <Tooltip title="Эта конфигурация будет автоматически выбрана при открытии диалога импорта">
-                  <InfoIcon sx={{ fontSize: 16, color: 'rgba(255, 255, 255, 0.5)' }} />
-                </Tooltip>
-              </Box>
-            }
-          />
         </Box>
 
         {/* Загрузка из шаблонов и сохраненных */}
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="body2" sx={{ mb: 1.5, color: 'rgba(255, 255, 255, 0.7)', fontWeight: 500 }}>
-            Предустановленные шаблоны:
+        <Box sx={{ mb: 3, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <Typography variant="body2" sx={{ mb: 1.5, color: 'rgba(255, 255, 255, 0.7)', fontWeight: 500, textAlign: 'center' }}>
+            Предустановленные шаблоны
           </Typography>
           
           {/* Шаблоны */}
           {configsLoading ? (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, justifyContent: 'center' }}>
               <CircularProgress size={16} />
               <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>
                 Загрузка шаблонов...
@@ -498,8 +505,8 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
           ) : (
             <>
               {configsData?.templates && configsData.templates.length > 0 && (
-                <Box sx={{ mb: 2 }}>
-                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                <Box sx={{ mb: 2, width: '100%', display: 'flex', justifyContent: 'center' }}>
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'center' }}>
                     {configsData.templates.map((template) => {
                       const isSelected = selectedTemplateId === template.id;
                       const isLoading = loadingTemplateId === template.id;
@@ -610,8 +617,8 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
               )} */}
               
               {(!configsData?.templates || configsData.templates.length === 0) && (
-                <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.5)', fontStyle: 'italic' }}>
-                  Нет доступных шаблонов или сохраненных конфигураций
+                <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.5)', fontStyle: 'italic', textAlign: 'center' }}>
+                  Нет доступных шаблонов
                 </Typography>
               )}
             </>
@@ -624,39 +631,50 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
           onChange={(_, newValue) => setActiveTab(newValue)}
           sx={{
             borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+            mb: 3,
+            '& .MuiTabs-flexContainer': {
+              justifyContent: 'center',
+            },
             '& .MuiTab-root': {
-              color: 'rgba(255, 255, 255, 0.7)',
-              '&.Mui-selected': { color: '#ffffff' },
+              color: 'rgba(255, 255, 255, 0.6)',
+              textTransform: 'none',
+              fontSize: '0.9rem',
+              fontWeight: 500,
+              minHeight: '48px',
+              padding: '12px 20px',
+              transition: 'all 0.2s ease-in-out',
+              '&:hover': {
+                color: 'rgba(255, 255, 255, 0.9)',
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              },
+              '&.Mui-selected': { 
+                color: '#ffffff',
+                fontWeight: 600,
+              },
             },
             '& .MuiTabs-indicator': {
               backgroundColor: '#ffffff',
+              height: '2px',
             },
           }}
         >
-          <Tab label="Поиск" />
-          <Tab label="Действия" />
-          <Tab label="Валидация" />
-          <Tab label="Дополнительно" />
-          <Tab label="Предпросмотр" />
+          <Tab icon={<SearchIcon sx={{ fontSize: '1.1rem', mb: 0.5 }} />} iconPosition="start" label="Поиск" />
+          <Tab icon={<SettingsIcon sx={{ fontSize: '1.1rem', mb: 0.5 }} />} iconPosition="start" label="Действия" />
+          <Tab icon={<VerifiedUserIcon sx={{ fontSize: '1.1rem', mb: 0.5 }} />} iconPosition="start" label="Валидация" />
+          <Tab icon={<TuneIcon sx={{ fontSize: '1.1rem', mb: 0.5 }} />} iconPosition="start" label="Дополнительно" />
+          <Tab icon={<PreviewIcon sx={{ fontSize: '1.1rem', mb: 0.5 }} />} iconPosition="start" label="Предпросмотр" />
         </Tabs>
 
         {/* Вкладка: Поиск */}
         <TabPanel value={activeTab} index={0}>
-          <Box sx={{ mb: 3 }}>
-            <FormControl fullWidth>
-              <FormLabel 
-                sx={{ 
-                  color: 'rgba(255, 255, 255, 0.7)', 
-                  mb: 1.5, 
-                  fontWeight: 500,
-                  '&.Mui-focused': {
-                    color: 'rgba(255, 255, 255, 0.7)',
-                  },
-                }}
-              >
-                Область поиска дубликатов:
-              </FormLabel>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <SectionCard>
+            <SectionTitle>
+              Область поиска дубликатов
+            </SectionTitle>
+            <SectionDescription>
+              Выберите, где система будет искать дубликаты клиентов
+            </SectionDescription>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
               <FormControlLabel
                 control={
                   <Checkbox
@@ -680,92 +698,92 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
                     }}
                   />
                 }
-                label="Не искать дубликаты"
-                sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                label={
+                  <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                    Не искать дубликаты
+                  </Typography>
+                }
               />
               {!config.searchScope.scopes.includes('none') && (
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={config.searchScope.scopes.includes('current_group')}
-                      onChange={(e) => {
-                        const scopes = config.searchScope.scopes.filter((s) => s !== 'none');
-                        if (e.target.checked) {
-                          setConfig({
-                            ...config,
-                            searchScope: { ...config.searchScope, scopes: [...scopes, 'current_group'] },
-                          });
-                        } else {
-                          setConfig({
-                            ...config,
-                            searchScope: {
-                              ...config.searchScope,
-                              scopes: scopes.filter((s) => s !== 'current_group'),
-                            },
-                          });
-                        }
-                      }}
-                      sx={{
-                        color: '#ffffff',
-                        '&.Mui-checked': { color: '#ffffff' },
-                      }}
-                    />
-                  }
-                  label="Только в выбранной группе"
-                  sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
-                />
+                <>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={config.searchScope.scopes.includes('current_group')}
+                        onChange={(e) => {
+                          const scopes = config.searchScope.scopes.filter((s) => s !== 'none');
+                          if (e.target.checked) {
+                            setConfig({
+                              ...config,
+                              searchScope: { ...config.searchScope, scopes: [...scopes, 'current_group'] },
+                            });
+                          } else {
+                            setConfig({
+                              ...config,
+                              searchScope: {
+                                ...config.searchScope,
+                                scopes: scopes.filter((s) => s !== 'current_group'),
+                              },
+                            });
+                          }
+                        }}
+                        sx={{
+                          color: '#ffffff',
+                          '&.Mui-checked': { color: '#ffffff' },
+                        }}
+                      />
+                    }
+                    label={
+                      <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                        Только в выбранной группе
+                      </Typography>
+                    }
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={config.searchScope.scopes.includes('owner_groups')}
+                        onChange={(e) => {
+                          const scopes = config.searchScope.scopes.filter((s) => s !== 'none');
+                          if (e.target.checked) {
+                            setConfig({
+                              ...config,
+                              searchScope: { ...config.searchScope, scopes: [...scopes, 'owner_groups'] },
+                            });
+                          } else {
+                            setConfig({
+                              ...config,
+                              searchScope: {
+                                ...config.searchScope,
+                                scopes: scopes.filter((s) => s !== 'owner_groups'),
+                              },
+                            });
+                          }
+                        }}
+                        sx={{
+                          color: '#ffffff',
+                          '&.Mui-checked': { color: '#ffffff' },
+                        }}
+                      />
+                    }
+                    label={
+                      <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                        Во всех группах владельца
+                      </Typography>
+                    }
+                  />
+                </>
               )}
-              {!config.searchScope.scopes.includes('none') && (
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={config.searchScope.scopes.includes('owner_groups')}
-                      onChange={(e) => {
-                        const scopes = config.searchScope.scopes.filter((s) => s !== 'none');
-                        if (e.target.checked) {
-                          setConfig({
-                            ...config,
-                            searchScope: { ...config.searchScope, scopes: [...scopes, 'owner_groups'] },
-                          });
-                        } else {
-                          setConfig({
-                            ...config,
-                            searchScope: {
-                              ...config.searchScope,
-                              scopes: scopes.filter((s) => s !== 'owner_groups'),
-                            },
-                          });
-                        }
-                      }}
-                      sx={{
-                        color: '#ffffff',
-                        '&.Mui-checked': { color: '#ffffff' },
-                      }}
-                    />
-                  }
-                  label="Во всех группах владельца"
-                  sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
-                />
-              )}
-              </Box>
-            </FormControl>
-          </Box>
+            </Box>
+          </SectionCard>
 
-          <Divider sx={{ my: 3, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
-
-          <FormControl fullWidth>
-            <FormLabel 
-              sx={{ 
-                color: 'rgba(255, 255, 255, 0.7)', 
-                mb: 1.5, 
-                fontWeight: 500,
-                '&.Mui-focused': {
-                  color: 'rgba(255, 255, 255, 0.7)',
-                },
-              }}
-            >
-              Критерии поиска:
-            </FormLabel>
+          <SectionCard>
+            <SectionTitle>
+              Критерии поиска
+            </SectionTitle>
+            <SectionDescription>
+              Определите, как система будет идентифицировать дубликаты
+            </SectionDescription>
             <RadioGroup
               value={config.searchScope.matchCriteria}
               onChange={(e) =>
@@ -774,44 +792,48 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
                   searchScope: { ...config.searchScope, matchCriteria: e.target.value as 'phone' | 'phone_and_name' | 'name' },
                 })
               }
+              sx={{ gap: 1.5 }}
             >
               <FormControlLabel
                 value="phone"
                 control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
-                label="По телефону"
-                sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                label={
+                  <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                    По телефону
+                  </Typography>
+                }
               />
               <FormControlLabel
                 value="phone_and_name"
                 control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
-                label="По телефону + ФИО"
-                sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                label={
+                  <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                    По телефону + ФИО
+                  </Typography>
+                }
               />
               <FormControlLabel
                 value="name"
                 control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
-                label="По ФИО"
-                sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                label={
+                  <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                    По ФИО
+                  </Typography>
+                }
               />
             </RadioGroup>
-          </FormControl>
+          </SectionCard>
         </TabPanel>
 
         {/* Вкладка: Действия */}
         <TabPanel value={activeTab} index={1}>
-          <FormControl fullWidth sx={{ mb: 3 }}>
-            <FormLabel 
-              sx={{ 
-                color: 'rgba(255, 255, 255, 0.7)', 
-                mb: 1.5, 
-                fontWeight: 500,
-                '&.Mui-focused': {
-                  color: 'rgba(255, 255, 255, 0.7)',
-                },
-              }}
-            >
-              Действие по умолчанию при дубликате:
-            </FormLabel>
+          <SectionCard>
+            <SectionTitle>
+              Действие при обнаружении дубликата
+            </SectionTitle>
+            <SectionDescription>
+              Выберите, что делать, когда система находит существующего клиента
+            </SectionDescription>
             <RadioGroup
               value={config.duplicateAction.defaultAction}
               onChange={(e) =>
@@ -823,152 +845,172 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
                   },
                 })
               }
+              sx={{ gap: 1.5 }}
             >
               <FormControlLabel
                 value="skip"
                 control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
-                label="Пропустить строку"
-                sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                label={
+                  <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                    Пропустить строку
+                  </Typography>
+                }
               />
               <FormControlLabel
                 value="update"
                 control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
-                label="Обновить существующего"
-                sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                label={
+                  <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                    Обновить существующего
+                  </Typography>
+                }
               />
               <FormControlLabel
                 value="create"
                 control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
-                label="Создать нового (игнорировать дубликат)"
-                sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                label={
+                  <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                    Создать нового (игнорировать дубликат)
+                  </Typography>
+                }
               />
             </RadioGroup>
-          </FormControl>
+          </SectionCard>
 
           {config.duplicateAction.defaultAction === 'update' && (
-            <Box sx={{ mb: 3, mt: 2, p: 2, backgroundColor: 'rgba(255, 255, 255, 0.03)', borderRadius: '8px' }}>
-              <Typography variant="body2" sx={{ mb: 1.5, color: 'rgba(255, 255, 255, 0.9)', fontWeight: 500 }}>
-                Что обновлять:
-              </Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={config.duplicateAction.updateName}
-                    onChange={(e) =>
-                      setConfig({
-                        ...config,
-                        duplicateAction: { ...config.duplicateAction, updateName: e.target.checked },
-                      })
-                    }
-                    sx={{
-                      color: '#ffffff',
-                      '&.Mui-checked': { color: '#ffffff' },
-                    }}
-                  />
-                }
-                label="Обновлять ФИО (если в импорте есть, а у существующего нет)"
-                sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={config.duplicateAction.addPhones}
-                    onChange={(e) =>
-                      setConfig({
-                        ...config,
-                        duplicateAction: { ...config.duplicateAction, addPhones: e.target.checked },
-                      })
-                    }
-                    sx={{
-                      color: '#ffffff',
-                      '&.Mui-checked': { color: '#ffffff' },
-                    }}
-                  />
-                }
-                label="Добавлять новые телефоны"
-                sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={config.duplicateAction.updateRegion}
-                    onChange={(e) =>
-                      setConfig({
-                        ...config,
-                        duplicateAction: { ...config.duplicateAction, updateRegion: e.target.checked },
-                      })
-                    }
-                    sx={{
-                      color: '#ffffff',
-                      '&.Mui-checked': { color: '#ffffff' },
-                    }}
-                  />
-                }
-                label="Обновлять регион"
-                sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={config.duplicateAction.addToGroup}
-                    onChange={(e) =>
-                      setConfig({
-                        ...config,
-                        duplicateAction: { ...config.duplicateAction, addToGroup: e.target.checked },
-                      })
-                    }
-                    sx={{
-                      color: '#ffffff',
-                      '&.Mui-checked': { color: '#ffffff' },
-                    }}
-                  />
-                }
-                label="Добавлять клиента в текущую группу (если его там нет)"
-                sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={config.duplicateAction.moveToGroup}
-                    onChange={(e) =>
-                      setConfig({
-                        ...config,
-                        duplicateAction: {
-                          ...config.duplicateAction,
-                          moveToGroup: e.target.checked,
-                          addToGroup: e.target.checked ? false : config.duplicateAction.addToGroup,
-                        },
-                      })
-                    }
-                    sx={{
-                      color: '#ffffff',
-                      '&.Mui-checked': { color: '#ffffff' },
-                    }}
-                  />
-                }
-                label="Перемещать клиента в текущую группу (удалять из других)"
-                sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
-              />
+            <SectionCard>
+              <SectionTitle>
+                Параметры обновления
+              </SectionTitle>
+              <SectionDescription>
+                Выберите, какие данные обновлять у существующего клиента
+              </SectionDescription>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={config.duplicateAction.updateName}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          duplicateAction: { ...config.duplicateAction, updateName: e.target.checked },
+                        })
+                      }
+                      sx={{
+                        color: '#ffffff',
+                        '&.Mui-checked': { color: '#ffffff' },
+                      }}
+                    />
+                  }
+                  label={
+                    <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                      Обновлять ФИО (если в импорте есть, а у существующего нет)
+                    </Typography>
+                  }
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={config.duplicateAction.addPhones}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          duplicateAction: { ...config.duplicateAction, addPhones: e.target.checked },
+                        })
+                      }
+                      sx={{
+                        color: '#ffffff',
+                        '&.Mui-checked': { color: '#ffffff' },
+                      }}
+                    />
+                  }
+                  label={
+                    <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                      Добавлять новые телефоны
+                    </Typography>
+                  }
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={config.duplicateAction.updateRegion}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          duplicateAction: { ...config.duplicateAction, updateRegion: e.target.checked },
+                        })
+                      }
+                      sx={{
+                        color: '#ffffff',
+                        '&.Mui-checked': { color: '#ffffff' },
+                      }}
+                    />
+                  }
+                  label={
+                    <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                      Обновлять регион
+                    </Typography>
+                  }
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={config.duplicateAction.addToGroup}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          duplicateAction: { ...config.duplicateAction, addToGroup: e.target.checked },
+                        })
+                      }
+                      sx={{
+                        color: '#ffffff',
+                        '&.Mui-checked': { color: '#ffffff' },
+                      }}
+                    />
+                  }
+                  label={
+                    <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                      Добавлять клиента в текущую группу (если его там нет)
+                    </Typography>
+                  }
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={config.duplicateAction.moveToGroup}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          duplicateAction: {
+                            ...config.duplicateAction,
+                            moveToGroup: e.target.checked,
+                            addToGroup: e.target.checked ? false : config.duplicateAction.addToGroup,
+                          },
+                        })
+                      }
+                      sx={{
+                        color: '#ffffff',
+                        '&.Mui-checked': { color: '#ffffff' },
+                      }}
+                    />
+                  }
+                  label={
+                    <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                      Перемещать клиента в текущую группу (удалять из других)
+                    </Typography>
+                  }
+                />
               </Box>
-            </Box>
+            </SectionCard>
           )}
 
-          <Divider sx={{ my: 3, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
-
-          <FormControl fullWidth>
-            <FormLabel 
-              sx={{ 
-                color: 'rgba(255, 255, 255, 0.7)', 
-                mb: 1.5, 
-                fontWeight: 500,
-                '&.Mui-focused': {
-                  color: 'rgba(255, 255, 255, 0.7)',
-                },
-              }}
-            >
-              Действие при отсутствии дубликата:
-            </FormLabel>
+          <SectionCard>
+            <SectionTitle>
+              Действие при отсутствии дубликата
+            </SectionTitle>
+            <SectionDescription>
+              Выберите, что делать с новыми клиентами, для которых не найдено дубликатов
+            </SectionDescription>
             <RadioGroup
               value={config.noDuplicateAction}
               onChange={(e) =>
@@ -977,108 +1019,116 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
                   noDuplicateAction: e.target.value as 'create' | 'skip',
                 })
               }
+              sx={{ gap: 1.5 }}
             >
               <FormControlLabel
                 value="create"
                 control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
-                label="Создать нового клиента"
-                sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                label={
+                  <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                    Создать нового клиента
+                  </Typography>
+                }
               />
               <FormControlLabel
                 value="skip"
                 control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
-                label="Пропустить строку"
-                sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                label={
+                  <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                    Пропустить строку
+                  </Typography>
+                }
               />
             </RadioGroup>
-          </FormControl>
+          </SectionCard>
         </TabPanel>
 
         {/* Вкладка: Валидация */}
         <TabPanel value={activeTab} index={2}>
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="body2" sx={{ mb: 1.5, color: 'rgba(255, 255, 255, 0.9)', fontWeight: 500 }}>
-              Обязательные поля:
-            </Typography>
-            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)', mb: 2, display: 'block' }}>
-              Строки без этих полей будут пропущены
-            </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <SectionCard>
+            <SectionTitle>
+              Обязательные поля
+            </SectionTitle>
+            <SectionDescription>
+              Строки без выбранных полей будут пропущены при импорте
+            </SectionDescription>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
               <FormControlLabel
-            control={
-              <Checkbox
-                checked={config.validation.requireName}
-                onChange={(e) =>
-                  setConfig({
-                    ...config,
-                    validation: { ...config.validation, requireName: e.target.checked },
-                  })
+                control={
+                  <Checkbox
+                    checked={config.validation.requireName}
+                    onChange={(e) =>
+                      setConfig({
+                        ...config,
+                        validation: { ...config.validation, requireName: e.target.checked },
+                      })
+                    }
+                    sx={{
+                      color: '#ffffff',
+                      '&.Mui-checked': { color: '#ffffff' },
+                    }}
+                  />
                 }
-                sx={{
-                  color: '#ffffff',
-                  '&.Mui-checked': { color: '#ffffff' },
-                }}
-              />
-            }
-            label="Требовать ФИО"
-            sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={config.validation.requirePhone}
-                onChange={(e) =>
-                  setConfig({
-                    ...config,
-                    validation: { ...config.validation, requirePhone: e.target.checked },
-                  })
+                label={
+                  <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                    Требовать ФИО
+                  </Typography>
                 }
-                sx={{
-                  color: '#ffffff',
-                  '&.Mui-checked': { color: '#ffffff' },
-                }}
               />
-            }
-            label="Требовать валидный телефон"
-            sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={config.validation.requireRegion}
-                onChange={(e) =>
-                  setConfig({
-                    ...config,
-                    validation: { ...config.validation, requireRegion: e.target.checked },
-                  })
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={config.validation.requirePhone}
+                    onChange={(e) =>
+                      setConfig({
+                        ...config,
+                        validation: { ...config.validation, requirePhone: e.target.checked },
+                      })
+                    }
+                    sx={{
+                      color: '#ffffff',
+                      '&.Mui-checked': { color: '#ffffff' },
+                    }}
+                  />
                 }
-                sx={{
-                  color: '#ffffff',
-                  '&.Mui-checked': { color: '#ffffff' },
-                }}
+                label={
+                  <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                    Требовать валидный телефон
+                  </Typography>
+                }
               />
-            }
-            label="Требовать регион"
-            sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
-          />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={config.validation.requireRegion}
+                    onChange={(e) =>
+                      setConfig({
+                        ...config,
+                        validation: { ...config.validation, requireRegion: e.target.checked },
+                      })
+                    }
+                    sx={{
+                      color: '#ffffff',
+                      '&.Mui-checked': { color: '#ffffff' },
+                    }}
+                  />
+                }
+                label={
+                  <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                    Требовать регион
+                  </Typography>
+                }
+              />
             </Box>
-          </Box>
+          </SectionCard>
 
-          <Divider sx={{ my: 3, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
-
-          <FormControl fullWidth>
-            <FormLabel 
-              sx={{ 
-                color: 'rgba(255, 255, 255, 0.7)', 
-                mb: 1.5, 
-                fontWeight: 500,
-                '&.Mui-focused': {
-                  color: 'rgba(255, 255, 255, 0.7)',
-                },
-              }}
-            >
-              Обработка ошибок валидации:
-            </FormLabel>
+          <SectionCard>
+            <SectionTitle>
+              Обработка ошибок валидации
+            </SectionTitle>
+            <SectionDescription>
+              Выберите, как система должна реагировать на ошибки валидации
+            </SectionDescription>
             <RadioGroup
               value={config.validation.errorHandling}
               onChange={(e) =>
@@ -1090,44 +1140,48 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
                   },
                 })
               }
+              sx={{ gap: 1.5 }}
             >
               <FormControlLabel
                 value="stop"
                 control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
-                label="Останавливать импорт при первой ошибке"
-                sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                label={
+                  <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                    Останавливать импорт при первой ошибке
+                  </Typography>
+                }
               />
               <FormControlLabel
                 value="skip"
                 control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
-                label="Пропускать строки с ошибками и продолжать"
-                sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                label={
+                  <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                    Пропускать строки с ошибками и продолжать
+                  </Typography>
+                }
               />
               <FormControlLabel
                 value="warn"
                 control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
-                label="Показывать предупреждения и продолжать"
-                sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                label={
+                  <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                    Показывать предупреждения и продолжать
+                  </Typography>
+                }
               />
             </RadioGroup>
-          </FormControl>
+          </SectionCard>
         </TabPanel>
 
         {/* Вкладка: Дополнительно */}
         <TabPanel value={activeTab} index={3}>
-          <FormControl fullWidth sx={{ mb: 3 }}>
-            <FormLabel 
-              sx={{ 
-                color: 'rgba(255, 255, 255, 0.7)', 
-                mb: 1.5, 
-                fontWeight: 500,
-                '&.Mui-focused': {
-                  color: 'rgba(255, 255, 255, 0.7)',
-                },
-              }}
-            >
-              Статус для новых клиентов:
-            </FormLabel>
+          <SectionCard>
+            <SectionTitle>
+              Статус для новых клиентов
+            </SectionTitle>
+            <SectionDescription>
+              Выберите, какой статус присваивать клиентам, созданным при импорте
+            </SectionDescription>
             <RadioGroup
               value={config.additional.newClientStatus}
               onChange={(e) =>
@@ -1139,63 +1193,87 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
                   },
                 })
               }
+              sx={{ gap: 1.5 }}
             >
               <FormControlLabel
                 value="NEW"
                 control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
-                label="NEW (новый клиент)"
-                sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                label={
+                  <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                    NEW (новый клиент)
+                  </Typography>
+                }
               />
               <FormControlLabel
                 value="OLD"
                 control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
-                label="OLD (старый клиент)"
-                sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                label={
+                  <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                    OLD (старый клиент)
+                  </Typography>
+                }
               />
               <FormControlLabel
                 value="from_file"
                 control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
-                label="Из файла (если есть колонка status)"
-                sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                label={
+                  <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                    Из файла (если есть колонка status)
+                  </Typography>
+                }
               />
             </RadioGroup>
-          </FormControl>
+          </SectionCard>
 
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={config.additional.updateStatus}
-                onChange={(e) =>
-                  setConfig({
-                    ...config,
-                    additional: { ...config.additional, updateStatus: e.target.checked },
-                  })
-                }
-                sx={{
-                  color: '#ffffff',
-                  '&.Mui-checked': { color: '#ffffff' },
-                }}
-              />
-            }
-            label="Обновлять статус существующих клиентов"
-            sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
-          />
+          <SectionCard>
+            <SectionTitle>
+              Обновление статуса существующих клиентов
+            </SectionTitle>
+            <SectionDescription>
+              Включите, если нужно обновлять статус клиентов, найденных при импорте
+            </SectionDescription>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={config.additional.updateStatus}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      additional: { ...config.additional, updateStatus: e.target.checked },
+                    })
+                  }
+                  sx={{
+                    color: '#ffffff',
+                    '&.Mui-checked': { color: '#ffffff' },
+                  }}
+                />
+              }
+              label={
+                <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.9rem' }}>
+                  Обновлять статус существующих клиентов
+                </Typography>
+              }
+            />
+          </SectionCard>
         </TabPanel>
 
         {/* Вкладка: Предпросмотр */}
         <TabPanel value={activeTab} index={4}>
-          <StyledPaper>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-              <InfoIcon sx={{ color: 'rgba(33, 150, 243, 0.7)' }} />
-              <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
+          <SectionCard>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+              <InfoIcon sx={{ color: 'rgba(33, 150, 243, 0.9)', fontSize: '1.5rem' }} />
+              <SectionTitle sx={{ mb: 0 }}>
                 Предпросмотр конфигурации
-              </Typography>
+              </SectionTitle>
             </Box>
+            <SectionDescription sx={{ mb: 3 }}>
+              Сводка всех настроек импорта в удобном формате
+            </SectionDescription>
             <Box
               sx={{
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 2.5,
+                gap: 2,
               }}
             >
               {generatePreview().map((line, index) => {
@@ -1206,18 +1284,19 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
                     sx={{
                       display: 'flex',
                       alignItems: 'flex-start',
-                      gap: 2,
-                      pb: 2,
+                      gap: 2.5,
+                      pb: 2.5,
                       borderBottom: index < generatePreview().length - 1 ? '1px solid rgba(255, 255, 255, 0.1)' : 'none',
                     }}
                   >
                     <Typography
                       variant="body2"
                       sx={{
-                        color: 'rgba(255, 255, 255, 0.6)',
-                        fontWeight: 500,
-                        minWidth: '200px',
+                        color: 'rgba(255, 255, 255, 0.7)',
+                        fontWeight: 600,
+                        minWidth: '220px',
                         flexShrink: 0,
+                        fontSize: '0.9rem',
                       }}
                     >
                       {label}:
@@ -1225,8 +1304,10 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
                     <Typography
                       variant="body2"
                       sx={{
-                        color: 'rgba(255, 255, 255, 0.9)',
+                        color: 'rgba(255, 255, 255, 0.95)',
                         flex: 1,
+                        fontSize: '0.9rem',
+                        lineHeight: 1.6,
                       }}
                     >
                       {value?.trim() || ''}
@@ -1235,11 +1316,11 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
                 );
               })}
             </Box>
-          </StyledPaper>
+          </SectionCard>
         </TabPanel>
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, pb: 3, pt: 2, justifyContent: config.id ? 'space-between' : 'flex-end' }}>
+      <DialogActions sx={{ px: 3, pb: 3, pt: 2, justifyContent: config.id ? 'space-between' : 'flex-end', alignItems: 'center' }}>
         {config.id && (
           <Box>
             <DeleteButton
@@ -1256,38 +1337,68 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
             </DeleteButton>
           </Box>
         )}
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <CancelButton 
-            onClick={onClose}
-            disabled={
-              createMutation.isPending || 
-              updateMutation.isPending || 
-              createFromTemplateMutation.isPending ||
-              deleteMutation.isPending
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={config.isDefault || false}
+                onChange={(e) => setConfig({ ...config, isDefault: e.target.checked })}
+                disabled={
+                  createMutation.isPending || 
+                  updateMutation.isPending || 
+                  createFromTemplateMutation.isPending ||
+                  deleteMutation.isPending
+                }
+                sx={{
+                  color: '#ffffff',
+                  '&.Mui-checked': { color: '#ffffff' },
+                }}
+              />
             }
-          >
-            Отмена
-          </CancelButton>
-          <StyledButton
-            onClick={handleSave}
-            disabled={
-              !config.name.trim() || 
-              createMutation.isPending || 
-              updateMutation.isPending || 
-              createFromTemplateMutation.isPending ||
-              deleteMutation.isPending ||
-              configsLoading
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.9rem' }}>
+                  Использовать по умолчанию
+                </Typography>
+                <Tooltip title="Эта конфигурация будет автоматически выбрана при открытии диалога импорта">
+                  <InfoIcon sx={{ fontSize: 16, color: 'rgba(255, 255, 255, 0.5)' }} />
+                </Tooltip>
+              </Box>
             }
-            startIcon={
-              (createMutation.isPending || updateMutation.isPending) ? (
-                <CircularProgress size={20} sx={{ color: '#212121' }} />
-              ) : undefined
-            }
-          >
-            {createMutation.isPending || updateMutation.isPending
-              ? 'Сохранение...'
-              : 'Сохранить'}
-          </StyledButton>
+          />
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <CancelButton 
+              onClick={onClose}
+              disabled={
+                createMutation.isPending || 
+                updateMutation.isPending || 
+                createFromTemplateMutation.isPending ||
+                deleteMutation.isPending
+              }
+            >
+              Отмена
+            </CancelButton>
+            <StyledButton
+              onClick={handleSave}
+              disabled={
+                !config.name.trim() || 
+                createMutation.isPending || 
+                updateMutation.isPending || 
+                createFromTemplateMutation.isPending ||
+                deleteMutation.isPending ||
+                configsLoading
+              }
+              startIcon={
+                (createMutation.isPending || updateMutation.isPending) ? (
+                  <CircularProgress size={20} sx={{ color: '#212121' }} />
+                ) : undefined
+              }
+            >
+              {createMutation.isPending || updateMutation.isPending
+                ? 'Сохранение...'
+                : 'Сохранить'}
+            </StyledButton>
+          </Box>
         </Box>
       </DialogActions>
 
