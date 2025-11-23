@@ -20,6 +20,7 @@ import {
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 import type { User } from '@/types';
 
 /**
@@ -115,6 +116,7 @@ interface UserTableProps {
   users: User[];
   isLoading?: boolean;
   onEdit: (user: User) => void;
+  onDelete?: (user: User) => void;
 }
 
 /**
@@ -123,8 +125,9 @@ interface UserTableProps {
  * @param users - Список пользователей для отображения
  * @param isLoading - Флаг загрузки
  * @param onEdit - Callback для редактирования пользователя
+ * @param onDelete - Callback для удаления пользователя
  */
-export function UserTable({ users, isLoading, onEdit }: UserTableProps) {
+export function UserTable({ users, isLoading, onEdit, onDelete }: UserTableProps) {
   if (isLoading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
@@ -194,16 +197,36 @@ export function UserTable({ users, isLoading, onEdit }: UserTableProps) {
                 {formatDate(user.updatedAt)}
               </StyledTableCell>
               <StyledTableCell align="center">
-                {/* Не показываем кнопку редактирования для ROOT пользователей */}
-                {user.role !== 'ROOT' && (
-                  <StyledIconButton
-                    size="small"
-                    onClick={() => onEdit(user)}
-                    aria-label="Редактировать"
-                  >
-                    <EditIcon fontSize="small" />
-                  </StyledIconButton>
-                )}
+                <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+                  {/* Не показываем кнопки редактирования и удаления для ROOT пользователей */}
+                  {user.role !== 'ROOT' && (
+                    <>
+                      <StyledIconButton
+                        size="small"
+                        onClick={() => onEdit(user)}
+                        aria-label="Редактировать"
+                      >
+                        <EditIcon fontSize="small" />
+                      </StyledIconButton>
+                      {onDelete && (
+                        <StyledIconButton
+                          size="small"
+                          onClick={() => onDelete(user)}
+                          aria-label="Удалить"
+                          sx={{
+                            color: 'rgba(244, 67, 54, 0.7)',
+                            '&:hover': {
+                              color: '#f44336',
+                              backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                            },
+                          }}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </StyledIconButton>
+                      )}
+                    </>
+                  )}
+                </Box>
               </StyledTableCell>
             </StyledTableRow>
           ))}

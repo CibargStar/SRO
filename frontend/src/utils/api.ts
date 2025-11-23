@@ -439,6 +439,26 @@ export async function updateUser(
   return handleResponse<User>(response);
 }
 
+/**
+ * Удаление пользователя
+ * 
+ * @param userId - ID пользователя для удаления
+ */
+export async function deleteUser(userId: string): Promise<void> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/users/${userId}`, {
+    method: 'DELETE',
+    headers: createHeaders(token),
+  });
+
+  await handleResponse<void>(response);
+}
+
 // ============================================
 // Clients API
 // ============================================

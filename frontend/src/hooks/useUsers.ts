@@ -8,7 +8,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { listUsers, createUser, updateUser } from '@/utils/api';
+import { listUsers, createUser, updateUser, deleteUser } from '@/utils/api';
 import type { User } from '@/types';
 import type { CreateUserFormData, UpdateUserFormData } from '@/schemas/user.schema';
 
@@ -93,6 +93,30 @@ export function useUpdateUser() {
       queryClient.invalidateQueries({ queryKey: usersKeys.lists() });
       // Обновляем кэш конкретного пользователя
       queryClient.setQueryData(usersKeys.detail(updatedUser.id), updatedUser);
+    },
+  });
+}
+
+/**
+ * Хук для удаления пользователя
+ * 
+ * Требует ROOT роль. Backend также проверяет роль через middleware.
+ * Автоматически обновляет кэш списка пользователей после успешного удаления.
+ * 
+ * @example
+ * ```typescript
+ * const deleteMutation = useDeleteUser();
+ * deleteMutation.mutate('123');
+ * ```
+ */
+export function useDeleteUser() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (userId: string) => deleteUser(userId),
+    onSuccess: () => {
+      // Инвалидируем кэш списка пользователей, чтобы обновить данные
+      queryClient.invalidateQueries({ queryKey: usersKeys.lists() });
     },
   });
 }

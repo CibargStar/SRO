@@ -454,6 +454,121 @@ export async function getMeHandler(
 }
 
 /**
+ * Обработчик удаления пользователя
+ * 
+ * DELETE /api/users/:id
+ * 
+ * Логика:
+ * 1. Находит пользователя по id
+ * 2. Проверяет, что это не ROOT (запрещено удалять ROOT через API)
+ * 3. Удаляет пользователя (каскадное удаление всех связанных данных)
+ * 4. Возвращает 204 No Content
+ * 
+ * Безопасность:
+ * - Доступен только ROOT (через requireRoot)
+ * - Запрещено удалять ROOT через этот эндпоинт (403)
+ * - Каскадное удаление всех связанных данных (refreshTokens, clientGroups, clients, importConfigs)
+ * - Проверка существования пользователя (404)
+ * 
+ * @param req - Express Request с параметром :id
+ * @param res - Express Response
+ * @param next - Express NextFunction
+ */
+export async function deleteUserHandler(
+  req: AuthenticatedRequest & { params: { id: string } },
+  res: Response,
+  _next: NextFunction
+): Promise<void> {
+  try {
+    const { id } = req.params;
+
+    // Поиск пользователя по id
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    const existingUser = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+      },
+    });
+
+    if (!existingUser) {
+      logger.warn('Attempt to delete non-existent user', { userId: id });
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    // ВАЖНО: Запрет на удаление ROOT через API (даже другим ROOT)
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    if (existingUser.role === 'ROOT') {
+      logger.warn('Attempt to delete ROOT user through API', {
+        userId: id,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+        userEmail: existingUser.email,
+        attemptedBy: req.user?.id,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+        attemptedByEmail: req.user?.email,
+      });
+      res.status(403).json({ message: 'Operation not allowed for ROOT user' });
+      return;
+    }
+
+    // Дополнительная защита: ROOT не может удалить самого себя
+    if (req.user?.id === id) {
+      logger.warn('Attempt to delete own user account', {
+        userId: id,
+        attemptedBy: req.user.id,
+      });
+      res.status(403).json({ message: 'Cannot delete your own account' });
+      return;
+    }
+
+    // Удаление пользователя (каскадное удаление всех связанных данных)
+    // Prisma автоматически удаляет все связанные данные благодаря onDelete: Cascade в схеме:
+    // - RefreshToken (onDelete: Cascade)
+    // - ClientGroup (onDelete: Cascade) → Client (onDelete: Cascade от ClientGroup) → ClientPhone (onDelete: Cascade от Client)
+    // - ImportConfig (onDelete: Cascade)
+    // Все данные пользователя будут полностью удалены из БД
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    await prisma.user.delete({
+      where: { id },
+    });
+
+    // Логирование успешного удаления
+    logger.info('User deleted successfully', {
+      userId: id,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+      email: existingUser.email,
+      deletedBy: req.user?.id,
+    });
+
+    // Возврат 204 No Content (успешное удаление без тела ответа)
+    res.status(204).send();
+  } catch (error: unknown) {
+    // Обработка ошибок Prisma
+    if (error instanceof PrismaClientKnownRequestError) {
+      if (error.code === 'P2025') {
+        // Record not found
+        logger.warn('Attempt to delete non-existent user (Prisma)', {
+          userId: req.params.id,
+        });
+        res.status(404).json({ message: 'User not found' });
+        return;
+      }
+    }
+
+    // Обработка неожиданных ошибок
+    logger.error('Unexpected error during user deletion', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      userId: req.params.id,
+    });
+
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+/**
  * Типичные ошибки безопасности при реализации контроллеров управления пользователями:
  * 
  * 1. ❌ Возможность создания ROOT через API

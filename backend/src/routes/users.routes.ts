@@ -17,6 +17,7 @@ import {
   createUserHandler,
   listUsersHandler,
   updateUserHandler,
+  deleteUserHandler,
   getMeHandler,
 } from '../modules/users/users.controller';
 
@@ -297,6 +298,72 @@ router.get('/', authMiddleware as never, requireAuth as never, requireRoot as ne
  *               message: Email already in use
  */
 router.patch('/:id', authMiddleware, requireAuth, requireRoot, validateBody(updateUserSchema), updateUserHandler);
+
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   delete:
+ *     summary: Удаление пользователя
+ *     description: |
+ *       Удаляет пользователя по ID.
+ *       Доступно только для ROOT пользователей.
+ *       
+ *       **Ограничения:**
+ *       - Нельзя удалить ROOT пользователя через API (403)
+ *       - При удалении пользователя каскадно удаляются все связанные данные:
+ *         - Refresh токены пользователя
+ *         - Группы клиентов пользователя
+ *         - Клиенты пользователя
+ *         - Телефоны клиентов
+ *         - Конфигурации импорта пользователя
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: UUID пользователя
+ *         example: 123e4567-e89b-12d3-a456-426614174000
+ *     responses:
+ *       204:
+ *         description: Пользователь успешно удален
+ *       401:
+ *         description: Не авторизован
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       403:
+ *         description: Недостаточно прав или попытка удалить ROOT
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             examples:
+ *               forbidden:
+ *                 summary: Недостаточно прав
+ *                 value:
+ *                   message: Forbidden
+ *               rootDelete:
+ *                 summary: Попытка удалить ROOT
+ *                 value:
+ *                   message: Operation not allowed for ROOT user
+ *       404:
+ *         description: Пользователь не найден
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               message: User not found
+ *       500:
+ *         description: Внутренняя ошибка сервера
+ */
+router.delete('/:id', authMiddleware, requireAuth, requireRoot, deleteUserHandler);
 
 export default router;
 
