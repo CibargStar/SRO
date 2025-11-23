@@ -8,4 +8,5 @@
 export { LoginPage } from './LoginPage';
 export { UsersAdminPage } from './UsersAdminPage';
 export { ClientsPage } from './ClientsPage';
+export { RegionsAdminPage } from './RegionsAdminPage';
 

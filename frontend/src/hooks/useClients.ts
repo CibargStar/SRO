@@ -9,9 +9,9 @@
  * - useDeleteClient - удаление клиента
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
 import { listClients, getClient, createClient, updateClient, deleteClient } from '@/utils/api';
-import type { Client, ListClientsQuery } from '@/types';
+import type { Client, ListClientsQuery, ClientsListResponse } from '@/types';
 import type { CreateClientFormData, UpdateClientFormData } from '@/schemas/client.schema';
 
 /**
@@ -31,17 +31,23 @@ export const clientsKeys = {
  * Поддерживает пагинацию, поиск, фильтрацию и сортировку.
  * 
  * @param query - Query параметры (пагинация, поиск, фильтрация, сортировка)
+ * @param options - Дополнительные опции useQuery (например, enabled)
  * @example
  * ```typescript
  * const { data, isLoading } = useClients({ page: 1, limit: 10, search: 'Иванов' });
+ * const { data, isLoading } = useClients({ page: 1, limit: 10 }, { enabled: false });
  * ```
  */
-export function useClients(query?: ListClientsQuery) {
+export function useClients(
+  query?: ListClientsQuery,
+  options?: Omit<UseQueryOptions<ClientsListResponse>, 'queryKey' | 'queryFn'>
+) {
   return useQuery({
     queryKey: clientsKeys.list(query),
     queryFn: () => listClients(query),
     staleTime: 30 * 1000, // Данные актуальны 30 секунд
     retry: false, // Не повторять запрос при ошибке 401/403
+    ...options,
   });
 }
 

@@ -27,3 +27,7 @@ export { CreateClientGroupDialog } from './CreateClientGroupDialog';
 export { EditClientGroupDialog } from './EditClientGroupDialog';
 export { ImportClientsDialog } from './ImportClientsDialog';
 export { PhoneChips } from './PhoneChips';
+export { RegionTable } from './RegionTable';
+export { CreateRegionDialog } from './CreateRegionDialog';
+export { EditRegionDialog } from './EditRegionDialog';
+export { RegionStatistics } from './RegionStatistics';

@@ -12,7 +12,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Box, Typography } from '@mui/material';
 import { AuthProvider, ProtectedRoute, RootRoute, PublicRoute, ErrorBoundary, Sidebar } from '@/components';
-import { LoginPage, UsersAdminPage, ClientsPage } from '@/pages';
+import { LoginPage, UsersAdminPage, ClientsPage, RegionsAdminPage } from '@/pages';
 import { useAuthStore } from '@/store';
 
 /**
@@ -169,6 +169,16 @@ const App: React.FC = () => {
                   <RootRoute>
                     <AppLayout>
                       <UsersAdminPage />
+                    </AppLayout>
+                  </RootRoute>
+                }
+              />
+              <Route
+                path="/admin/regions"
+                element={
+                  <RootRoute>
+                    <AppLayout>
+                      <RegionsAdminPage />
                     </AppLayout>
                   </RootRoute>
                 }
