@@ -24,6 +24,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import type { Client } from '@/types';
 import { formatClientName } from '@/utils';
+import { PhoneChips } from './PhoneChips';
 
 /**
  * Стилизованный контейнер таблицы
@@ -160,10 +161,8 @@ export function ClientTable({ clients, isLoading, onEdit, onDelete }: ClientTabl
               <StyledTableCell align="center">
                 <StatusChip label={client.status === 'NEW' ? 'Новый' : 'Старый'} status={client.status} size="small" />
               </StyledTableCell>
-              <StyledTableCell sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                {client.phones && client.phones.length > 0
-                  ? client.phones.map((p) => p.phone).join(', ')
-                  : '-'}
+              <StyledTableCell>
+                <PhoneChips phones={client.phones || []} />
               </StyledTableCell>
               <StyledTableCell sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
                 {formatDate(client.createdAt)}
