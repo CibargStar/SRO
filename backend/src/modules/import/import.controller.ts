@@ -81,13 +81,17 @@ export async function importClientsHandler(
       return;
     }
 
+    // Получение configId из query (опционально)
+    const configId = req.query.configId as string | undefined;
+
     // Выполнение импорта
     const result = await importClients(
       file,
       groupId,
       currentUser.id,
       currentUser.role,
-      prisma
+      prisma,
+      configId
     );
 
     logger.info('Import request completed', {

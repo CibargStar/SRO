@@ -14,9 +14,19 @@
 import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
-import { authMiddleware, requireAuth, validateQuery } from '../middleware';
+import { authMiddleware, requireAuth, validateQuery, validateBody } from '../middleware';
 import { importClientsQuerySchema } from '../modules/import/schemas/import.schemas';
 import { importClientsHandler } from '../modules/import/import.controller';
+import {
+  listImportConfigsHandler,
+  getImportConfigHandler,
+  getDefaultImportConfigHandler,
+  createImportConfigHandler,
+  updateImportConfigHandler,
+  deleteImportConfigHandler,
+  createFromTemplateHandler,
+} from '../modules/import/import-config.controller';
+import { ImportConfigSchema, GetImportConfigsQuerySchema } from '../modules/import/schemas/import-config.schemas';
 
 const router = Router();
 
@@ -121,6 +131,133 @@ router.post(
   upload.single('file'),
   validateQuery(importClientsQuerySchema),
   importClientsHandler as any
+);
+
+/**
+ * @swagger
+ * /api/import/configs:
+ *   get:
+ *     summary: Получить список конфигураций импорта
+ *     tags: [Import]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: includeTemplates
+ *         schema:
+ *           type: boolean
+ *         description: Включить предустановленные шаблоны
+ *     responses:
+ *       200:
+ *         description: Список конфигураций
+ */
+router.get(
+  '/configs',
+  authMiddleware,
+  requireAuth,
+  validateQuery(GetImportConfigsQuerySchema),
+  listImportConfigsHandler as any
+);
+
+/**
+ * @swagger
+ * /api/import/configs/default:
+ *   get:
+ *     summary: Получить конфигурацию по умолчанию
+ *     tags: [Import]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Конфигурация по умолчанию
+ */
+router.get(
+  '/configs/default',
+  authMiddleware,
+  requireAuth,
+  getDefaultImportConfigHandler as any
+);
+
+/**
+ * @swagger
+ * /api/import/configs/:id:
+ *   get:
+ *     summary: Получить конфигурацию по ID
+ *     tags: [Import]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get(
+  '/configs/:id',
+  authMiddleware,
+  requireAuth,
+  getImportConfigHandler as any
+);
+
+/**
+ * @swagger
+ * /api/import/configs:
+ *   post:
+ *     summary: Создать новую конфигурацию
+ *     tags: [Import]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post(
+  '/configs',
+  authMiddleware,
+  requireAuth,
+  validateBody(ImportConfigSchema),
+  createImportConfigHandler as any
+);
+
+/**
+ * @swagger
+ * /api/import/configs/:id:
+ *   put:
+ *     summary: Обновить конфигурацию
+ *     tags: [Import]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.put(
+  '/configs/:id',
+  authMiddleware,
+  requireAuth,
+  validateBody(ImportConfigSchema.deepPartial()),
+  updateImportConfigHandler as any
+);
+
+/**
+ * @swagger
+ * /api/import/configs/:id:
+ *   delete:
+ *     summary: Удалить конфигурацию
+ *     tags: [Import]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.delete(
+  '/configs/:id',
+  authMiddleware,
+  requireAuth,
+  deleteImportConfigHandler as any
+);
+
+/**
+ * @swagger
+ * /api/import/configs/template/:name:
+ *   post:
+ *     summary: Создать конфигурацию из шаблона
+ *     tags: [Import]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post(
+  '/configs/template/:name',
+  authMiddleware,
+  requireAuth,
+  createFromTemplateHandler as any
 );
 
 export default router;

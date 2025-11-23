@@ -13,6 +13,10 @@ export const importClientsQuerySchema = z.object({
   groupId: z
     .string({ required_error: 'Group ID is required' })
     .uuid({ message: 'Group ID must be a valid UUID' }),
+  configId: z
+    .string()
+    .uuid({ message: 'Config ID must be a valid UUID' })
+    .optional(),
 });
 
 /**

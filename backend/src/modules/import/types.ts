@@ -93,3 +93,20 @@ export interface DeduplicationStrategy {
  */
 export type MatchType = 'phone' | 'name_and_phone' | null;
 
+// Экспорт типов конфигурации
+export type {
+  ImportConfig,
+  SearchScope,
+  MatchCriteria,
+  DuplicateAction,
+  NoDuplicateAction,
+  ErrorHandling,
+  NewClientStatus,
+  SearchScopeConfig,
+  DuplicateActionConfig,
+  ValidationConfig,
+  AdditionalConfig,
+} from './types/import-config.types';
+
+export { PRESET_TEMPLATES, getDefaultImportConfig } from './types/import-config.types';
+

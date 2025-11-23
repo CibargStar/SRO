@@ -15,8 +15,18 @@ import { parseFullName } from '../parsers/name.parser';
 import { parsePhones } from '../parsers/phone.parser';
 import { findOrCreateRegion, clearRegionCache, type RegionResult } from '../processors/region.processor';
 import { findExistingClient, determineStrategy } from '../processors/deduplication.processor';
-import { createClient, updateClientName, addPhonesToClient } from '../processors/client.processor';
-import type { ImportResult, ImportStatistics, ProcessedRow, DeduplicationStrategy } from '../types';
+import {
+  createClient,
+  updateClientName,
+  addPhonesToClient,
+  addClientToGroup,
+  moveClientToGroup,
+  updateClientRegion,
+  updateClientStatus,
+} from '../processors/client.processor';
+import type { ImportResult, ImportStatistics, ProcessedRow, ImportConfig } from '../types';
+import { getDefaultImportConfig } from '../types/import-config.types';
+import { getDefaultImportConfigForUser, getImportConfigById } from './import-config.service';
 
 /**
  * Импортирует клиентов из файла
@@ -26,6 +36,7 @@ import type { ImportResult, ImportStatistics, ProcessedRow, DeduplicationStrateg
  * @param currentUserId - ID текущего пользователя (кто выполняет импорт)
  * @param userRole - Роль текущего пользователя
  * @param prisma - Prisma клиент
+ * @param configId - ID конфигурации импорта (опционально, если не указана - используется по умолчанию)
  * @returns Результат импорта
  */
 export async function importClients(
@@ -33,10 +44,30 @@ export async function importClients(
   groupId: string,
   currentUserId: string,
   userRole: UserRole,
-  prisma: PrismaClient
+  prisma: PrismaClient,
+  configId?: string
 ): Promise<ImportResult> {
   // Очистка кэша регионов перед началом
   clearRegionCache();
+
+  // 0. ПОЛУЧЕНИЕ КОНФИГУРАЦИИ ИМПОРТА
+  let config: ImportConfig;
+  if (configId) {
+    // Загружаем указанную конфигурацию
+    const savedConfig = await getImportConfigById(configId, currentUserId, prisma);
+    if (savedConfig) {
+      config = savedConfig;
+    } else {
+      // Если конфигурация не найдена, используем по умолчанию
+      logger.warn('Import config not found, using default', { configId, userId: currentUserId });
+      const defaultConfig = await getDefaultImportConfigForUser(currentUserId, prisma);
+      config = defaultConfig || getDefaultImportConfig(currentUserId);
+    }
+  } else {
+    // Используем конфигурацию по умолчанию или системную
+    const defaultConfig = await getDefaultImportConfigForUser(currentUserId, prisma);
+    config = defaultConfig || getDefaultImportConfig(currentUserId);
+  }
 
   // 1. ПРОВЕРКА ГРУППЫ (обязательно перед началом)
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
@@ -63,10 +94,6 @@ export async function importClients(
   const clientOwnerId = group.userId;
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
   const groupName = group.name;
-  
-  // Проверка: пустая ли группа (нет клиентов)
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-  const isGroupEmpty = group._count.clients === 0;
 
   logger.info('Starting import', {
     groupId,
@@ -75,7 +102,8 @@ export async function importClients(
     clientOwnerId,
     filename: file.originalname,
     fileSize: file.size,
-    isGroupEmpty, // Флаг пустой группы (сухой импорт без дедупликации)
+    configId: config.id,
+    configName: config.name,
   });
 
   const statistics: ImportStatistics = {
@@ -109,10 +137,20 @@ export async function importClients(
         // 3.2 Парсинг телефонов
         const parsedPhones = parsePhones(row.phone);
 
-        // Проверка: должен быть хотя бы один валидный телефон
+        // Валидация согласно конфигурации
         const validPhones = parsedPhones.filter((p) => p.isValid);
-        if (validPhones.length === 0) {
+        
+        // Проверка обязательных полей
+        if (config.validation.requirePhone && validPhones.length === 0) {
           throw new Error('No valid phone numbers found');
+        }
+        
+        if (config.validation.requireName && !parsedName.firstName && !parsedName.lastName) {
+          throw new Error('Name is required');
+        }
+        
+        if (config.validation.requireRegion && !row.region) {
+          throw new Error('Region is required');
         }
 
         // 3.3 Обработка региона
@@ -141,34 +179,39 @@ export async function importClients(
           }
         }
 
-        // 3.4 Дедупликация (только если группа не пустая)
-        // Если группа пустая - пропускаем дедупликацию и создаем всех как новых
-        let strategy: DeduplicationStrategy;
-        
-        if (isGroupEmpty) {
-          // Сухой импорт: группа пустая, создаем всех как новых без проверки дубликатов
-          strategy = {
-            action: 'create',
-            reason: 'New client (empty group)',
-          };
-        } else {
-          // Обычный импорт: ищем дубликаты среди клиентов владельца группы
-          const existingClientResult = await findExistingClient(
-            validPhones,
-            clientOwnerId,
-            prisma
-          );
+        // 3.4 Дедупликация согласно конфигурации
+        const existingClientResult = await findExistingClient({
+          phones: parsedPhones,
+          parsedName,
+          scopes: config.searchScope.scopes,
+          matchCriteria: config.searchScope.matchCriteria,
+          currentGroupId: groupId,
+          ownerUserId: clientOwnerId,
+          currentUserId,
+          userRole,
+          prisma,
+        });
 
-          strategy = determineStrategy(
-            existingClientResult.client,
-            parsedName,
-            parsedPhones
-          );
-        }
+        const strategy = determineStrategy({
+          existingClient: existingClientResult.client,
+          parsedName,
+          parsedPhones,
+          duplicateAction: config.duplicateAction,
+          noDuplicateAction: config.noDuplicateAction,
+        });
 
-        // 3.5 Выполнение действия
+        // 3.5 Выполнение действия согласно стратегии
         let clientId: string | undefined;
         if (strategy.action === 'create') {
+          // Определяем статус для нового клиента
+          let newClientStatus: 'NEW' | 'OLD' = 'NEW';
+          if (config.additional.newClientStatus === 'OLD') {
+            newClientStatus = 'OLD';
+          } else if (config.additional.newClientStatus === 'from_file') {
+            // TODO: поддержка статуса из файла (если будет колонка status)
+            newClientStatus = 'NEW';
+          }
+
           const client = await createClient(
             {
               parsedName,
@@ -176,7 +219,7 @@ export async function importClients(
               phones: parsedPhones,
               groupId,
               userId: clientOwnerId,
-              status: 'NEW',
+              status: newClientStatus,
             },
             prisma
           );
@@ -187,14 +230,32 @@ export async function importClients(
             throw new Error('No client ID for update');
           }
 
-          // Обновление ФИО если нужно
-          if (strategy.reason === 'Add missing name') {
+          // Обновление ФИО
+          if (config.duplicateAction.updateName && strategy.reason.includes('Add missing name')) {
             await updateClientName(strategy.existingClientId, parsedName, prisma);
           }
 
           // Добавление новых номеров
-          if (strategy.reason === 'Add new phones') {
+          if (config.duplicateAction.addPhones && strategy.reason.includes('Add new phones')) {
             await addPhonesToClient(strategy.existingClientId, parsedPhones, prisma);
+          }
+
+          // Обновление региона
+          if (config.duplicateAction.updateRegion && regionResult.id) {
+            await updateClientRegion(strategy.existingClientId, regionResult.id, prisma);
+          }
+
+          // Добавление/перемещение в группу
+          if (config.duplicateAction.moveToGroup) {
+            await moveClientToGroup(strategy.existingClientId, groupId, prisma);
+          } else if (config.duplicateAction.addToGroup) {
+            await addClientToGroup(strategy.existingClientId, groupId, prisma);
+          }
+
+          // Обновление статуса
+          if (config.additional.updateStatus && config.additional.newClientStatus !== 'from_file') {
+            const status = config.additional.newClientStatus === 'OLD' ? 'OLD' : 'NEW';
+            await updateClientStatus(strategy.existingClientId, status, prisma);
           }
 
           clientId = strategy.existingClientId;
@@ -229,6 +290,13 @@ export async function importClients(
           groupId,
         });
 
+        // Обработка ошибок согласно конфигурации
+        if (config.validation.errorHandling === 'stop') {
+          // Останавливаем импорт при первой ошибке
+          throw error;
+        }
+
+        // Пропускаем строку с ошибкой
         processedRows.push({
           parsedRow: row,
           parsedName: { lastName: null, firstName: null, middleName: null },
@@ -237,6 +305,8 @@ export async function importClients(
           status: 'error',
           error: errorMessage,
         });
+
+        // Если режим warn, продолжаем, но ошибка уже залогирована
       }
     }
 

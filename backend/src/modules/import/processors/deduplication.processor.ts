@@ -7,7 +7,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import type { DeduplicationStrategy, ParsedName, ParsedPhone } from '../types';
+import type { DeduplicationStrategy, ParsedName, ParsedPhone, SearchScope, MatchCriteria } from '../types';
 
 /**
  * Результат поиска существующего клиента
@@ -24,18 +24,36 @@ interface FindClientResult {
 }
 
 /**
- * Находит существующего клиента по номерам телефонов
+ * Параметры поиска существующего клиента
+ */
+export interface FindClientParams {
+  phones: ParsedPhone[];
+  parsedName: ParsedName;
+  scopes: SearchScope[];
+  matchCriteria: MatchCriteria;
+  currentGroupId?: string;
+  ownerUserId: string;
+  currentUserId: string;
+  userRole: string;
+  prisma: PrismaClient;
+}
+
+/**
+ * Находит существующего клиента согласно конфигурации поиска
  * 
- * @param phones - Массив распарсенных телефонов
- * @param userId - ID владельца группы (среди клиентов которого ищем)
- * @param prisma - Prisma клиент
+ * @param params - Параметры поиска
  * @returns Результат поиска с клиентом и типом совпадения
  */
 export async function findExistingClient(
-  phones: ParsedPhone[],
-  userId: string,
-  prisma: PrismaClient
+  params: FindClientParams
 ): Promise<FindClientResult> {
+  const { phones, parsedName, scopes, matchCriteria, currentGroupId, ownerUserId, currentUserId, userRole, prisma } = params;
+
+  // Если поиск отключен
+  if (scopes.includes('none') || scopes.length === 0) {
+    return { client: null, matchType: null };
+  }
+
   // Извлекаем только валидные нормализованные номера
   const validPhones = phones.filter((p) => p.isValid).map((p) => p.normalized);
 
@@ -44,18 +62,53 @@ export async function findExistingClient(
   }
 
   try {
-    // Поиск клиентов по номерам телефонов
+    // Формируем условия поиска в зависимости от области поиска
+    const whereConditions: Array<Record<string, unknown>> = [];
+
+    // Поиск в текущей группе
+    if (scopes.includes('current_group') && currentGroupId) {
+      whereConditions.push({
+        groupId: currentGroupId,
+        phones: {
+          some: {
+            phone: { in: validPhones },
+          },
+        },
+      });
+    }
+
+    // Поиск во всех группах владельца
+    if (scopes.includes('owner_groups')) {
+      whereConditions.push({
+        userId: ownerUserId,
+        phones: {
+          some: {
+            phone: { in: validPhones },
+          },
+        },
+      });
+    }
+
+    // Поиск по всем пользователям (только для ROOT)
+    if (scopes.includes('all_users') && userRole === 'ROOT') {
+      whereConditions.push({
+        phones: {
+          some: {
+            phone: { in: validPhones },
+          },
+        },
+      });
+    }
+
+    if (whereConditions.length === 0) {
+      return { client: null, matchType: null };
+    }
+
+    // Объединяем условия через OR
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const clients = await prisma.client.findMany({
       where: {
-        userId,
-        phones: {
-          some: {
-            phone: {
-              in: validPhones,
-            },
-          },
-        },
+        OR: whereConditions,
       },
       include: {
         phones: {
@@ -74,8 +127,25 @@ export async function findExistingClient(
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
     const client = clients[0];
 
-    // Определяем тип совпадения (для будущего использования)
-    // Пока просто возвращаем 'phone', так как сравнение ФИО делается в determineStrategy
+    // Определяем тип совпадения в зависимости от критериев
+    let matchType: 'phone' | 'name_and_phone' | null = 'phone';
+    
+    if (matchCriteria === 'phone_and_name' || matchCriteria === 'name') {
+      // Проверяем совпадение по ФИО
+      const nameMatches = 
+        (parsedName.lastName && client.lastName && 
+         parsedName.lastName.toLowerCase() === client.lastName.toLowerCase()) ||
+        (parsedName.firstName && client.firstName && 
+         parsedName.firstName.toLowerCase() === client.firstName.toLowerCase());
+      
+      if (nameMatches) {
+        matchType = 'name_and_phone';
+      } else if (matchCriteria === 'name') {
+        // Если критерий только по имени, но имена не совпадают - не считаем совпадением
+        return { client: null, matchType: null };
+      }
+    }
+
     return {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       client: {
@@ -90,7 +160,7 @@ export async function findExistingClient(
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
         phones: client.phones,
       },
-      matchType: 'phone',
+      matchType,
     };
   } catch (error) {
     // Ошибка при поиске - считаем что клиент не найден
@@ -99,57 +169,132 @@ export async function findExistingClient(
 }
 
 /**
- * Определяет стратегию обработки клиента
+ * Параметры для определения стратегии
+ */
+export interface DetermineStrategyParams {
+  existingClient: FindClientResult['client'];
+  parsedName: ParsedName;
+  parsedPhones: ParsedPhone[];
+  duplicateAction: {
+    defaultAction: 'skip' | 'update' | 'create';
+    updateName: boolean;
+    updateRegion: boolean;
+    addPhones: boolean;
+    addToGroup: boolean;
+    moveToGroup: boolean;
+  };
+  noDuplicateAction: 'create' | 'skip';
+}
+
+/**
+ * Определяет стратегию обработки клиента согласно конфигурации
  * 
- * @param existingClient - Существующий клиент или null
- * @param parsedName - Распарсенное ФИО из импорта
- * @param parsedPhones - Распарсенные телефоны из импорта
+ * @param params - Параметры для определения стратегии
  * @returns Стратегия обработки
  */
 export function determineStrategy(
-  existingClient: FindClientResult['client'],
-  parsedName: ParsedName,
-  parsedPhones: ParsedPhone[]
+  params: DetermineStrategyParams
 ): DeduplicationStrategy {
-  // Если клиент не найден - создаем новый
+  const { existingClient, parsedName, parsedPhones, duplicateAction, noDuplicateAction } = params;
+
+  // Если клиент не найден
   if (!existingClient) {
     return {
-      action: 'create',
-      reason: 'New client',
+      action: noDuplicateAction === 'create' ? 'create' : 'skip',
+      reason: noDuplicateAction === 'create' ? 'New client' : 'Skipped (no duplicate action)',
     };
   }
 
-  // Проверка: есть ли ФИО в существующем клиенте
-  const hasExistingName =
-    Boolean(existingClient.firstName) || Boolean(existingClient.lastName);
-  const hasNewName = Boolean(parsedName.firstName) || Boolean(parsedName.lastName);
+  // Если действие по умолчанию - создать, игнорируем дубликат
+  if (duplicateAction.defaultAction === 'create') {
+    return {
+      action: 'create',
+      reason: 'Create new (ignore duplicate)',
+    };
+  }
 
-  // Проверка: есть ли новые номера
+  // Если действие по умолчанию - пропустить, проверяем нужно ли обновление
+  if (duplicateAction.defaultAction === 'skip') {
+    // Проверяем, есть ли что обновить
+    const hasExistingName = Boolean(existingClient.firstName) || Boolean(existingClient.lastName);
+    const hasNewName = Boolean(parsedName.firstName) || Boolean(parsedName.lastName);
+    const existingPhones = existingClient.phones.map((p) => p.phone);
+    const newPhones = parsedPhones
+      .filter((p) => p.isValid)
+      .map((p) => p.normalized)
+      .filter((p) => !existingPhones.includes(p));
+
+    // Если есть что обновить и это разрешено - обновляем
+    if (duplicateAction.updateName && !hasExistingName && hasNewName) {
+      return {
+        action: 'update',
+        reason: 'Add missing name',
+        existingClientId: existingClient.id,
+      };
+    }
+
+    if (duplicateAction.addPhones && newPhones.length > 0) {
+      return {
+        action: 'update',
+        reason: 'Add new phones',
+        existingClientId: existingClient.id,
+      };
+    }
+
+    // Иначе пропускаем
+    return {
+      action: 'skip',
+      reason: 'Duplicate',
+      existingClientId: existingClient.id,
+    };
+  }
+
+  // Действие по умолчанию - обновить
+  // Проверяем, что нужно обновить
+  const hasExistingName = Boolean(existingClient.firstName) || Boolean(existingClient.lastName);
+  const hasNewName = Boolean(parsedName.firstName) || Boolean(parsedName.lastName);
   const existingPhones = existingClient.phones.map((p) => p.phone);
   const newPhones = parsedPhones
     .filter((p) => p.isValid)
     .map((p) => p.normalized)
     .filter((p) => !existingPhones.includes(p));
 
-  // Стратегия 1: Нет ФИО в старом, есть в новом → обновить ФИО
-  if (!hasExistingName && hasNewName) {
+  const updateReasons: string[] = [];
+
+  // Обновление ФИО
+  if (duplicateAction.updateName && !hasExistingName && hasNewName) {
+    updateReasons.push('Add missing name');
+  }
+
+  // Добавление новых номеров
+  if (duplicateAction.addPhones && newPhones.length > 0) {
+    updateReasons.push('Add new phones');
+  }
+
+  // Обновление региона (будет обработано в сервисе)
+  if (duplicateAction.updateRegion) {
+    updateReasons.push('Update region');
+  }
+
+  // Если есть что обновить
+  if (updateReasons.length > 0) {
     return {
       action: 'update',
-      reason: 'Add missing name',
+      reason: updateReasons.join(', '),
       existingClientId: existingClient.id,
     };
   }
 
-  // Стратегия 2: Есть новые номера → добавить номера
-  if (newPhones.length > 0) {
+  // Если нечего обновлять, но нужно добавить в группу или переместить
+  if (duplicateAction.addToGroup || duplicateAction.moveToGroup) {
     return {
       action: 'update',
-      reason: 'Add new phones',
+      reason: duplicateAction.moveToGroup ? 'Move to group' : 'Add to group',
       existingClientId: existingClient.id,
     };
   }
 
-  // Стратегия 3: Полное совпадение → пропустить
+  // Полное совпадение - пропускаем
   return {
     action: 'skip',
     reason: 'Duplicate',

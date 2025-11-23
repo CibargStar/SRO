@@ -937,7 +937,11 @@ export interface ImportClientsResponse {
  * @param file - Excel файл для импорта
  * @returns Результат импорта со статистикой
  */
-export async function importClients(groupId: string, file: File): Promise<ImportClientsResponse> {
+export async function importClients(
+  groupId: string, 
+  file: File, 
+  configId?: string
+): Promise<ImportClientsResponse> {
   const token = useAuthStore.getState().accessToken;
   
   if (!token) {
@@ -948,7 +952,13 @@ export async function importClients(groupId: string, file: File): Promise<Import
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/import/clients?groupId=${groupId}`, {
+  // Формируем URL с параметрами
+  const params = new URLSearchParams({ groupId });
+  if (configId) {
+    params.append('configId', configId);
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/import/clients?${params.toString()}`, {
     method: 'POST',
     headers: {
       // НЕ устанавливаем Content-Type - браузер установит автоматически с boundary для multipart/form-data
@@ -958,5 +968,161 @@ export async function importClients(groupId: string, file: File): Promise<Import
   });
 
   return handleResponse<ImportClientsResponse>(response);
+}
+
+// ============================================
+// Импорт конфигураций
+// ============================================
+
+/**
+ * Конфигурация импорта
+ */
+export interface ImportConfig {
+  id?: string;
+  name: string;
+  description?: string;
+  userId: string;
+  isDefault?: boolean;
+  searchScope: {
+    scopes: Array<'none' | 'current_group' | 'owner_groups' | 'all_users'>;
+    matchCriteria: 'phone' | 'phone_and_name' | 'name';
+  };
+  duplicateAction: {
+    defaultAction: 'skip' | 'update' | 'create';
+    updateName: boolean;
+    updateRegion: boolean;
+    addPhones: boolean;
+    addToGroup: boolean;
+    moveToGroup: boolean;
+  };
+  noDuplicateAction: 'create' | 'skip';
+  validation: {
+    requireName: boolean;
+    requirePhone: boolean;
+    requireRegion: boolean;
+    errorHandling: 'stop' | 'skip' | 'warn';
+  };
+  additional: {
+    newClientStatus: 'NEW' | 'OLD' | 'from_file';
+    updateStatus: boolean;
+  };
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/**
+ * Список конфигураций с шаблонами
+ */
+export interface ImportConfigsListResponse {
+  configs: ImportConfig[];
+  templates: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    isTemplate: true;
+  }>;
+}
+
+/**
+ * Получает список конфигураций импорта
+ */
+export async function getImportConfigs(includeTemplates = false): Promise<ImportConfigsListResponse> {
+  const params = new URLSearchParams();
+  if (includeTemplates) {
+    params.append('includeTemplates', 'true');
+  }
+
+  const response = await fetchWithAutoRefresh(
+    `${API_BASE_URL}/import/configs${params.toString() ? `?${params.toString()}` : ''}`,
+    {
+      method: 'GET',
+      headers: createHeaders(),
+    }
+  );
+
+  return handleResponse<ImportConfigsListResponse>(response);
+}
+
+/**
+ * Получает конфигурацию по ID
+ */
+export async function getImportConfig(configId: string): Promise<ImportConfig> {
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/import/configs/${configId}`, {
+    method: 'GET',
+    headers: createHeaders(),
+  });
+
+  return handleResponse<ImportConfig>(response);
+}
+
+/**
+ * Получает конфигурацию по умолчанию
+ */
+export async function getDefaultImportConfig(): Promise<ImportConfig> {
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/import/configs/default`, {
+    method: 'GET',
+    headers: createHeaders(),
+  });
+
+  return handleResponse<ImportConfig>(response);
+}
+
+/**
+ * Создает новую конфигурацию
+ */
+export async function createImportConfig(config: Omit<ImportConfig, 'id' | 'userId' | 'createdAt' | 'updatedAt'>): Promise<ImportConfig> {
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/import/configs`, {
+    method: 'POST',
+    headers: createHeaders(),
+    body: JSON.stringify(config),
+  });
+
+  return handleResponse<ImportConfig>(response);
+}
+
+/**
+ * Обновляет конфигурацию
+ */
+export async function updateImportConfig(
+  configId: string,
+  config: Partial<Omit<ImportConfig, 'id' | 'userId' | 'createdAt' | 'updatedAt'>>
+): Promise<ImportConfig> {
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/import/configs/${configId}`, {
+    method: 'PUT',
+    headers: createHeaders(),
+    body: JSON.stringify(config),
+  });
+
+  return handleResponse<ImportConfig>(response);
+}
+
+/**
+ * Удаляет конфигурацию
+ */
+export async function deleteImportConfig(configId: string): Promise<void> {
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/import/configs/${configId}`, {
+    method: 'DELETE',
+    headers: createHeaders(),
+  });
+
+  if (!response.ok) {
+    throw await handleErrorResponse(response);
+  }
+}
+
+/**
+ * Создает конфигурацию из шаблона
+ */
+export async function createConfigFromTemplate(
+  templateName: string,
+  customName?: string
+): Promise<ImportConfig> {
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/import/configs/template/${templateName}`, {
+    method: 'POST',
+    headers: createHeaders(),
+    body: JSON.stringify({ name: customName }),
+  });
+
+  return handleResponse<ImportConfig>(response);
 }
 

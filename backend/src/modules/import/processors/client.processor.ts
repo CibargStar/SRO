@@ -190,3 +190,154 @@ export async function addPhonesToClient(
   }
 }
 
+/**
+ * Добавляет клиента в группу (если его там еще нет)
+ * 
+ * @param clientId - ID клиента
+ * @param groupId - ID группы
+ * @param prisma - Prisma клиент
+ */
+export async function addClientToGroup(
+  clientId: string,
+  groupId: string,
+  prisma: PrismaClient
+): Promise<void> {
+  try {
+    // Проверяем, не находится ли клиент уже в этой группе
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    const client = await prisma.client.findUnique({
+      where: { id: clientId },
+      select: { groupId: true },
+    });
+
+    if (!client) {
+      throw new Error('Client not found');
+    }
+
+    // Если клиент уже в этой группе, ничего не делаем
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+    if (client.groupId === groupId) {
+      return;
+    }
+
+    // Обновляем группу клиента
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    await prisma.client.update({
+      where: { id: clientId },
+      data: { groupId },
+    });
+
+    logger.debug('Client added to group during import', {
+      clientId,
+      groupId,
+    });
+  } catch (error) {
+    logger.error('Error adding client to group during import', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      clientId,
+      groupId,
+    });
+    throw error;
+  }
+}
+
+/**
+ * Перемещает клиента в группу (удаляет из текущей группы)
+ * 
+ * @param clientId - ID клиента
+ * @param groupId - ID новой группы
+ * @param prisma - Prisma клиент
+ */
+export async function moveClientToGroup(
+  clientId: string,
+  groupId: string,
+  prisma: PrismaClient
+): Promise<void> {
+  try {
+    // Просто обновляем группу (в схеме Prisma groupId обязателен, поэтому всегда обновляем)
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    await prisma.client.update({
+      where: { id: clientId },
+      data: { groupId },
+    });
+
+    logger.debug('Client moved to group during import', {
+      clientId,
+      groupId,
+    });
+  } catch (error) {
+    logger.error('Error moving client to group during import', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      clientId,
+      groupId,
+    });
+    throw error;
+  }
+}
+
+/**
+ * Обновляет регион клиента
+ * 
+ * @param clientId - ID клиента
+ * @param regionId - ID региона (или null)
+ * @param prisma - Prisma клиент
+ */
+export async function updateClientRegion(
+  clientId: string,
+  regionId: string | null,
+  prisma: PrismaClient
+): Promise<void> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    await prisma.client.update({
+      where: { id: clientId },
+      data: { regionId },
+    });
+
+    logger.debug('Client region updated during import', {
+      clientId,
+      regionId,
+    });
+  } catch (error) {
+    logger.error('Error updating client region during import', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      clientId,
+      regionId,
+    });
+    throw error;
+  }
+}
+
+/**
+ * Обновляет статус клиента
+ * 
+ * @param clientId - ID клиента
+ * @param status - Новый статус
+ * @param prisma - Prisma клиент
+ */
+export async function updateClientStatus(
+  clientId: string,
+  status: 'NEW' | 'OLD',
+  prisma: PrismaClient
+): Promise<void> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    await prisma.client.update({
+      where: { id: clientId },
+      data: { status },
+    });
+
+    logger.debug('Client status updated during import', {
+      clientId,
+      status,
+    });
+  } catch (error) {
+    logger.error('Error updating client status during import', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      clientId,
+      status,
+    });
+    throw error;
+  }
+}
+

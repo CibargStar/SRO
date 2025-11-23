@@ -59,6 +59,7 @@ model User {
   // Связи с клиентами и группами клиентов
   clientGroups   ClientGroup[]
   clients        Client[]
+  importConfigs  ImportConfig[] // Конфигурации импорта
 
   // Индексы для оптимизации запросов
   @@index([email]) // Быстрый поиск по email (уже есть @unique, но явный индекс для ясности)
@@ -163,5 +164,29 @@ model ClientPhone {
   // Индексы для оптимизации запросов
   @@index([clientId]) // Быстрый поиск телефонов клиента
   @@map("client_phones")
+}
+
+/// Конфигурации импорта клиентов
+/// Каждый пользователь может создавать свои конфигурации для настройки процесса импорта
+model ImportConfig {
+  id          String   @id @default(uuid())
+  userId      String   // ID пользователя-владельца
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String   // Название конфигурации
+  description String?  // Описание (опционально)
+  isDefault   Boolean  @default(false) // Конфигурация по умолчанию
+  
+  // Конфигурация хранится как JSON
+  // Структура: ImportConfig из types/import-config.types.ts
+  config      String   // JSON строка с конфигурацией
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Индексы для оптимизации запросов
+  @@index([userId]) // Быстрый поиск конфигураций пользователя
+  @@index([userId, isDefault]) // Поиск конфигурации по умолчанию
+  @@index([userId, name]) // Уникальность названия конфигурации для пользователя
+  @@map("import_configs")
 }
 

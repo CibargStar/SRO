@@ -22,16 +22,22 @@ import {
   ListItemText,
   Divider,
   Chip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import { useImportClients } from '@/hooks/useImport';
-import { useClientGroups, useClientGroup } from '@/hooks/useClientGroups';
+import { useClientGroups } from '@/hooks/useClientGroups';
+import { useImportConfigs, useDefaultImportConfig } from '@/hooks/useImportConfigs';
 import { ClientGroupSelector } from './ClientGroupSelector';
 import { CreateClientGroupDialog } from './CreateClientGroupDialog';
-import type { ImportClientsResponse } from '@/utils/api';
+import { ImportConfigDialog } from './ImportConfigDialog';
+import type { ImportClientsResponse, ImportConfig } from '@/utils/api';
 
 const StyledButton = styled(Button)(({ theme }) => ({
   borderRadius: '12px',
@@ -77,6 +83,16 @@ const HiddenInput = styled('input')({
   display: 'none',
 });
 
+const StyledSelect = styled(Select)({
+  borderRadius: '12px',
+  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  color: '#ffffff',
+  '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+  '&:hover .MuiOutlinedInput-notchedOutline': { border: 'none' },
+  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { border: 'none' },
+  '& .MuiSelect-icon': { color: 'rgba(255, 255, 255, 0.7)' },
+});
+
 interface ImportClientsDialogProps {
   open: boolean;
   onClose: () => void;
@@ -85,14 +101,24 @@ interface ImportClientsDialogProps {
 export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [groupId, setGroupId] = useState<string>('');
+  const [selectedConfigId, setSelectedConfigId] = useState<string | undefined>(undefined);
   const [importResult, setImportResult] = useState<ImportClientsResponse | null>(null);
   const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false);
-  const [warningDialogOpen, setWarningDialogOpen] = useState(false);
+  const [configDialogOpen, setConfigDialogOpen] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: groups = [], isLoading: groupsLoading } = useClientGroups();
-  const { data: selectedGroup } = useClientGroup(groupId);
+  const { data: configsData, isLoading: configsLoading } = useImportConfigs(false);
+  const { data: defaultConfig, isLoading: defaultConfigLoading } = useDefaultImportConfig();
   const importMutation = useImportClients();
+
+  // Устанавливаем конфигурацию по умолчанию при загрузке
+  React.useEffect(() => {
+    if (defaultConfig && !selectedConfigId && !defaultConfigLoading) {
+      setSelectedConfigId(defaultConfig.id);
+    }
+  }, [defaultConfig, selectedConfigId, defaultConfigLoading]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -101,9 +127,26 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
       const allowedExtensions = ['.xlsx', '.xls', '.csv'];
       const ext = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
       if (!allowedExtensions.includes(ext)) {
-        alert('Неподдерживаемый формат файла. Разрешены: .xlsx, .xls, .csv');
+        setFileError('Неподдерживаемый формат файла. Разрешены: .xlsx, .xls, .csv');
+        setSelectedFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
         return;
       }
+      
+      // Проверка размера файла (максимум 50MB)
+      const maxSize = 50 * 1024 * 1024; // 50MB
+      if (file.size > maxSize) {
+        setFileError(`Файл слишком большой. Максимальный размер: ${(maxSize / 1024 / 1024).toFixed(0)}MB`);
+        setSelectedFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        return;
+      }
+      
+      setFileError(null);
       setSelectedFile(file);
       setImportResult(null);
     }
@@ -118,14 +161,7 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
       return;
     }
 
-    // Проверка: если группа не пустая, показываем предупреждение
-    const clientsCount = selectedGroup?._count?.clients ?? 0;
-    if (clientsCount > 0) {
-      setWarningDialogOpen(true);
-      return;
-    }
-
-    // Если группа пустая - импортируем сразу
+    // Импортируем сразу (настройки дедупликации теперь в конфигурации)
     await performImport();
   };
 
@@ -138,22 +174,39 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
       const result = await importMutation.mutateAsync({
         groupId,
         file: selectedFile,
+        configId: selectedConfigId,
       });
       setImportResult(result);
-      setWarningDialogOpen(false);
     } catch (error) {
       // Ошибка обрабатывается через mutation.error
-      setWarningDialogOpen(false);
+    }
+  };
+
+  const handleConfigSaved = (config: ImportConfig | null) => {
+    if (config && config.id) {
+      setSelectedConfigId(config.id);
+    } else if (config === null) {
+      // Конфигурация была удалена, сбрасываем выбор
+      setSelectedConfigId(undefined);
+      // Устанавливаем конфигурацию по умолчанию, если она есть
+      if (defaultConfig) {
+        setSelectedConfigId(defaultConfig.id);
+      }
     }
   };
 
   const handleClose = () => {
     setSelectedFile(null);
     setGroupId('');
+    setSelectedConfigId(undefined);
     setImportResult(null);
+    setFileError(null);
     setCreateGroupDialogOpen(false);
-    setWarningDialogOpen(false);
+    setConfigDialogOpen(false);
     importMutation.reset();
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
     onClose();
   };
 
@@ -222,20 +275,133 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
             </Box>
           )}
 
+          {/* Выбор конфигурации импорта */}
+          {!importResult && (
+            <Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                  Конфигурация импорта:
+                </Typography>
+                <StyledButton
+                  size="small"
+                  onClick={() => setConfigDialogOpen(true)}
+                  sx={{ minWidth: 'auto', px: 2 }}
+                >
+                  Настроить
+                </StyledButton>
+              </Box>
+              <FormControl fullWidth disabled={isLoading || configsLoading || defaultConfigLoading}>
+                <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Выберите конфигурацию</InputLabel>
+                <StyledSelect
+                  value={selectedConfigId || ''}
+                  onChange={(e) => setSelectedConfigId(e.target.value || undefined)}
+                  label="Выберите конфигурацию"
+                  disabled={isLoading || configsLoading || defaultConfigLoading}
+                >
+                  {defaultConfigLoading || configsLoading ? (
+                    <MenuItem value="" disabled>
+                      <CircularProgress size={16} sx={{ mr: 1 }} />
+                      Загрузка...
+                    </MenuItem>
+                  ) : (
+                    [
+                      defaultConfig && (
+                        <MenuItem key={defaultConfig.id || 'default'} value={defaultConfig.id || ''}>
+                          {defaultConfig.name} {defaultConfig.isDefault ? '(по умолчанию)' : ''}
+                        </MenuItem>
+                      ),
+                      ...(configsData?.configs
+                        ?.filter((c) => c.id !== defaultConfig?.id)
+                        .map((config) => (
+                          <MenuItem key={config.id} value={config.id || ''}>
+                            {config.name}
+                          </MenuItem>
+                        )) || []),
+                      !defaultConfig && (!configsData?.configs || configsData.configs.length === 0) && (
+                        <MenuItem key="no-configs" value="" disabled>
+                          Нет сохраненных конфигураций
+                        </MenuItem>
+                      ),
+                    ].filter(Boolean)
+                  )}
+                </StyledSelect>
+              </FormControl>
+            </Box>
+          )}
+
+          {/* Ошибка выбора файла */}
+          {fileError && !importResult && (
+            <Alert
+              severity="error"
+              onClose={() => setFileError(null)}
+              sx={{
+                borderRadius: '12px',
+                backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                color: '#ffffff',
+                border: 'none',
+                '& .MuiAlert-message': {
+                  color: '#ffffff',
+                },
+              }}
+            >
+              {fileError}
+            </Alert>
+          )}
+
           {/* Загрузка файла */}
           {!importResult && (
             <Box>
               <Typography variant="body2" sx={{ mb: 1, color: 'rgba(255, 255, 255, 0.7)' }}>
                 Выберите Excel файл (XLSX, XLS, CSV):
               </Typography>
-              <UploadArea onClick={handleUploadClick}>
-                <CloudUploadIcon sx={{ fontSize: 48, color: 'rgba(255, 255, 255, 0.5)', mb: 2 }} />
-                <Typography variant="body1" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1 }}>
-                  {selectedFile ? selectedFile.name : 'Нажмите для выбора файла'}
-                </Typography>
-                <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>
-                  Поддерживаемые форматы: .xlsx, .xls, .csv
-                </Typography>
+              <UploadArea 
+                onClick={handleUploadClick}
+                sx={{
+                  ...(selectedFile && {
+                    borderColor: 'rgba(76, 175, 80, 0.5)',
+                    backgroundColor: 'rgba(76, 175, 80, 0.05)',
+                  }),
+                }}
+              >
+                {selectedFile ? (
+                  <>
+                    <CheckCircleIcon sx={{ fontSize: 48, color: '#4caf50', mb: 2 }} />
+                    <Typography variant="body1" sx={{ color: '#ffffff', mb: 0.5, fontWeight: 500 }}>
+                      {selectedFile.name}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                      {(selectedFile.size / 1024).toFixed(2)} KB
+                    </Typography>
+                    <Typography 
+                      variant="body2" 
+                      sx={{ 
+                        color: 'rgba(255, 255, 255, 0.5)', 
+                        mt: 1,
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedFile(null);
+                        if (fileInputRef.current) {
+                          fileInputRef.current.value = '';
+                        }
+                      }}
+                    >
+                      Выбрать другой файл
+                    </Typography>
+                  </>
+                ) : (
+                  <>
+                    <CloudUploadIcon sx={{ fontSize: 48, color: 'rgba(255, 255, 255, 0.5)', mb: 2 }} />
+                    <Typography variant="body1" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1 }}>
+                      Нажмите для выбора файла
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>
+                      Поддерживаемые форматы: .xlsx, .xls, .csv
+                    </Typography>
+                  </>
+                )}
                 <HiddenInput
                   ref={fileInputRef}
                   type="file"
@@ -261,72 +427,120 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
           {error && (
             <Alert 
               severity="error" 
+              icon={<ErrorIcon sx={{ color: '#f44336' }} />}
               sx={{ 
                 borderRadius: '12px', 
                 backgroundColor: 'rgba(244, 67, 54, 0.1)', 
                 color: '#ffffff', 
-                border: 'none' 
+                border: 'none',
+                '& .MuiAlert-message': {
+                  color: '#ffffff',
+                },
               }}
             >
-              {error instanceof Error ? error.message : 'Произошла ошибка при импорте'}
+              <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5, color: '#ffffff' }}>
+                Ошибка импорта
+              </Typography>
+              <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.9)' }}>
+                {error instanceof Error ? error.message : 'Произошла ошибка при импорте'}
+              </Typography>
             </Alert>
           )}
 
           {/* Результаты импорта */}
           {importResult && (
             <StyledPaper>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
                 {importResult.success ? (
-                  <CheckCircleIcon sx={{ color: '#4caf50' }} />
+                  <CheckCircleIcon sx={{ color: '#4caf50', fontSize: 32 }} />
                 ) : (
-                  <ErrorIcon sx={{ color: '#f44336' }} />
+                  <ErrorIcon sx={{ color: '#f44336', fontSize: 32 }} />
                 )}
-                <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
-                  {importResult.success ? 'Импорт завершен успешно' : 'Импорт завершен с ошибками'}
-                </Typography>
+                <Box>
+                  <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500, mb: 0.5 }}>
+                    {importResult.success ? 'Импорт завершен успешно' : 'Импорт завершен с ошибками'}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                    Группа: {importResult.groupName}
+                  </Typography>
+                </Box>
               </Box>
 
               {/* Статистика */}
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 3 }}>
                 <Chip
                   label={`Всего: ${importResult.statistics.total}`}
-                  size="small"
+                  size="medium"
                   sx={{
                     backgroundColor: 'rgba(33, 150, 243, 0.2)',
                     color: '#ffffff',
-                    fontWeight: 500,
+                    fontWeight: 600,
+                    fontSize: '0.875rem',
+                    height: '32px',
                     '& .MuiChip-label': {
                       color: '#ffffff',
+                      px: 1.5,
                     },
                   }}
                 />
-                <Chip
-                  label={`Создано: ${importResult.statistics.created}`}
-                  color="success"
-                  size="small"
-                />
-                <Chip
-                  label={`Обновлено: ${importResult.statistics.updated}`}
-                  color="info"
-                  size="small"
-                />
-                <Chip
-                  label={`Пропущено: ${importResult.statistics.skipped}`}
-                  color="warning"
-                  size="small"
-                />
+                {importResult.statistics.created > 0 && (
+                  <Chip
+                    label={`Создано: ${importResult.statistics.created}`}
+                    size="medium"
+                    sx={{
+                      backgroundColor: 'rgba(76, 175, 80, 0.2)',
+                      color: '#4caf50',
+                      fontWeight: 500,
+                      height: '32px',
+                    }}
+                  />
+                )}
+                {importResult.statistics.updated > 0 && (
+                  <Chip
+                    label={`Обновлено: ${importResult.statistics.updated}`}
+                    size="medium"
+                    sx={{
+                      backgroundColor: 'rgba(33, 150, 243, 0.2)',
+                      color: '#2196f3',
+                      fontWeight: 500,
+                      height: '32px',
+                    }}
+                  />
+                )}
+                {importResult.statistics.skipped > 0 && (
+                  <Chip
+                    label={`Пропущено: ${importResult.statistics.skipped}`}
+                    size="medium"
+                    sx={{
+                      backgroundColor: 'rgba(255, 152, 0, 0.2)',
+                      color: '#ff9800',
+                      fontWeight: 500,
+                      height: '32px',
+                    }}
+                  />
+                )}
                 {importResult.statistics.errors > 0 && (
                   <Chip
                     label={`Ошибок: ${importResult.statistics.errors}`}
-                    color="error"
-                    size="small"
+                    size="medium"
+                    sx={{
+                      backgroundColor: 'rgba(244, 67, 54, 0.2)',
+                      color: '#f44336',
+                      fontWeight: 500,
+                      height: '32px',
+                    }}
                   />
                 )}
                 {importResult.statistics.regionsCreated > 0 && (
                   <Chip
                     label={`Регионов создано: ${importResult.statistics.regionsCreated}`}
-                    color="secondary"
-                    size="small"
+                    size="medium"
+                    sx={{
+                      backgroundColor: 'rgba(156, 39, 176, 0.2)',
+                      color: '#9c27b0',
+                      fontWeight: 500,
+                      height: '32px',
+                    }}
                   />
                 )}
               </Box>
@@ -334,44 +548,92 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
               {/* Детали ошибок */}
               {importResult.errors && importResult.errors.length > 0 && (
                 <Box>
-                  <Typography variant="subtitle2" sx={{ mb: 1, color: '#f5f5f5', fontWeight: 500 }}>
-                    Ошибки импорта:
+                  <Typography variant="subtitle2" sx={{ mb: 2, color: '#f5f5f5', fontWeight: 600 }}>
+                    Ошибки импорта ({importResult.errors.length}):
                   </Typography>
-                  <List dense>
-                    {importResult.errors.slice(0, 10).map((error, index) => (
-                      <React.Fragment key={index}>
-                        <ListItem>
-                          <ListItemText
-                            primary={`Строка ${error.rowNumber}: ${error.message}`}
-                            secondary={
-                              error.data
-                                ? `Имя: ${error.data.name || 'не указано'}, Телефон: ${error.data.phone}, Регион: ${error.data.region}`
-                                : undefined
-                            }
-                            primaryTypographyProps={{ 
-                              sx: { fontSize: '0.875rem', color: 'rgba(255, 255, 255, 0.9)' } 
-                            }}
-                            secondaryTypographyProps={{ 
-                              sx: { fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)' } 
-                            }}
-                          />
-                        </ListItem>
-                        {index < importResult.errors!.length - 1 && (
-                          <Divider sx={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }} />
-                        )}
-                      </React.Fragment>
-                    ))}
-                    {importResult.errors.length > 10 && (
-                      <ListItem>
-                        <ListItemText
-                          primary={`... и еще ${importResult.errors.length - 10} ошибок`}
-                          primaryTypographyProps={{ 
-                            sx: { fontSize: '0.875rem', fontStyle: 'italic', color: 'rgba(255, 255, 255, 0.7)' } 
-                          }}
-                        />
-                      </ListItem>
-                    )}
-                  </List>
+                  <Box
+                    sx={{
+                      maxHeight: '300px',
+                      overflowY: 'auto',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '8px',
+                      backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                    }}
+                  >
+                    <List dense sx={{ py: 0 }}>
+                      {importResult.errors.slice(0, 20).map((error, index) => (
+                        <React.Fragment key={index}>
+                          <ListItem sx={{ py: 1.5, px: 2 }}>
+                            <ListItemText
+                              primary={
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <Typography
+                                    variant="body2"
+                                    sx={{
+                                      fontSize: '0.75rem',
+                                      color: 'rgba(255, 255, 255, 0.5)',
+                                      fontWeight: 500,
+                                      minWidth: '60px',
+                                    }}
+                                  >
+                                    Строка {error.rowNumber}:
+                                  </Typography>
+                                  <Typography
+                                    variant="body2"
+                                    sx={{
+                                      fontSize: '0.875rem',
+                                      color: 'rgba(255, 255, 255, 0.9)',
+                                      flex: 1,
+                                    }}
+                                  >
+                                    {error.message}
+                                  </Typography>
+                                </Box>
+                              }
+                              secondary={
+                                error.data ? (
+                                  <Box sx={{ mt: 0.5, pl: '76px' }}>
+                                    <Typography
+                                      variant="caption"
+                                      sx={{
+                                        fontSize: '0.75rem',
+                                        color: 'rgba(255, 255, 255, 0.5)',
+                                        display: 'block',
+                                      }}
+                                    >
+                                      Имя: {error.data.name || 'не указано'} • Телефон: {error.data.phone} • Регион: {error.data.region}
+                                    </Typography>
+                                  </Box>
+                                ) : undefined
+                              }
+                            />
+                          </ListItem>
+                          {index < Math.min(importResult.errors!.length, 20) - 1 && (
+                            <Divider sx={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', mx: 2 }} />
+                          )}
+                        </React.Fragment>
+                      ))}
+                      {importResult.errors.length > 20 && (
+                        <>
+                          <Divider sx={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', mx: 2 }} />
+                          <ListItem sx={{ py: 1.5, px: 2 }}>
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                fontSize: '0.875rem',
+                                fontStyle: 'italic',
+                                color: 'rgba(255, 255, 255, 0.6)',
+                                textAlign: 'center',
+                                width: '100%',
+                              }}
+                            >
+                              ... и еще {importResult.errors.length - 20} ошибок
+                            </Typography>
+                          </ListItem>
+                        </>
+                      )}
+                    </List>
+                  </Box>
                 </Box>
               )}
             </StyledPaper>
@@ -381,29 +643,42 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
           {!importResult && (
             <Alert 
               severity="info" 
+              icon={false}
               sx={{ 
                 borderRadius: '12px', 
                 backgroundColor: 'rgba(33, 150, 243, 0.1)', 
                 color: '#ffffff', 
-                border: 'none' 
+                border: 'none',
+                '& .MuiAlert-message': {
+                  width: '100%',
+                },
               }}
             >
-              <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 0.5, color: '#ffffff' }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, mb: 1, color: '#ffffff' }}>
                 Требования к файлу:
               </Typography>
-              <Typography variant="body2" component="div" sx={{ color: 'rgba(255, 255, 255, 0.9)' }}>
+              <Typography variant="body2" component="div" sx={{ color: 'rgba(255, 255, 255, 0.9)', mb: 1 }}>
                 Файл должен содержать следующие колонки:
-                <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>
-                  <li>
-                    <strong>name</strong> (или: имя, фио, full name, полное имя, контакт) - Полное ФИО
-                  </li>
-                  <li>
-                    <strong>phone</strong> (или: телефон, tel, mobile, мобильный, номер) - Номера телефонов
-                  </li>
-                  <li>
-                    <strong>region</strong> (или: регион, область, город, city, area) - Название региона
-                  </li>
-                </ul>
+              </Typography>
+              <Box component="ul" sx={{ margin: 0, paddingLeft: '24px', color: 'rgba(255, 255, 255, 0.9)' }}>
+                <li style={{ marginBottom: '6px' }}>
+                  <Typography variant="body2" component="span">
+                    <strong>name</strong> (или: имя, фио, full name, полное имя, контакт) — Полное ФИО
+                  </Typography>
+                </li>
+                <li style={{ marginBottom: '6px' }}>
+                  <Typography variant="body2" component="span">
+                    <strong>phone</strong> (или: телефон, tel, mobile, мобильный, номер) — Номера телефонов
+                  </Typography>
+                </li>
+                <li>
+                  <Typography variant="body2" component="span">
+                    <strong>region</strong> (или: регион, область, город, city, area) — Название региона
+                  </Typography>
+                </li>
+              </Box>
+              <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)', mt: 1, display: 'block' }}>
+                Максимальный размер файла: 50MB
               </Typography>
             </Alert>
           )}
@@ -417,10 +692,18 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
         {!importResult && (
           <StyledButton
             onClick={handleImport}
-            disabled={!selectedFile || !groupId || isLoading || !hasGroups}
+            disabled={
+              !selectedFile || 
+              !groupId || 
+              isLoading || 
+              !hasGroups || 
+              configsLoading || 
+              defaultConfigLoading ||
+              !!fileError
+            }
             startIcon={isLoading ? <CircularProgress size={20} /> : <CloudUploadIcon />}
           >
-            Импортировать
+            {isLoading ? 'Импорт...' : 'Импортировать'}
           </StyledButton>
         )}
       </DialogActions>
@@ -432,93 +715,19 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
         onSuccess={handleGroupCreated}
       />
 
-      {/* Диалог предупреждения о дедупликации */}
-      <Dialog
-        open={warningDialogOpen}
-        onClose={() => setWarningDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{ sx: { backgroundColor: '#212121', borderRadius: '12px' } }}
-      >
-        <Box sx={{ px: 3, pt: 3, pb: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
-          <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
-            Внимание!
-          </Typography>
-        </Box>
+      {/* Диалог настройки конфигурации */}
+      <ImportConfigDialog
+        open={configDialogOpen}
+        onClose={() => setConfigDialogOpen(false)}
+        onSave={handleConfigSaved}
+        initialConfig={
+          selectedConfigId
+            ? configsData?.configs?.find((c) => c.id === selectedConfigId) ||
+              (defaultConfig?.id === selectedConfigId ? defaultConfig : null)
+            : null
+        }
+      />
 
-        <DialogContent sx={{ px: 3, pt: 3 }}>
-          <Typography variant="body1" sx={{ mb: 2, color: 'rgba(255, 255, 255, 0.9)' }}>
-            При загрузке базы клиентов в группу, в которой уже имеются контакты будет включен автоматический поиск дубликатов.
-          </Typography>
-
-          <Typography variant="body2" sx={{ mb: 1, color: 'rgba(255, 255, 255, 0.7)', fontWeight: 500 }}>
-            Логика обработки дубликатов:
-          </Typography>
-          
-          <Box component="ul" sx={{ pl: 2, mb: 2, color: 'rgba(255, 255, 255, 0.7)' }}>
-            <li style={{ marginBottom: '8px' }}>
-              <Typography variant="body2" component="span">
-                <strong>Поиск дубликатов</strong> выполняется по номерам телефонов среди всех клиентов владельца группы (не только в выбранной группе).
-              </Typography>
-            </li>
-            <li style={{ marginBottom: '8px' }}>
-              <Typography variant="body2" component="span">
-                Если найден клиент с таким же телефоном:
-              </Typography>
-              <Box component="ul" sx={{ pl: 2, mt: 0.5 }}>
-                <li>
-                  <Typography variant="body2" component="span">
-                    У существующего клиента нет ФИО, а в импорте есть → <strong>обновляется ФИО</strong> существующего клиента
-                  </Typography>
-                </li>
-                <li>
-                  <Typography variant="body2" component="span">
-                    Есть новые номера телефонов → <strong>добавляются</strong> к существующему клиенту
-                  </Typography>
-                </li>
-                <li>
-                  <Typography variant="body2" component="span">
-                    Полное совпадение (телефоны и ФИО) → <strong>пропускается</strong> (дубликат)
-                  </Typography>
-                </li>
-              </Box>
-            </li>
-            <li>
-              <Typography variant="body2" component="span">
-                Если клиент не найден → <strong>создается новый</strong> клиент
-              </Typography>
-            </li>
-          </Box>
-
-          <Alert 
-            severity="info" 
-            sx={{ 
-              borderRadius: '12px', 
-              backgroundColor: 'rgba(33, 150, 243, 0.1)', 
-              color: '#ffffff', 
-              border: 'none',
-              mt: 2
-            }}
-          >
-            <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.9)' }}>
-              Вы можете отменить импорт, если не хотите выполнять дедупликацию.
-            </Typography>
-          </Alert>
-        </DialogContent>
-
-        <DialogActions sx={{ px: 3, pb: 3, pt: 2 }}>
-          <CancelButton onClick={() => setWarningDialogOpen(false)}>
-            Отмена
-          </CancelButton>
-          <StyledButton
-            onClick={performImport}
-            disabled={importMutation.isPending}
-            startIcon={importMutation.isPending ? <CircularProgress size={20} /> : null}
-          >
-            Продолжить импорт
-          </StyledButton>
-        </DialogActions>
-      </Dialog>
     </Dialog>
   );
 }

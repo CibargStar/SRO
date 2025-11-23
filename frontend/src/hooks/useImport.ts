@@ -23,8 +23,8 @@ export function useImportClients() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ groupId, file }: { groupId: string; file: File }) =>
-      importClients(groupId, file),
+    mutationFn: ({ groupId, file, configId }: { groupId: string; file: File; configId?: string }) =>
+      importClients(groupId, file, configId),
     onSuccess: () => {
       // Инвалидируем кэш списка клиентов, чтобы обновить данные
       queryClient.invalidateQueries({ queryKey: clientsKeys.lists() });
