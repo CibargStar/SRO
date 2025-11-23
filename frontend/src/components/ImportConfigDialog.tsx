@@ -180,9 +180,40 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
       setSaveError(null);
       setSelectedTemplateId(null); // Сбрасываем выбор шаблона при загрузке существующей конфигурации
     } else {
+      // Сбрасываем на значения по умолчанию для новой конфигурации
+      setConfig({
+        name: 'Новая конфигурация',
+        description: '',
+        userId: userId || '',
+        isDefault: false,
+        searchScope: {
+          scopes: ['owner_groups'],
+          matchCriteria: 'phone',
+        },
+        duplicateAction: {
+          defaultAction: 'update',
+          updateName: true,
+          updateRegion: false,
+          addPhones: true,
+          addToGroup: true,
+          moveToGroup: false,
+        },
+        noDuplicateAction: 'create',
+        validation: {
+          requireName: false,
+          requirePhone: true,
+          requireRegion: false,
+          errorHandling: 'skip',
+        },
+        additional: {
+          newClientStatus: 'NEW',
+          updateStatus: false,
+        },
+      });
+      setSaveError(null);
       setSelectedTemplateId(null); // Сбрасываем выбор шаблона при создании новой конфигурации
     }
-  }, [initialConfig]);
+  }, [initialConfig, userId]);
 
   // Сброс ошибок при закрытии
   useEffect(() => {

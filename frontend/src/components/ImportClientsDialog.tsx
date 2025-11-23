@@ -144,13 +144,18 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
   );
   
   // Проверяем, выбрана ли новая конфигурация (системная, без id)
-  const isNewConfigSelected = selectedConfigId === 'default' || (defaultConfig && !defaultConfig.id);
+  // Новая конфигурация - это когда selectedConfigId === 'default'
+  const isNewConfigSelected = selectedConfigId === 'default';
   
   // Проверяем, существует ли выбранная конфигурация (сохраненная)
-  const selectedConfigExists = selectedConfigId && !isNewConfigSelected && (
-    defaultConfig?.id === selectedConfigId ||
-    configsData?.configs?.some((c) => c.id === selectedConfigId)
-  );
+  // Существующая конфигурация - это когда selectedConfigId есть в списке сохраненных конфигов
+  // или когда это defaultConfig с реальным id (не системная)
+  const selectedConfigExists = selectedConfigId && 
+    selectedConfigId !== 'default' && 
+    (
+      (defaultConfig?.id && defaultConfig.id !== 'default' && defaultConfig.id === selectedConfigId) ||
+      (configsData?.configs?.some((c) => c.id === selectedConfigId) ?? false)
+    );
 
   // Устанавливаем конфигурацию по умолчанию при открытии модалки и загрузке данных
   React.useEffect(() => {
@@ -280,6 +285,7 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
           backgroundColor: '#212121', 
           borderRadius: '12px',
           '& .MuiDialogContent-root': {
+            overflow: 'hidden',
             '&::-webkit-scrollbar': {
               display: 'none',
             },
@@ -295,7 +301,7 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
         </Typography>
       </Box>
 
-      <DialogContent sx={{ px: 3, pt: 3 }}>
+      <DialogContent sx={{ px: 3, pt: 3, overflow: 'hidden' }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           {/* Выбор группы (скрывается после завершения импорта) */}
           {!importResult && (
@@ -421,7 +427,7 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
                 onClick={() => setConfigDialogOpen(true)}
                 sx={{ minWidth: 'auto', px: 2, whiteSpace: 'nowrap' }}
               >
-                {isNewConfigSelected ? 'Создать' : selectedConfigExists ? 'Настроить' : 'Создать'}
+                {isNewConfigSelected ? 'Создать' : 'Настроить'}
               </StyledButton>
               </Box>
             </Box>
@@ -752,9 +758,6 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
               <Typography variant="body2" sx={{ fontWeight: 600, mb: 1, color: '#ffffff' }}>
                 Требования к файлу:
               </Typography>
-              <Typography variant="body2" component="div" sx={{ color: 'rgba(255, 255, 255, 0.9)', mb: 1 }}>
-                Файл должен содержать следующие колонки:
-              </Typography>
               <Box component="ul" sx={{ margin: 0, paddingLeft: '24px', color: 'rgba(255, 255, 255, 0.9)' }}>
                 <li style={{ marginBottom: '6px' }}>
                   <Typography variant="body2" component="span">
@@ -812,6 +815,7 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
 
       {/* Диалог настройки конфигурации */}
       <ImportConfigDialog
+        key={selectedConfigId || 'new'} // Добавляем key для принудительного пересоздания компонента при изменении selectedConfigId
         open={configDialogOpen}
         onClose={() => setConfigDialogOpen(false)}
         onSave={handleConfigSaved}
