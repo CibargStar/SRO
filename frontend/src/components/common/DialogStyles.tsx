@@ -59,7 +59,7 @@ export const dialogContentStyles = {
  */
 export const dialogActionsStyles = {
   px: 3,
-  pb: 3,
+  pb: 2,
   pt: 2,
 };
 

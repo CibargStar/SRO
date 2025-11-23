@@ -144,9 +144,12 @@ export function CreateClientDialog({ open, onClose, userId: propUserId }: Create
         sx: {
           ...dialogPaperProps.sx,
           maxHeight: '90vh',
-          height: 'auto',
+          height: '90vh',
+          width: '100%',
+          maxWidth: '600px',
           display: 'flex',
           flexDirection: 'column',
+          padding: 0,
           '& .MuiDialogContent-root': {
             overflowY: 'auto',
             flex: '1 1 auto',
@@ -158,11 +161,22 @@ export function CreateClientDialog({ open, onClose, userId: propUserId }: Create
             scrollbarWidth: 'none',
             msOverflowStyle: 'none',
           },
+          '& .MuiDialogActions-root': {
+            margin: 0,
+          },
+          '& form': {
+            margin: 0,
+            padding: 0,
+            height: '100%',
+            minHeight: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+          },
         },
       }}
     >
-      <form onSubmit={handleSubmit(onSubmit)}>
-        <Box sx={dialogTitleStyles}>
+      <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '100%', margin: 0, padding: 0 }}>
+        <Box sx={{ ...dialogTitleStyles, flexShrink: 0 }}>
           <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
             Создать клиента
           </Typography>
@@ -171,24 +185,24 @@ export function CreateClientDialog({ open, onClose, userId: propUserId }: Create
         <DialogContent
           sx={{
             ...dialogContentStyles,
-            overflowY: 'auto !important',
+            overflowY: 'auto',
             flex: '1 1 auto',
             minHeight: 0,
             '&::-webkit-scrollbar': {
-              display: 'none !important',
-              width: '0 !important',
-              height: '0 !important',
+              display: 'none',
+              width: 0,
+              height: 0,
             },
-            scrollbarWidth: 'none !important',
-            msOverflowStyle: 'none !important',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
             '& *': {
               '&::-webkit-scrollbar': {
-                display: 'none !important',
-                width: '0 !important',
-                height: '0 !important',
+                display: 'none',
+                width: 0,
+                height: 0,
               },
-              scrollbarWidth: 'none !important',
-              msOverflowStyle: 'none !important',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
             },
           }}
         >
@@ -329,7 +343,7 @@ export function CreateClientDialog({ open, onClose, userId: propUserId }: Create
           </Box>
         </DialogContent>
 
-        <DialogActions sx={dialogActionsStyles}>
+        <DialogActions sx={{ px: 3, pt: 2, pb: 2, flexShrink: 0, marginTop: 'auto', m: 0 }}>
           <CancelButton onClick={handleClose} disabled={createMutation.isPending}>
             Отмена
           </CancelButton>

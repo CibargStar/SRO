@@ -210,9 +210,12 @@ export function EditClientDialog({ open, client, onClose, userId: propUserId }: 
           borderRadius: '12px',
           overflow: 'hidden',
           maxHeight: '90vh',
-          height: 'auto',
+          height: '90vh',
+          width: '100%',
+          maxWidth: '600px',
           display: 'flex',
           flexDirection: 'column',
+          padding: 0,
           '& .MuiDialogContent-root': {
             overflowY: 'auto',
             flex: '1 1 auto',
@@ -223,6 +226,17 @@ export function EditClientDialog({ open, client, onClose, userId: propUserId }: 
             },
             scrollbarWidth: 'none',
             msOverflowStyle: 'none',
+          },
+          '& .MuiDialogActions-root': {
+            margin: 0,
+          },
+          '& form': {
+            margin: 0,
+            padding: 0,
+            height: '100%',
+            minHeight: '100%',
+            display: 'flex',
+            flexDirection: 'column',
           },
           '& *': {
             '&::-webkit-scrollbar': {
@@ -236,8 +250,8 @@ export function EditClientDialog({ open, client, onClose, userId: propUserId }: 
         },
       }}
     >
-      <form onSubmit={handleSubmit(onSubmit)}>
-        <Box sx={dialogTitleStyles}>
+      <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '100%', margin: 0, padding: 0 }}>
+        <Box sx={{ ...dialogTitleStyles, flexShrink: 0 }}>
           <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
             Редактировать клиента
           </Typography>
@@ -246,24 +260,24 @@ export function EditClientDialog({ open, client, onClose, userId: propUserId }: 
         <DialogContent
           sx={{
             ...dialogContentStyles,
-            overflowY: 'auto !important',
+            overflowY: 'auto',
             flex: '1 1 auto',
             minHeight: 0,
             '&::-webkit-scrollbar': {
-              display: 'none !important',
-              width: '0 !important',
-              height: '0 !important',
+              display: 'none',
+              width: 0,
+              height: 0,
             },
-            scrollbarWidth: 'none !important',
-            msOverflowStyle: 'none !important',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
             '& *': {
               '&::-webkit-scrollbar': {
-                display: 'none !important',
-                width: '0 !important',
-                height: '0 !important',
+                display: 'none',
+                width: 0,
+                height: 0,
               },
-              scrollbarWidth: 'none !important',
-              msOverflowStyle: 'none !important',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
             },
           }}
         >
@@ -387,7 +401,7 @@ export function EditClientDialog({ open, client, onClose, userId: propUserId }: 
           </Box>
         </DialogContent>
 
-        <DialogActions sx={dialogActionsStyles}>
+        <DialogActions sx={{ px: 3, pt: 2, pb: 2, flexShrink: 0, marginTop: 'auto', m: 0 }}>
           <CancelButton onClick={handleClose} disabled={updateMutation.isPending}>
             Отмена
           </CancelButton>
