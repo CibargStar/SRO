@@ -12,6 +12,66 @@ import type { ImportConfig } from '../types/import-config.types';
 import { getDefaultImportConfig, PRESET_TEMPLATES } from '../types/import-config.types';
 
 /**
+ * Исправляет ситуацию с множественными конфигурациями по умолчанию
+ * 
+ * Если у пользователя несколько конфигураций с isDefault=true,
+ * оставляет только самую новую (по createdAt) и снимает флаг с остальных.
+ * 
+ * @param userId - ID пользователя
+ * @param prisma - Prisma клиент
+ * @returns ID конфигурации, которая осталась по умолчанию, или null
+ */
+async function fixMultipleDefaultConfigs(
+  userId: string,
+  prisma: PrismaClient
+): Promise<string | null> {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+  const defaultConfigs = await prisma.importConfig.findMany({
+    where: {
+      userId,
+      isDefault: true,
+    },
+    orderBy: {
+      createdAt: 'desc', // Самая новая первая
+    },
+  });
+
+  // Если конфигураций по умолчанию больше одной, исправляем
+  if (defaultConfigs.length > 1) {
+    logger.warn('Multiple default import configs found, fixing', {
+      userId,
+      count: defaultConfigs.length,
+      configIds: defaultConfigs.map((c) => c.id),
+    });
+
+    // Оставляем только самую новую, остальные снимаем с флага
+    const keepConfigId = defaultConfigs[0]!.id;
+    const otherConfigIds = defaultConfigs.slice(1).map((c) => c.id);
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    await prisma.importConfig.updateMany({
+      where: {
+        id: { in: otherConfigIds },
+        userId,
+      },
+      data: {
+        isDefault: false,
+      },
+    });
+
+    logger.info('Multiple default configs fixed', {
+      userId,
+      keptConfigId: keepConfigId,
+      fixedCount: otherConfigIds.length,
+    });
+
+    return keepConfigId;
+  }
+
+  return defaultConfigs.length === 1 ? defaultConfigs[0]!.id : null;
+}
+
+/**
  * Создает новую конфигурацию импорта
  * 
  * @param config - Конфигурация импорта
@@ -22,43 +82,50 @@ export async function createImportConfig(
   config: Omit<ImportConfig, 'id' | 'createdAt' | 'updatedAt'>,
   prisma: PrismaClient
 ): Promise<ImportConfig> {
-  // Если это конфигурация по умолчанию, снимаем флаг с других конфигураций пользователя
-  if (config.isDefault) {
+  // Используем транзакцию для атомарности операций
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+  const result = await prisma.$transaction(async (tx) => {
+    // Если это конфигурация по умолчанию, снимаем флаг с других конфигураций пользователя
+    if (config.isDefault) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+      await tx.importConfig.updateMany({
+        where: {
+          userId: config.userId,
+          isDefault: true,
+        },
+        data: {
+          isDefault: false,
+        },
+      });
+    }
+
+    // Создание конфигурации
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-    await prisma.importConfig.updateMany({
-      where: {
-        userId: config.userId,
-        isDefault: true,
-      },
+    const created = await tx.importConfig.create({
       data: {
-        isDefault: false,
+        userId: config.userId,
+        name: config.name,
+        description: config.description ?? null,
+        isDefault: config.isDefault ?? false,
+        config: JSON.stringify(config),
       },
     });
-  }
 
-  // Создание конфигурации
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-  const created = await prisma.importConfig.create({
-    data: {
-      userId: config.userId,
-      name: config.name,
-      description: config.description ?? null,
-      isDefault: config.isDefault ?? false,
-      config: JSON.stringify(config),
-    },
+    return created;
   });
 
   logger.info('Import config created', {
-    configId: created.id,
+    configId: result.id,
     userId: config.userId,
     name: config.name,
+    isDefault: config.isDefault,
   });
 
   return {
     ...config,
-    id: created.id,
-    createdAt: created.createdAt,
-    updatedAt: created.updatedAt,
+    id: result.id,
+    createdAt: result.createdAt,
+    updatedAt: result.updatedAt,
   };
 }
 
@@ -164,11 +231,19 @@ export async function getDefaultImportConfigForUser(
   userId: string,
   prisma: PrismaClient
 ): Promise<ImportConfig | null> {
+  // Сначала проверяем и исправляем множественные конфигурации по умолчанию (если есть)
+  await fixMultipleDefaultConfigs(userId, prisma);
+
+  // Получаем конфигурацию по умолчанию (теперь гарантированно только одна)
+  // Используем orderBy для предсказуемости (самая новая, если вдруг что-то пошло не так)
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
   const config = await prisma.importConfig.findFirst({
     where: {
       userId,
       isDefault: true,
+    },
+    orderBy: {
+      createdAt: 'desc', // Самая новая первая (для предсказуемости)
     },
   });
 
@@ -227,22 +302,7 @@ export async function updateImportConfig(
     return null;
   }
 
-  // Если устанавливается как конфигурация по умолчанию, снимаем флаг с других
-  if (config && config.isDefault === true) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-    await prisma.importConfig.updateMany({
-      where: {
-        userId,
-        isDefault: true,
-        id: { not: configId },
-      },
-      data: {
-        isDefault: false,
-      },
-    });
-  }
-
-  // Парсим существующую конфигурацию
+  // Парсим существующую конфигурацию (вне транзакции)
   let existingConfig: ImportConfig;
   try {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
@@ -293,16 +353,37 @@ export async function updateImportConfig(
     additional: config.additional ?? existingConfig.additional,
   };
 
-  // Обновление конфигурации
+  // Используем транзакцию для атомарности операций
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-  const updated = await prisma.importConfig.update({
-    where: { id: configId },
-    data: {
-      name: updatedConfig.name,
-      description: updatedConfig.description ?? null,
-      isDefault: updatedConfig.isDefault ?? false,
-      config: JSON.stringify(updatedConfig),
-    },
+  const updated = await prisma.$transaction(async (tx) => {
+    // Если устанавливается как конфигурация по умолчанию, снимаем флаг с других
+    if (config && config.isDefault === true) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+      await tx.importConfig.updateMany({
+        where: {
+          userId,
+          isDefault: true,
+          id: { not: configId },
+        },
+        data: {
+          isDefault: false,
+        },
+      });
+    }
+
+    // Обновление конфигурации
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    const updatedRecord = await tx.importConfig.update({
+      where: { id: configId },
+      data: {
+        name: updatedConfig.name,
+        description: updatedConfig.description ?? null,
+        isDefault: updatedConfig.isDefault ?? false,
+        config: JSON.stringify(updatedConfig),
+      },
+    });
+
+    return updatedRecord;
   });
 
   logger.info('Import config updated', {

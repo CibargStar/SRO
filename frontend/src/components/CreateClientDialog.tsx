@@ -33,6 +33,8 @@ import { useClientGroups } from '@/hooks/useClientGroups';
 import { useCreateClientPhone } from '@/hooks/useClientPhones';
 import { useAuthStore } from '@/store';
 import { ClientPhonesFormField } from './ClientPhonesFormField';
+import { CreateClientGroupDialog } from './CreateClientGroupDialog';
+import WarningIcon from '@mui/icons-material/Warning';
 
 interface CreateClientDialogProps {
   open: boolean;
@@ -52,8 +54,9 @@ export function CreateClientDialog({ open, onClose, userId: propUserId }: Create
   const createMutation = useCreateClient();
   const createPhoneMutation = useCreateClientPhone();
   const { data: regions = [] } = useRegions();
-  const { data: groups = [] } = useClientGroups(isRoot && propUserId ? propUserId : undefined);
+  const { data: groups = [], isLoading: groupsLoading } = useClientGroups(isRoot && propUserId ? propUserId : undefined);
   const [phones, setPhones] = React.useState<PhoneItem[]>([]);
+  const [createGroupDialogOpen, setCreateGroupDialogOpen] = React.useState(false);
 
   // Сброс телефонов при закрытии диалога
   useEffect(() => {
@@ -68,6 +71,7 @@ export function CreateClientDialog({ open, onClose, userId: propUserId }: Create
     control,
     formState: { errors },
     reset,
+    getValues,
   } = useForm<CreateClientFormData>({
     resolver: zodResolver(createClientSchema),
     defaultValues: {
@@ -109,9 +113,22 @@ export function CreateClientDialog({ open, onClose, userId: propUserId }: Create
     if (!createMutation.isPending && !createPhoneMutation.isPending) {
         reset();
         setPhones([]);
+        setCreateGroupDialogOpen(false);
         onClose();
     }
   };
+
+  const handleGroupCreated = (newGroupId: string) => {
+    // После создания группы обновляем форму, устанавливая новую группу
+    const currentValues = getValues();
+    reset({
+      ...currentValues,
+      groupId: newGroupId,
+    });
+    setCreateGroupDialogOpen(false);
+  };
+
+  const hasGroups = groups.length > 0;
 
   const errorMessage = createMutation.error ? 'Не удалось создать клиента' : null;
 
@@ -183,35 +200,69 @@ export function CreateClientDialog({ open, onClose, userId: propUserId }: Create
               />
             </FormControl>
 
-            <FormControl fullWidth required>
-              <InputLabel sx={selectInputLabelStyles}>
-                Группа
-              </InputLabel>
-              <Controller
-                name="groupId"
-                control={control}
-                render={({ field, fieldState }) => (
-                  <StyledSelect 
-                    {...field} 
-                    label="Группа" 
-                    value={field.value || ''} 
-                    MenuProps={MenuProps}
-                    error={!!fieldState.error}
+            {!groupsLoading && !hasGroups ? (
+              <Alert 
+                severity="warning" 
+                icon={false}
+                sx={{ 
+                  mb: 2, 
+                  borderRadius: '12px', 
+                  backgroundColor: 'rgba(255, 152, 0, 0.1)', 
+                  color: '#ffffff', 
+                  border: 'none',
+                  '& .MuiAlert-message': {
+                    width: '100%',
+                  },
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, width: '100%' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
+                    <WarningIcon sx={{ color: '#ff9800', fontSize: '20px', flexShrink: 0 }} />
+                    <Typography variant="body2" sx={{ color: '#ffffff', mb: 0 }}>
+                      У вас нет групп клиентов.
+                    </Typography>
+                  </Box>
+                  <StyledButton
+                    size="small"
+                    onClick={() => setCreateGroupDialogOpen(true)}
+                    sx={{ flexShrink: 0 }}
                   >
-                    {groups.map((group) => (
-                      <MenuItem key={group.id} value={group.id}>
-                        {group.name}
-                      </MenuItem>
-                    ))}
-                  </StyledSelect>
+                    Создать группу
+                  </StyledButton>
+                </Box>
+              </Alert>
+            ) : (
+              <FormControl fullWidth required disabled={groupsLoading}>
+                <InputLabel sx={selectInputLabelStyles}>
+                  Группа
+                </InputLabel>
+                <Controller
+                  name="groupId"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <StyledSelect 
+                      {...field} 
+                      label="Группа" 
+                      value={field.value || ''} 
+                      MenuProps={MenuProps}
+                      error={!!fieldState.error}
+                      disabled={groupsLoading}
+                    >
+                      {groups.map((group) => (
+                        <MenuItem key={group.id} value={group.id}>
+                          {group.name}
+                        </MenuItem>
+                      ))}
+                    </StyledSelect>
+                  )}
+                />
+                {errors.groupId && (
+                  <Typography variant="caption" sx={{ color: '#f44336', mt: 0.5, ml: 1.75 }}>
+                    {errors.groupId.message}
+                  </Typography>
                 )}
-              />
-              {errors.groupId && (
-                <Typography variant="caption" sx={{ color: '#f44336', mt: 0.5, ml: 1.75 }}>
-                  {errors.groupId.message}
-                </Typography>
-              )}
-            </FormControl>
+              </FormControl>
+            )}
 
             <FormControl fullWidth>
               <InputLabel sx={selectInputLabelStyles}>
@@ -237,11 +288,22 @@ export function CreateClientDialog({ open, onClose, userId: propUserId }: Create
           <CancelButton onClick={handleClose} disabled={createMutation.isPending}>
             Отмена
           </CancelButton>
-          <StyledButton type="submit" disabled={createMutation.isPending || createPhoneMutation.isPending}>
+          <StyledButton 
+            type="submit" 
+            disabled={createMutation.isPending || createPhoneMutation.isPending || !hasGroups || groupsLoading}
+          >
             {createMutation.isPending || createPhoneMutation.isPending ? <CircularProgress size={LOADING_ICON_SIZE} /> : 'Создать'}
           </StyledButton>
         </DialogActions>
       </form>
+
+      {/* Диалог создания группы */}
+      <CreateClientGroupDialog
+        open={createGroupDialogOpen}
+        onClose={() => setCreateGroupDialogOpen(false)}
+        onSuccess={handleGroupCreated}
+        userId={propUserId}
+      />
     </Dialog>
   );
 }
