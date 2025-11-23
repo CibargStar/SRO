@@ -37,7 +37,6 @@ import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import { useImportClients } from '@/hooks/useImport';
 import { useClientGroups } from '@/hooks/useClientGroups';
 import { useImportConfigs, useDefaultImportConfig } from '@/hooks/useImportConfigs';
-import { ClientGroupSelector } from './ClientGroupSelector';
 import { CreateClientGroupDialog } from './CreateClientGroupDialog';
 import { ImportConfigDialog } from './ImportConfigDialog';
 import { StyledSelect, MenuProps, selectInputLabelStyles } from './common/SelectStyles';
@@ -227,7 +226,6 @@ export function ImportClientsDialog({ open, onClose, userId: propUserId }: Impor
 
   const isLoading = importMutation.isPending;
   const error = importMutation.error;
-  const hasGroups = groups.length > 0;
 
   return (
     <Dialog
@@ -249,7 +247,7 @@ export function ImportClientsDialog({ open, onClose, userId: propUserId }: Impor
           {/* Выбор группы (скрывается после завершения импорта) */}
           {!importResult && (
             <Box>
-              {!groupsLoading && !hasGroups ? (
+              {!groupsLoading && groups.length === 0 ? (
                 <Alert 
                   severity="warning" 
                   icon={false}
@@ -281,13 +279,24 @@ export function ImportClientsDialog({ open, onClose, userId: propUserId }: Impor
                   </Box>
                 </Alert>
               ) : (
-                <ClientGroupSelector
-                  value={groupId || null}
-                  onChange={(val) => setGroupId(val || '')}
-                  required
-                  disabled={isLoading}
-                  userId={propUserId}
-                />
+                <FormControl fullWidth required disabled={isLoading || groupsLoading}>
+                  <InputLabel sx={selectInputLabelStyles}>
+                    Группа
+                  </InputLabel>
+                  <StyledSelect
+                    value={groupId || ''}
+                    onChange={(e) => setGroupId(e.target.value || '')}
+                    label="Группа"
+                    MenuProps={MenuProps}
+                    disabled={isLoading || groupsLoading}
+                  >
+                    {groups.map((group) => (
+                      <MenuItem key={group.id} value={group.id}>
+                        {group.name}
+                      </MenuItem>
+                    ))}
+                  </StyledSelect>
+                </FormControl>
               )}
             </Box>
           )}
@@ -754,7 +763,6 @@ export function ImportClientsDialog({ open, onClose, userId: propUserId }: Impor
               !selectedFile || 
               !groupId || 
               isLoading || 
-              !hasGroups || 
               configsLoading || 
               defaultConfigLoading ||
               !!fileError ||
