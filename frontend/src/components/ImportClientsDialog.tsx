@@ -161,7 +161,58 @@ export function ImportClientsDialog({ open, onClose, userId: propUserId }: Impor
   };
 
   const handleUploadClick = () => {
+    if (isLoading) return; // Блокируем клик во время импорта
     fileInputRef.current?.click();
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (isLoading) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    if (isLoading) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      // Проверка формата файла
+      const allowedExtensions = ['.xlsx', '.xls', '.csv'];
+      const ext = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+      if (!allowedExtensions.includes(ext)) {
+        setFileError('Неподдерживаемый формат файла. Разрешены: .xlsx, .xls, .csv');
+        setSelectedFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        return;
+      }
+      
+      // Проверка размера файла (максимум 50MB)
+      const maxSize = 50 * 1024 * 1024; // 50MB
+      if (file.size > maxSize) {
+        setFileError(`Файл слишком большой. Максимальный размер: ${(maxSize / 1024 / 1024).toFixed(0)}MB`);
+        setSelectedFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        return;
+      }
+      
+      setFileError(null);
+      setSelectedFile(file);
+      setImportResult(null);
+    }
   };
 
   const handleImport = async () => {
@@ -415,10 +466,21 @@ export function ImportClientsDialog({ open, onClose, userId: propUserId }: Impor
             <Box>
               <UploadArea 
                 onClick={handleUploadClick}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
                 sx={{
                   ...(selectedFile && {
                     borderColor: 'rgba(76, 175, 80, 0.5)',
                     backgroundColor: 'rgba(76, 175, 80, 0.05)',
+                  }),
+                  ...(isLoading && {
+                    cursor: 'not-allowed',
+                    opacity: 0.6,
+                    pointerEvents: 'none',
+                    '&:hover': {
+                      borderColor: 'rgba(255, 255, 255, 0.3)',
+                      backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                    },
                   }),
                 }}
               >
@@ -434,12 +496,17 @@ export function ImportClientsDialog({ open, onClose, userId: propUserId }: Impor
                     <Typography 
                       variant="body2" 
                       sx={{ 
-                        color: 'rgba(255, 255, 255, 0.5)', 
+                        color: isLoading ? 'rgba(255, 255, 255, 0.3)' : 'rgba(255, 255, 255, 0.5)', 
                         mt: 1,
-                        textDecoration: 'underline',
-                        cursor: 'pointer',
+                        textDecoration: isLoading ? 'none' : 'underline',
+                        cursor: isLoading ? 'not-allowed' : 'pointer',
+                        pointerEvents: isLoading ? 'none' : 'auto',
                       }}
                       onClick={(e) => {
+                        if (isLoading) {
+                          e.stopPropagation();
+                          return;
+                        }
                         e.stopPropagation();
                         setSelectedFile(null);
                         if (fileInputRef.current) {
@@ -517,99 +584,315 @@ export function ImportClientsDialog({ open, onClose, userId: propUserId }: Impor
 
           {/* Результаты импорта */}
           {importResult && (
-            <StyledPaper>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-                {importResult.success ? (
-                  <CheckCircleIcon sx={{ color: '#4caf50', fontSize: 32 }} />
-                ) : (
-                  <ErrorIcon sx={{ color: '#f44336', fontSize: 32 }} />
-                )}
-                <Box>
-                  <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500, mb: 0.5 }}>
+            <Box
+              sx={{
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                borderRadius: '12px',
+                padding: 3,
+              }}
+            >
+              {/* Заголовок */}
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2,
+                  mb: 3,
+                  pb: 2,
+                  borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                }}
+              >
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 48,
+                    height: 48,
+                    borderRadius: '12px',
+                    backgroundColor: importResult.success
+                      ? 'rgba(76, 175, 80, 0.2)'
+                      : 'rgba(244, 67, 54, 0.2)',
+                  }}
+                >
+                  {importResult.success ? (
+                    <CheckCircleIcon sx={{ color: '#4caf50', fontSize: 28 }} />
+                  ) : (
+                    <ErrorIcon sx={{ color: '#f44336', fontSize: 28 }} />
+                  )}
+                </Box>
+                <Box sx={{ flex: 1 }}>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      color: '#f5f5f5',
+                      fontWeight: 500,
+                      mb: 0.5,
+                      fontSize: '1.125rem',
+                    }}
+                  >
                     {importResult.success ? 'Импорт завершен успешно' : 'Импорт завершен с ошибками'}
                   </Typography>
-                  <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                    Группа: {importResult.groupName}
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: 'rgba(255, 255, 255, 0.7)',
+                      fontSize: '0.875rem',
+                    }}
+                  >
+                    Группа: <span style={{ color: '#ffffff', fontWeight: 500 }}>{importResult.groupName}</span>
                   </Typography>
                 </Box>
               </Box>
 
               {/* Статистика */}
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 3 }}>
-                <Chip
-                  label={`Всего: ${importResult.statistics.total}`}
-                  size="medium"
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: {
+                    xs: 'repeat(2, 1fr)',
+                    sm: 'repeat(3, 1fr)',
+                  },
+                  gap: 2,
+                  mb: importResult.errors && importResult.errors.length > 0 ? 3 : 0,
+                }}
+              >
+                {/* Всего */}
+                <Box
                   sx={{
-                    backgroundColor: 'rgba(33, 150, 243, 0.2)',
-                    color: '#ffffff',
-                    fontWeight: 600,
-                    fontSize: '0.875rem',
-                    height: '32px',
-                    '& .MuiChip-label': {
-                      color: '#ffffff',
-                      px: 1.5,
+                    backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                    borderRadius: '12px',
+                    padding: 2,
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    '&:hover': {
+                      backgroundColor: 'rgba(33, 150, 243, 0.15)',
+                      transform: 'translateY(-2px)',
                     },
                   }}
-                />
+                >
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: 'rgba(255, 255, 255, 0.7)',
+                      fontSize: '0.75rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                      mb: 0.5,
+                      display: 'block',
+                    }}
+                  >
+                    Всего
+                  </Typography>
+                  <Typography
+                    variant="h5"
+                    sx={{
+                      color: '#ffffff',
+                      fontWeight: 600,
+                      fontSize: '1.75rem',
+                    }}
+                  >
+                    {importResult.statistics.total}
+                  </Typography>
+                </Box>
+
+                {/* Создано */}
                 {importResult.statistics.created > 0 && (
-                  <Chip
-                    label={`Создано: ${importResult.statistics.created}`}
-                    size="medium"
+                  <Box
                     sx={{
-                      backgroundColor: 'rgba(76, 175, 80, 0.2)',
-                      color: '#4caf50',
-                      fontWeight: 500,
-                      height: '32px',
+                      backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                      borderRadius: '12px',
+                      padding: 2,
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                      '&:hover': {
+                        backgroundColor: 'rgba(76, 175, 80, 0.15)',
+                        transform: 'translateY(-2px)',
+                      },
                     }}
-                  />
+                  >
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: 'rgba(255, 255, 255, 0.7)',
+                        fontSize: '0.75rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                        mb: 0.5,
+                        display: 'block',
+                      }}
+                    >
+                      Создано
+                    </Typography>
+                    <Typography
+                      variant="h5"
+                      sx={{
+                        color: '#4caf50',
+                        fontWeight: 600,
+                        fontSize: '1.75rem',
+                      }}
+                    >
+                      {importResult.statistics.created}
+                    </Typography>
+                  </Box>
                 )}
+
+                {/* Обновлено */}
                 {importResult.statistics.updated > 0 && (
-                  <Chip
-                    label={`Обновлено: ${importResult.statistics.updated}`}
-                    size="medium"
+                  <Box
                     sx={{
-                      backgroundColor: 'rgba(33, 150, 243, 0.2)',
-                      color: '#2196f3',
-                      fontWeight: 500,
-                      height: '32px',
+                      backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                      borderRadius: '12px',
+                      padding: 2,
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                      '&:hover': {
+                        backgroundColor: 'rgba(33, 150, 243, 0.15)',
+                        transform: 'translateY(-2px)',
+                      },
                     }}
-                  />
+                  >
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: 'rgba(255, 255, 255, 0.7)',
+                        fontSize: '0.75rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                        mb: 0.5,
+                        display: 'block',
+                      }}
+                    >
+                      Обновлено
+                    </Typography>
+                    <Typography
+                      variant="h5"
+                      sx={{
+                        color: '#2196f3',
+                        fontWeight: 600,
+                        fontSize: '1.75rem',
+                      }}
+                    >
+                      {importResult.statistics.updated}
+                    </Typography>
+                  </Box>
                 )}
+
+                {/* Пропущено */}
                 {importResult.statistics.skipped > 0 && (
-                  <Chip
-                    label={`Пропущено: ${importResult.statistics.skipped}`}
-                    size="medium"
+                  <Box
                     sx={{
-                      backgroundColor: 'rgba(255, 152, 0, 0.2)',
-                      color: '#ff9800',
-                      fontWeight: 500,
-                      height: '32px',
+                      backgroundColor: 'rgba(255, 152, 0, 0.1)',
+                      borderRadius: '12px',
+                      padding: 2,
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                      '&:hover': {
+                        backgroundColor: 'rgba(255, 152, 0, 0.15)',
+                        transform: 'translateY(-2px)',
+                      },
                     }}
-                  />
+                  >
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: 'rgba(255, 255, 255, 0.7)',
+                        fontSize: '0.75rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                        mb: 0.5,
+                        display: 'block',
+                      }}
+                    >
+                      Пропущено
+                    </Typography>
+                    <Typography
+                      variant="h5"
+                      sx={{
+                        color: '#ff9800',
+                        fontWeight: 600,
+                        fontSize: '1.75rem',
+                      }}
+                    >
+                      {importResult.statistics.skipped}
+                    </Typography>
+                  </Box>
                 )}
+
+                {/* Ошибок */}
                 {importResult.statistics.errors > 0 && (
-                  <Chip
-                    label={`Ошибок: ${importResult.statistics.errors}`}
-                    size="medium"
+                  <Box
                     sx={{
-                      backgroundColor: 'rgba(244, 67, 54, 0.2)',
-                      color: '#f44336',
-                      fontWeight: 500,
-                      height: '32px',
+                      backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                      borderRadius: '12px',
+                      padding: 2,
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                      '&:hover': {
+                        backgroundColor: 'rgba(244, 67, 54, 0.15)',
+                        transform: 'translateY(-2px)',
+                      },
                     }}
-                  />
+                  >
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: 'rgba(255, 255, 255, 0.7)',
+                        fontSize: '0.75rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                        mb: 0.5,
+                        display: 'block',
+                      }}
+                    >
+                      Ошибок
+                    </Typography>
+                    <Typography
+                      variant="h5"
+                      sx={{
+                        color: '#f44336',
+                        fontWeight: 600,
+                        fontSize: '1.75rem',
+                      }}
+                    >
+                      {importResult.statistics.errors}
+                    </Typography>
+                  </Box>
                 )}
+
+                {/* Регионов создано */}
                 {importResult.statistics.regionsCreated > 0 && (
-                  <Chip
-                    label={`Регионов создано: ${importResult.statistics.regionsCreated}`}
-                    size="medium"
+                  <Box
                     sx={{
-                      backgroundColor: 'rgba(156, 39, 176, 0.2)',
-                      color: '#9c27b0',
-                      fontWeight: 500,
-                      height: '32px',
+                      backgroundColor: 'rgba(156, 39, 176, 0.1)',
+                      borderRadius: '12px',
+                      padding: 2,
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                      '&:hover': {
+                        backgroundColor: 'rgba(156, 39, 176, 0.15)',
+                        transform: 'translateY(-2px)',
+                      },
                     }}
-                  />
+                  >
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: 'rgba(255, 255, 255, 0.7)',
+                        fontSize: '0.75rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                        mb: 0.5,
+                        display: 'block',
+                      }}
+                    >
+                      Регионов создано
+                    </Typography>
+                    <Typography
+                      variant="h5"
+                      sx={{
+                        color: '#9c27b0',
+                        fontWeight: 600,
+                        fontSize: '1.75rem',
+                      }}
+                    >
+                      {importResult.statistics.regionsCreated}
+                    </Typography>
+                  </Box>
                 )}
               </Box>
 
@@ -704,7 +987,7 @@ export function ImportClientsDialog({ open, onClose, userId: propUserId }: Impor
                   </Box>
                 </Box>
               )}
-            </StyledPaper>
+            </Box>
           )}
 
           {/* Информация о формате файла */}

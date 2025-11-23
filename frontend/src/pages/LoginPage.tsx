@@ -60,36 +60,6 @@ const StyledTextField = styled(TextField)(({ theme }) => ({
     '&.Mui-error fieldset': {
       border: 'none', // Убираем обводку при ошибке
     },
-    
-    // Переопределение стилей автозаполнения браузера (Chrome)
-    '& .MuiInputBase-input': {
-      '&:-webkit-autofill': {
-        WebkitBoxShadow: '0 0 0 1000px #2c2c2c inset !important',
-        WebkitTextFillColor: '#ffffff !important',
-        backgroundColor: '#2c2c2c !important',
-        caretColor: '#ffffff',
-        borderRadius: '12px',
-        transition: 'background-color 5000s ease-in-out 0s', // Долгая задержка для предотвращения смены цвета
-      },
-      
-      '&:-webkit-autofill:hover': {
-        WebkitBoxShadow: '0 0 0 1000px #2c2c2c inset !important',
-        WebkitTextFillColor: '#ffffff !important',
-        backgroundColor: '#2c2c2c !important',
-      },
-      
-      '&:-webkit-autofill:focus': {
-        WebkitBoxShadow: '0 0 0 1000px #2c2c2c inset !important',
-        WebkitTextFillColor: '#ffffff !important',
-        backgroundColor: '#2c2c2c !important',
-      },
-      
-      '&:-webkit-autofill:active': {
-        WebkitBoxShadow: '0 0 0 1000px #2c2c2c inset !important',
-        WebkitTextFillColor: '#ffffff !important',
-        backgroundColor: '#2c2c2c !important',
-      },
-    },
   },
   
   '& .MuiInputLabel-root': {

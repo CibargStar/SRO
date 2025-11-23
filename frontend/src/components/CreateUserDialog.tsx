@@ -73,7 +73,7 @@ const StyledTextField = styled(TextField)(({ theme }) => ({
       outline: 'none',
     },
     
-    // Переопределение стилей автозаполнения браузера (Chrome)
+    // Стили для input (outline убирается глобально через автозаполнение)
     '& .MuiInputBase-input': {
       outline: 'none',
       '&:focus': {
@@ -81,33 +81,6 @@ const StyledTextField = styled(TextField)(({ theme }) => ({
       },
       '&:focus-visible': {
         outline: 'none',
-      },
-      '&:-webkit-autofill': {
-        WebkitBoxShadow: '0 0 0 1000px #2c2c2c inset !important',
-        WebkitTextFillColor: '#ffffff !important',
-        backgroundColor: '#2c2c2c !important',
-        caretColor: '#ffffff',
-        borderRadius: '12px',
-        outline: 'none',
-        transition: 'background-color 5000s ease-in-out 0s', // Долгая задержка для предотвращения смены цвета
-      },
-      
-      '&:-webkit-autofill:hover': {
-        WebkitBoxShadow: '0 0 0 1000px #2c2c2c inset !important',
-        WebkitTextFillColor: '#ffffff !important',
-        backgroundColor: '#2c2c2c !important',
-      },
-      
-      '&:-webkit-autofill:focus': {
-        WebkitBoxShadow: '0 0 0 1000px #2c2c2c inset !important',
-        WebkitTextFillColor: '#ffffff !important',
-        backgroundColor: '#2c2c2c !important',
-      },
-      
-      '&:-webkit-autofill:active': {
-        WebkitBoxShadow: '0 0 0 1000px #2c2c2c inset !important',
-        WebkitTextFillColor: '#ffffff !important',
-        backgroundColor: '#2c2c2c !important',
       },
     },
   },
@@ -359,7 +332,7 @@ export function CreateUserDialog({ open, onClose }: CreateUserDialogProps) {
             </Box>
           </Box>
         </DialogContent>
-        <DialogActions sx={{ ...dialogActionsStyles, gap: 2 }}>
+        <DialogActions sx={dialogActionsStyles}>
           <CancelButton onClick={handleClose} disabled={createMutation.isPending}>
             Отмена
           </CancelButton>

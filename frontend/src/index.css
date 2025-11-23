@@ -78,3 +78,47 @@ code {
     monospace;
 }
 
+/* 
+ * Глобальные стили для автозаполнения полей ввода
+ * Переопределяет стандартные стили браузера (желтый фон) на кастомные темные стили
+ * Применяется ко всем input, textarea и другим полям ввода
+ */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+textarea:-webkit-autofill:active,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus,
+select:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #2c2c2c inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background-color: #2c2c2c !important;
+  caret-color: #ffffff;
+  transition: background-color 5000s ease-in-out 0s; /* Долгая задержка для предотвращения смены цвета */
+}
+
+/* 
+ * Стили автозаполнения для MUI TextField
+ * Применяется к вложенным input элементам внутри MUI компонентов
+ */
+.MuiOutlinedInput-input:-webkit-autofill,
+.MuiOutlinedInput-input:-webkit-autofill:hover,
+.MuiOutlinedInput-input:-webkit-autofill:focus,
+.MuiOutlinedInput-input:-webkit-autofill:active,
+.MuiInputBase-input:-webkit-autofill,
+.MuiInputBase-input:-webkit-autofill:hover,
+.MuiInputBase-input:-webkit-autofill:focus,
+.MuiInputBase-input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #2c2c2c inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background-color: #2c2c2c !important;
+  caret-color: #ffffff;
+  transition: background-color 5000s ease-in-out 0s;
+  border-radius: 12px;
+}
+

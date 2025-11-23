@@ -19,6 +19,32 @@ export const StyledTextField = styled(TextField)({
     '& fieldset': { border: 'none' },
     '&:hover fieldset': { border: 'none' },
     '&.Mui-focused fieldset': { border: 'none' },
+    // Переопределение стилей автозаполнения браузера
+    '& .MuiInputBase-input': {
+      '&:-webkit-autofill': {
+        WebkitBoxShadow: '0 0 0 1000px #2c2c2c inset !important',
+        WebkitTextFillColor: '#ffffff !important',
+        backgroundColor: '#2c2c2c !important',
+        caretColor: '#ffffff',
+        borderRadius: '12px',
+        transition: 'background-color 5000s ease-in-out 0s',
+      },
+      '&:-webkit-autofill:hover': {
+        WebkitBoxShadow: '0 0 0 1000px #2c2c2c inset !important',
+        WebkitTextFillColor: '#ffffff !important',
+        backgroundColor: '#2c2c2c !important',
+      },
+      '&:-webkit-autofill:focus': {
+        WebkitBoxShadow: '0 0 0 1000px #2c2c2c inset !important',
+        WebkitTextFillColor: '#ffffff !important',
+        backgroundColor: '#2c2c2c !important',
+      },
+      '&:-webkit-autofill:active': {
+        WebkitBoxShadow: '0 0 0 1000px #2c2c2c inset !important',
+        WebkitTextFillColor: '#ffffff !important',
+        backgroundColor: '#2c2c2c !important',
+      },
+    },
   },
   '& .MuiInputLabel-root': { color: 'rgba(255, 255, 255, 0.7)' },
   '& .MuiInputLabel-root.Mui-focused': { color: 'rgba(255, 255, 255, 0.9)' },
