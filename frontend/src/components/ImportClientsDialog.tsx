@@ -26,11 +26,15 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  InputAdornment,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
+import WarningIcon from '@mui/icons-material/Warning';
+import LockIcon from '@mui/icons-material/Lock';
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import { useImportClients } from '@/hooks/useImport';
 import { useClientGroups } from '@/hooks/useClientGroups';
 import { useImportConfigs, useDefaultImportConfig } from '@/hooks/useImportConfigs';
@@ -93,8 +97,23 @@ const StyledSelect = styled(Select)({
   '& .MuiSelect-icon': { color: 'rgba(255, 255, 255, 0.7)' },
   '&.Mui-disabled': {
     color: '#ffffff',
-    '& .MuiSelect-icon': { color: 'rgba(255, 255, 255, 0.3)' },
-    '& .MuiInputBase-input': { color: '#ffffff' },
+    '& .MuiSelect-icon': { 
+      display: 'none',
+    },
+    '& .MuiInputBase-input': { 
+      color: '#ffffff',
+      WebkitTextFillColor: '#ffffff',
+    },
+    '& .MuiSelect-select': {
+      color: '#ffffff',
+      WebkitTextFillColor: '#ffffff',
+    },
+  },
+  '& .MuiInputBase-input': {
+    color: '#ffffff',
+  },
+  '& .MuiSelect-select': {
+    color: '#ffffff',
   },
 });
 
@@ -287,24 +306,33 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
               {!groupsLoading && !hasGroups ? (
                 <Alert 
                   severity="warning" 
+                  icon={false}
                   sx={{ 
                     mb: 2, 
                     borderRadius: '12px', 
                     backgroundColor: 'rgba(255, 152, 0, 0.1)', 
                     color: '#ffffff', 
-                    border: 'none' 
+                    border: 'none',
+                    '& .MuiAlert-message': {
+                      width: '100%',
+                    },
                   }}
                 >
-                  <Typography variant="body2" sx={{ mb: 1, color: '#ffffff' }}>
-                    У вас нет групп клиентов. Создайте группу перед импортом.
-                  </Typography>
-                  <StyledButton
-                    size="small"
-                    onClick={() => setCreateGroupDialogOpen(true)}
-                    sx={{ mt: 1 }}
-                  >
-                    Создать группу
-                  </StyledButton>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, width: '100%' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
+                      <WarningIcon sx={{ color: '#ff9800', fontSize: '20px', flexShrink: 0 }} />
+                      <Typography variant="body2" sx={{ color: '#ffffff', mb: 0 }}>
+                        У вас нет групп клиентов. Создайте группу перед импортом.
+                      </Typography>
+                    </Box>
+                    <StyledButton
+                      size="small"
+                      onClick={() => setCreateGroupDialogOpen(true)}
+                      sx={{ flexShrink: 0 }}
+                    >
+                      Создать группу
+                    </StyledButton>
+                  </Box>
                 </Alert>
               ) : (
                 <ClientGroupSelector
@@ -322,17 +350,29 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
             <Box>
               <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
                 <FormControl sx={{ flex: 1 }} disabled={isLoading || configsLoading || defaultConfigLoading || !hasSavedConfigs}>
-                  <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Выберите конфигурацию</InputLabel>
-                  <StyledSelect
-                    value={selectedConfigId || ''}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      // Если значение пустое, устанавливаем undefined, иначе сохраняем значение (включая 'default')
-                      setSelectedConfigId(value === '' ? undefined : value);
+                  <InputLabel 
+                    sx={{ 
+                      color: 'rgba(255, 255, 255, 0.7)',
+                      '&.Mui-disabled': {
+                        color: 'rgba(255, 255, 255, 0.5)',
+                      },
                     }}
-                    label="Выберите конфигурацию"
-                    disabled={isLoading || configsLoading || defaultConfigLoading || !hasSavedConfigs}
                   >
+                    Выберите конфигурацию
+                  </InputLabel>
+                  <Box sx={{ position: 'relative', width: '100%' }}>
+                    <StyledSelect
+                      value={selectedConfigId || ''}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        // Если значение пустое, устанавливаем undefined, иначе сохраняем значение (включая 'default')
+                        setSelectedConfigId(value === '' ? undefined : value);
+                      }}
+                      label="Выберите конфигурацию"
+                      disabled={isLoading || configsLoading || defaultConfigLoading || !hasSavedConfigs}
+                      IconComponent={ArrowDropDownIcon}
+                      fullWidth
+                    >
                   {defaultConfigLoading || configsLoading ? (
                     <MenuItem value="" disabled>
                       <CircularProgress size={16} sx={{ mr: 1 }} />
@@ -359,7 +399,22 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
                       ),
                     ].filter(Boolean)
                   )}
-                </StyledSelect>
+                    </StyledSelect>
+                    {(isLoading || configsLoading || defaultConfigLoading || !hasSavedConfigs) && (
+                      <LockIcon 
+                        sx={{ 
+                          position: 'absolute',
+                          right: '14px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          color: 'rgba(255, 255, 255, 0.5)',
+                          fontSize: '20px',
+                          pointerEvents: 'none',
+                          zIndex: 1,
+                        }} 
+                      />
+                    )}
+                  </Box>
               </FormControl>
               <StyledButton
                 size="small"
@@ -394,9 +449,6 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
           {/* Загрузка файла */}
           {!importResult && (
             <Box>
-              <Typography variant="body2" sx={{ mb: 1, color: 'rgba(255, 255, 255, 0.7)' }}>
-                Выберите Excel файл (XLSX, XLS, CSV):
-              </Typography>
               <UploadArea 
                 onClick={handleUploadClick}
                 sx={{
