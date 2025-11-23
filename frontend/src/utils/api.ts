@@ -1126,3 +1126,87 @@ export async function createConfigFromTemplate(
   return handleResponse<ImportConfig>(response);
 }
 
+// ============================================
+// Export API
+// ============================================
+
+/**
+ * Экспортирует группу клиентов в файл
+ * 
+ * @param groupId - ID группы для экспорта
+ * @param format - Формат файла (xlsx, xls, csv)
+ * @returns Promise, который резолвится после успешного скачивания файла
+ */
+export async function exportGroup(groupId: string, format: 'xlsx' | 'xls' | 'csv' = 'xlsx'): Promise<void> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const url = `${API_BASE_URL}/export/groups/${groupId}?format=${format}`;
+
+  const response = await fetchWithAutoRefresh(url, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  if (!response.ok) {
+    await handleResponse<never>(response);
+    return;
+  }
+
+  // Получаем имя файла из заголовков
+  // Сначала пробуем получить из X-Filename (самый надежный способ)
+  let filename = response.headers.get('X-Filename');
+  
+  // Отладочное логирование (можно убрать после проверки)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Export headers:', {
+      'X-Filename': response.headers.get('X-Filename'),
+      'Content-Disposition': response.headers.get('Content-Disposition'),
+      'All headers': Array.from(response.headers.entries()),
+    });
+  }
+  
+  if (!filename) {
+    // Если нет X-Filename, пытаемся извлечь из Content-Disposition
+    const contentDisposition = response.headers.get('Content-Disposition');
+    if (contentDisposition) {
+      // Сначала пытаемся извлечь из RFC 5987 формата (filename*=UTF-8''...)
+      const rfc5987Match = contentDisposition.match(/filename\*=UTF-8''([^;\s]+)/);
+      if (rfc5987Match && rfc5987Match[1]) {
+        try {
+          filename = decodeURIComponent(rfc5987Match[1]);
+        } catch {
+          // Если декодирование не удалось, пробуем другой формат
+        }
+      }
+      
+      // Если RFC 5987 не сработал, пробуем обычный формат (filename="...")
+      if (!filename) {
+        const filenameMatch = contentDisposition.match(/filename=["']?([^"';]+)["']?/i);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1].trim();
+        }
+      }
+    }
+  }
+  
+  // Fallback на дефолтное имя, если ничего не получилось
+  if (!filename) {
+    filename = `group_${groupId}.${format}`;
+  }
+
+  // Создаем blob и скачиваем файл
+  const blob = await response.blob();
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = downloadUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(downloadUrl);
+}
+

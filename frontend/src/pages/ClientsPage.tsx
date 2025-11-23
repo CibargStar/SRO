@@ -39,6 +39,7 @@ import GroupIcon from '@mui/icons-material/Group';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
+import DownloadIcon from '@mui/icons-material/Download';
 import IconButton from '@mui/material/IconButton';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
@@ -47,6 +48,7 @@ import { useClients, useDeleteClient } from '@/hooks/useClients';
 import { useRegions } from '@/hooks/useRegions';
 import { useClientGroups, useDeleteClientGroup } from '@/hooks/useClientGroups';
 import { useUsers } from '@/hooks/useUsers';
+import { useExportGroup } from '@/hooks/useExport';
 import { useAuthStore } from '@/store';
 import { ClientGroupSelector } from '@/components/ClientGroupSelector';
 import { ClientTable } from '@/components/ClientTable';
@@ -99,6 +101,12 @@ export function ClientsPage() {
 
   // Состояние для импорта
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+
+  // Состояние для экспорта
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportGroupId, setExportGroupId] = useState<string | null>(null);
+  const [exportFormat, setExportFormat] = useState<'xlsx' | 'xls' | 'csv'>('xlsx');
+  const exportMutation = useExportGroup();
   
 
   const { data: clientsData, isLoading, error } = useClients({
@@ -181,6 +189,33 @@ export function ClientsPage() {
   const handleCloseDeleteGroupDialog = () => {
     setDeleteGroupDialogOpen(false);
     setSelectedGroup(null);
+  };
+
+  // Обработчики для экспорта
+  const handleExportGroup = (groupId: string) => {
+    setExportGroupId(groupId);
+    setExportDialogOpen(true);
+  };
+
+  const handleConfirmExport = () => {
+    if (exportGroupId) {
+      exportMutation.mutate(
+        { groupId: exportGroupId, format: exportFormat },
+        {
+          onSuccess: () => {
+            setExportDialogOpen(false);
+            setExportGroupId(null);
+            setExportFormat('xlsx');
+          },
+        }
+      );
+    }
+  };
+
+  const handleCloseExportDialog = () => {
+    setExportDialogOpen(false);
+    setExportGroupId(null);
+    setExportFormat('xlsx');
   };
 
   const errorMessage = error ? 'Не удалось загрузить клиентов' : null;
@@ -489,6 +524,17 @@ export function ClientsPage() {
                       <Box>
                         <IconButton
                           size="small"
+                          onClick={() => handleExportGroup(group.id)}
+                          sx={{
+                            color: 'rgba(255, 255, 255, 0.7)',
+                            '&:hover': { color: '#ffffff', backgroundColor: 'rgba(255, 255, 255, 0.1)' },
+                            title: 'Экспортировать группу',
+                          }}
+                        >
+                          <DownloadIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          size="small"
                           onClick={() => handleEditGroup(group)}
                           sx={{
                             color: 'rgba(255, 255, 255, 0.7)',
@@ -608,6 +654,51 @@ export function ClientsPage() {
         onClose={() => setImportDialogOpen(false)}
         userId={isRoot && selectedUserId ? selectedUserId : undefined} // Для ROOT - передаем выбранного пользователя
       />
+
+      {/* Диалог экспорта группы */}
+      <Dialog
+        open={exportDialogOpen}
+        onClose={handleCloseExportDialog}
+        disableEnforceFocus
+        PaperProps={dialogPaperProps}
+      >
+        <DialogTitle sx={{ color: '#f5f5f5' }}>Экспорт группы</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1 }}>
+              Выберите формат файла для экспорта:
+            </Typography>
+            <FormControl fullWidth>
+              <InputLabel sx={selectInputLabelStyles}>
+                Формат файла
+              </InputLabel>
+              <StyledSelect
+                value={exportFormat}
+                onChange={(e) => setExportFormat(e.target.value as 'xlsx' | 'xls' | 'csv')}
+                label="Формат файла"
+                MenuProps={MenuProps}
+              >
+                <MenuItem value="xlsx">Excel (XLSX)</MenuItem>
+                <MenuItem value="xls">Excel (XLS)</MenuItem>
+                <MenuItem value="csv">CSV</MenuItem>
+              </StyledSelect>
+            </FormControl>
+            {exportMutation.error && (
+              <Alert severity="error" sx={{ borderRadius: '12px', backgroundColor: 'rgba(244, 67, 54, 0.1)', color: '#ffffff', border: 'none' }}>
+                {exportMutation.error instanceof Error ? exportMutation.error.message : 'Не удалось экспортировать группу'}
+              </Alert>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions sx={dialogActionsStyles}>
+          <CancelButton onClick={handleCloseExportDialog} disabled={exportMutation.isPending}>
+            Отмена
+          </CancelButton>
+          <StyledButton onClick={handleConfirmExport} disabled={exportMutation.isPending} startIcon={<DownloadIcon />}>
+            {exportMutation.isPending ? <CircularProgress size={LOADING_ICON_SIZE} /> : 'Экспортировать'}
+          </StyledButton>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

@@ -103,7 +103,7 @@ export const corsMiddleware = cors({
   credentials: true, // Разрешаем cookies и авторизационные заголовки
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  exposedHeaders: ['RateLimit-*'], // Экспортируем заголовки rate limiting
+  exposedHeaders: ['RateLimit-*', 'X-Filename', 'Content-Disposition'], // Экспортируем заголовки rate limiting и имя файла
   maxAge: 86400, // 24 часа для preflight запросов
 });
 
