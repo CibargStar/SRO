@@ -5,8 +5,9 @@
  */
 
 import React, { useState } from 'react';
-import { Box, TextField, IconButton, Chip, Typography } from '@mui/material';
+import { Box, IconButton, Chip, Typography } from '@mui/material';
 import { styled } from '@mui/material/styles';
+import { StyledTextField } from './common/FormStyles';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -26,19 +27,6 @@ const PhoneItem = styled(Box)(({ theme }) => ({
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
 }));
-
-const StyledTextField = styled(TextField)({
-  '& .MuiOutlinedInput-root': {
-    borderRadius: '12px',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    color: '#ffffff',
-    '& fieldset': { border: 'none' },
-    '&:hover fieldset': { border: 'none' },
-    '&.Mui-focused fieldset': { border: 'none' },
-  },
-  '& .MuiInputLabel-root': { color: 'rgba(255, 255, 255, 0.7)' },
-  '& .MuiInputLabel-root.Mui-focused': { color: 'rgba(255, 255, 255, 0.9)' },
-});
 
 const StyledIconButton = styled(IconButton)({
   color: 'rgba(255, 255, 255, 0.7)',

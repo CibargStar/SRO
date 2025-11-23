@@ -38,6 +38,9 @@ import {
   IconButton,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
+import { StyledButton, CancelButton } from './common/FormStyles';
+import { dialogPaperProps, dialogTitleStyles, dialogContentStyles, dialogActionsStyles } from './common/DialogStyles';
+import { LOADING_ICON_SIZE } from './common/Constants';
 import InfoIcon from '@mui/icons-material/Info';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
@@ -51,25 +54,6 @@ import { useImportConfigs, useCreateImportConfig, useUpdateImportConfig, useCrea
 import { useAuthStore } from '@/store';
 import { getImportConfig } from '@/utils/api';
 import type { ImportConfig } from '@/utils/api';
-
-const StyledButton = styled(Button)(({ theme }) => ({
-  borderRadius: '12px',
-  backgroundColor: '#f5f5f5',
-  color: '#212121',
-  textTransform: 'none',
-  fontWeight: 500,
-  padding: theme.spacing(1.5, 3),
-  '&:hover': { backgroundColor: '#ffffff', transform: 'translateY(-2px)' },
-}));
-
-const CancelButton = styled(Button)(({ theme }) => ({
-  borderRadius: '12px',
-  backgroundColor: 'transparent',
-  color: 'rgba(255, 255, 255, 0.7)',
-  textTransform: 'none',
-  padding: theme.spacing(1.5, 3),
-  '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.1)', color: '#ffffff' },
-}));
 
 const DeleteButton = styled(Button)(({ theme }) => ({
   borderRadius: '12px',
@@ -111,19 +95,7 @@ const SectionDescription = styled(Typography)({
   marginBottom: '1rem',
 });
 
-const StyledTextField = styled(TextField)({
-  '& .MuiOutlinedInput-root': {
-    borderRadius: '12px',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    color: '#ffffff',
-    '& fieldset': { border: 'none' },
-    '&:hover fieldset': { border: 'none' },
-    '&.Mui-focused fieldset': { border: 'none' },
-  },
-  '& .MuiInputLabel-root': { color: 'rgba(255, 255, 255, 0.7)' },
-  '& .MuiInputLabel-root.Mui-focused': { color: 'rgba(255, 255, 255, 0.9)' },
-  '& .MuiFormHelperText-root': { color: 'rgba(255, 255, 255, 0.5)' },
-});
+import { StyledTextField } from './common/FormStyles';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -1320,7 +1292,7 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
         </TabPanel>
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, pb: 3, pt: 2, justifyContent: config.id ? 'space-between' : 'flex-end', alignItems: 'center' }}>
+      <DialogActions sx={{ ...dialogActionsStyles, justifyContent: config.id ? 'space-between' : 'flex-end', alignItems: 'center' }}>
         {config.id && (
           <Box>
             <DeleteButton
@@ -1390,7 +1362,7 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
               }
               startIcon={
                 (createMutation.isPending || updateMutation.isPending) ? (
-                  <CircularProgress size={20} sx={{ color: '#212121' }} />
+                  <CircularProgress size={LOADING_ICON_SIZE} sx={{ color: '#212121' }} />
                 ) : undefined
               }
             >
@@ -1406,26 +1378,14 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
       <Dialog
         open={deleteConfirmOpen}
         onClose={() => setDeleteConfirmOpen(false)}
-        PaperProps={{ 
-        sx: { 
-          backgroundColor: '#212121', 
-          borderRadius: '12px',
-          '& .MuiDialogContent-root': {
-            '&::-webkit-scrollbar': {
-              display: 'none',
-            },
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
-          },
-        } 
-      }}
+        PaperProps={dialogPaperProps}
       >
-        <Box sx={{ px: 3, pt: 3, pb: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+        <Box sx={dialogTitleStyles}>
           <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
             Подтверждение удаления
           </Typography>
         </Box>
-        <DialogContent sx={{ px: 3, pt: 3 }}>
+        <DialogContent sx={dialogContentStyles}>
           <Typography variant="body1" sx={{ color: 'rgba(255, 255, 255, 0.9)', mb: 2 }}>
             Вы уверены, что хотите удалить конфигурацию <strong>"{config.name}"</strong>?
           </Typography>
@@ -1446,7 +1406,7 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
             </Typography>
           </Alert>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 3, pt: 2 }}>
+        <DialogActions sx={dialogActionsStyles}>
           <CancelButton
             onClick={() => setDeleteConfirmOpen(false)}
             disabled={deleteMutation.isPending}

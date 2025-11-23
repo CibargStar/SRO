@@ -16,41 +16,11 @@ import {
   CircularProgress,
   Typography,
 } from '@mui/material';
-import { styled } from '@mui/material/styles';
+import { StyledTextField, StyledButton, CancelButton } from './common/FormStyles';
+import { dialogPaperProps, dialogTitleStyles, dialogContentStyles, dialogActionsStyles } from './common/DialogStyles';
+import { LOADING_ICON_SIZE } from './common/Constants';
 import { createClientPhoneSchema, type CreateClientPhoneFormData } from '@/schemas/client-phone.schema';
 import { useCreateClientPhone } from '@/hooks/useClientPhones';
-
-const StyledTextField = styled(TextField)({
-  '& .MuiOutlinedInput-root': {
-    borderRadius: '12px',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    color: '#ffffff',
-    '& fieldset': { border: 'none' },
-    '&:hover fieldset': { border: 'none' },
-    '&.Mui-focused fieldset': { border: 'none' },
-  },
-  '& .MuiInputLabel-root': { color: 'rgba(255, 255, 255, 0.7)' },
-  '& .MuiInputLabel-root.Mui-focused': { color: 'rgba(255, 255, 255, 0.9)' },
-});
-
-const StyledButton = styled(Button)(({ theme }) => ({
-  borderRadius: '12px',
-  backgroundColor: '#f5f5f5',
-  color: '#212121',
-  textTransform: 'none',
-  fontWeight: 500,
-  padding: theme.spacing(1.5, 3),
-  '&:hover': { backgroundColor: '#ffffff', transform: 'translateY(-2px)' },
-}));
-
-const CancelButton = styled(Button)(({ theme }) => ({
-  borderRadius: '12px',
-  backgroundColor: 'transparent',
-  color: 'rgba(255, 255, 255, 0.7)',
-  textTransform: 'none',
-  padding: theme.spacing(1.5, 3),
-  '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.1)', color: '#ffffff' },
-}));
 
 interface AddPhoneDialogProps {
   open: boolean;
@@ -99,28 +69,16 @@ export function AddPhoneDialog({ open, clientId, onClose }: AddPhoneDialogProps)
       maxWidth="sm"
       fullWidth
       disableEnforceFocus
-      PaperProps={{ 
-        sx: { 
-          backgroundColor: '#212121', 
-          borderRadius: '12px',
-          '& .MuiDialogContent-root': {
-            '&::-webkit-scrollbar': {
-              display: 'none',
-            },
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
-          },
-        } 
-      }}
+      PaperProps={dialogPaperProps}
     >
       <form onSubmit={handleSubmit(onSubmit)}>
-        <Box sx={{ px: 3, pt: 3, pb: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+        <Box sx={dialogTitleStyles}>
           <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
             Добавить телефон
           </Typography>
         </Box>
 
-        <DialogContent sx={{ px: 3, pt: 3 }}>
+        <DialogContent sx={dialogContentStyles}>
           {errorMessage && (
             <Alert severity="error" sx={{ mb: 2, borderRadius: '12px' }}>
               {errorMessage}
@@ -137,12 +95,12 @@ export function AddPhoneDialog({ open, clientId, onClose }: AddPhoneDialogProps)
           />
         </DialogContent>
 
-        <DialogActions sx={{ px: 3, pb: 3, pt: 2 }}>
+        <DialogActions sx={dialogActionsStyles}>
           <CancelButton onClick={handleClose} disabled={createMutation.isPending}>
             Отмена
           </CancelButton>
           <StyledButton type="submit" disabled={createMutation.isPending}>
-            {createMutation.isPending ? <CircularProgress size={20} /> : 'Добавить'}
+            {createMutation.isPending ? <CircularProgress size={LOADING_ICON_SIZE} /> : 'Добавить'}
           </StyledButton>
         </DialogActions>
       </form>

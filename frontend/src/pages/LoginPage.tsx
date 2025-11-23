@@ -22,6 +22,8 @@ import {
   InputAdornment,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
+import { StyledButton } from '@/components/common/FormStyles';
+import { LOADING_ICON_SIZE } from '@/components/common/Constants';
 import EmailIcon from '@mui/icons-material/Email';
 import LockIcon from '@mui/icons-material/Lock';
 import { loginSchema, type LoginFormData } from '@/schemas/auth.schema';
@@ -105,37 +107,6 @@ const StyledTextField = styled(TextField)(({ theme }) => ({
   
   '& .MuiFormHelperText-root.Mui-error': {
     color: '#f44336', // Красный для ошибок
-  },
-}));
-
-
-/**
- * Стилизованная кнопка входа
- * 
- * Молочно-белая кнопка с темным текстом и скругленными углами.
- */
-const StyledButton = styled(Button)(({ theme }) => ({
-  borderRadius: '12px', // Скругленные углы
-  backgroundColor: '#f5f5f5', // Молочно-белый цвет
-  color: '#212121', // Темный текст (цвет фона)
-  textTransform: 'none', // Без автоматического uppercase
-  fontWeight: 500,
-  padding: theme.spacing(1.5, 3),
-  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-  
-  '&:hover': {
-    backgroundColor: '#ffffff', // Чисто белый при наведении
-    transform: 'translateY(-2px)', // Легкое поднятие
-    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-  },
-  
-  '&:active': {
-    transform: 'translateY(0)', // Возврат при нажатии
-  },
-  
-  '&:disabled': {
-    backgroundColor: 'rgba(245, 245, 245, 0.5)', // Полупрозрачный при disabled
-    color: 'rgba(33, 33, 33, 0.5)',
   },
 }));
 

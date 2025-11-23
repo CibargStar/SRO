@@ -29,8 +29,10 @@ import {
   DialogContent,
   DialogActions,
 } from '@mui/material';
-import { styled } from '@mui/material/styles';
 import { StyledSelect, MenuProps, selectInputLabelStyles } from '@/components/common/SelectStyles';
+import { StyledButton, StyledTextField, CancelButton } from '@/components/common/FormStyles';
+import { dialogPaperProps, dialogTitleStyles, dialogActionsStyles } from '@/components/common/DialogStyles';
+import { LOADING_ICON_SIZE } from '@/components/common/Constants';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import GroupIcon from '@mui/icons-material/Group';
@@ -55,34 +57,6 @@ import { EditClientGroupDialog } from '@/components/EditClientGroupDialog';
 import { ImportClientsDialog } from '@/components/ImportClientsDialog';
 import { formatClientName } from '@/utils';
 import type { Client, ClientStatus, ClientGroup } from '@/types';
-
-const StyledButton = styled(Button)(({ theme }) => ({
-  borderRadius: '12px',
-  backgroundColor: '#f5f5f5',
-  color: '#212121',
-  textTransform: 'none',
-  fontWeight: 500,
-  padding: theme.spacing(1.5, 3),
-  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-  '&:hover': {
-    backgroundColor: '#ffffff',
-    transform: 'translateY(-2px)',
-    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-  },
-}));
-
-const StyledTextField = styled(TextField)({
-  '& .MuiOutlinedInput-root': {
-    borderRadius: '12px',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    color: '#ffffff',
-    '& fieldset': { border: 'none' },
-    '&:hover fieldset': { border: 'none' },
-    '&.Mui-focused fieldset': { border: 'none' },
-  },
-  '& .MuiInputLabel-root': { color: 'rgba(255, 255, 255, 0.7)' },
-  '& .MuiInputLabel-root.Mui-focused': { color: 'rgba(255, 255, 255, 0.9)' },
-});
 
 
 export function ClientsPage() {
@@ -467,9 +441,9 @@ export function ClientsPage() {
         maxWidth="md"
         fullWidth
         disableEnforceFocus
-        PaperProps={{ sx: { backgroundColor: '#212121', borderRadius: '12px' } }}
+        PaperProps={dialogPaperProps}
       >
-        <Box sx={{ px: 3, pt: 3, pb: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+        <Box sx={dialogTitleStyles}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
               Управление группами клиентов
@@ -559,7 +533,7 @@ export function ClientsPage() {
             </Box>
           )}
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 3 }}>
+        <DialogActions sx={dialogActionsStyles}>
           <CancelButton onClick={() => setGroupsDialogOpen(false)}>Закрыть</CancelButton>
         </DialogActions>
       </Dialog>
@@ -584,7 +558,7 @@ export function ClientsPage() {
         open={deleteGroupDialogOpen}
         onClose={handleCloseDeleteGroupDialog}
         disableEnforceFocus
-        PaperProps={{ sx: { backgroundColor: '#212121', borderRadius: '12px' } }}
+        PaperProps={dialogPaperProps}
       >
         <DialogTitle sx={{ color: '#f5f5f5' }}>Подтверждение удаления</DialogTitle>
         <DialogContent>
@@ -594,12 +568,12 @@ export function ClientsPage() {
             Это действие нельзя отменить.
           </Typography>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 3 }}>
+        <DialogActions sx={dialogActionsStyles}>
           <CancelButton onClick={handleCloseDeleteGroupDialog} disabled={deleteGroupMutation.isPending}>
             Отмена
           </CancelButton>
           <StyledButton onClick={handleConfirmDeleteGroup} disabled={deleteGroupMutation.isPending}>
-            {deleteGroupMutation.isPending ? <CircularProgress size={20} /> : 'Удалить'}
+            {deleteGroupMutation.isPending ? <CircularProgress size={LOADING_ICON_SIZE} /> : 'Удалить'}
           </StyledButton>
         </DialogActions>
       </Dialog>
@@ -609,7 +583,7 @@ export function ClientsPage() {
         open={deleteDialogOpen}
         onClose={handleCloseDeleteDialog}
         disableEnforceFocus
-        PaperProps={{ sx: { backgroundColor: '#212121', borderRadius: '12px' } }}
+        PaperProps={dialogPaperProps}
       >
         <DialogTitle sx={{ color: '#f5f5f5' }}>Подтверждение удаления</DialogTitle>
         <DialogContent>
@@ -618,12 +592,12 @@ export function ClientsPage() {
             {selectedClient ? formatClientName(selectedClient) : ''}? Это действие нельзя отменить.
           </Typography>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 3 }}>
+        <DialogActions sx={dialogActionsStyles}>
           <CancelButton onClick={handleCloseDeleteDialog} disabled={deleteMutation.isPending}>
             Отмена
           </CancelButton>
           <StyledButton onClick={handleConfirmDelete} disabled={deleteMutation.isPending}>
-            {deleteMutation.isPending ? <CircularProgress size={20} /> : 'Удалить'}
+            {deleteMutation.isPending ? <CircularProgress size={LOADING_ICON_SIZE} /> : 'Удалить'}
           </StyledButton>
         </DialogActions>
       </Dialog>
@@ -632,17 +606,10 @@ export function ClientsPage() {
       <ImportClientsDialog
         open={importDialogOpen}
         onClose={() => setImportDialogOpen(false)}
+        userId={isRoot && selectedUserId ? selectedUserId : undefined} // Для ROOT - передаем выбранного пользователя
       />
     </Box>
   );
 }
 
-const CancelButton = styled(Button)(({ theme }) => ({
-  borderRadius: '12px',
-  backgroundColor: 'transparent',
-  color: 'rgba(255, 255, 255, 0.7)',
-  textTransform: 'none',
-  padding: theme.spacing(1.5, 3),
-  '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.1)', color: '#ffffff' },
-}));
 

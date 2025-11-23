@@ -25,6 +25,9 @@ import {
   InputAdornment,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
+import { StyledButton, CancelButton } from './common/FormStyles';
+import { dialogPaperProps, dialogTitleStyles, dialogContentStyles, dialogActionsStyles } from './common/DialogStyles';
+import { LOADING_ICON_SIZE } from './common/Constants';
 import EmailIcon from '@mui/icons-material/Email';
 import LockIcon from '@mui/icons-material/Lock';
 import PersonIcon from '@mui/icons-material/Person';
@@ -129,51 +132,6 @@ const StyledTextField = styled(TextField)(({ theme }) => ({
   },
 }));
 
-/**
- * Стилизованная кнопка
- * 
- * Молочно-белая кнопка в стиле страницы логина.
- */
-const StyledButton = styled(Button)(({ theme }) => ({
-  borderRadius: '12px',
-  backgroundColor: '#f5f5f5',
-  color: '#212121',
-  textTransform: 'none',
-  fontWeight: 500,
-  padding: theme.spacing(1.5, 3),
-  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-  '&:hover': {
-    backgroundColor: '#ffffff',
-    transform: 'translateY(-2px)',
-    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-  },
-  '&:disabled': {
-    backgroundColor: 'rgba(245, 245, 245, 0.5)',
-    color: 'rgba(33, 33, 33, 0.5)',
-  },
-}));
-
-/**
- * Стилизованная кнопка отмены
- * 
- * Прозрачная кнопка с белым текстом.
- */
-const CancelButton = styled(Button)(({ theme }) => ({
-  borderRadius: '12px',
-  backgroundColor: 'transparent',
-  color: 'rgba(255, 255, 255, 0.7)',
-  textTransform: 'none',
-  fontWeight: 500,
-  padding: theme.spacing(1.5, 3),
-  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-  '&:hover': {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    color: '#ffffff',
-  },
-  '&:disabled': {
-    color: 'rgba(255, 255, 255, 0.3)',
-  },
-}));
 
 /**
  * Стилизованный Switch
@@ -380,30 +338,11 @@ export function EditUserDialog({ open, user, onClose }: EditUserDialogProps) {
       maxWidth="sm"
       fullWidth
       disableEnforceFocus
-      PaperProps={{
-        sx: {
-          backgroundColor: '#212121',
-          borderRadius: '12px',
-          '& .MuiDialogContent-root': {
-            '&::-webkit-scrollbar': {
-              display: 'none',
-            },
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
-          },
-        },
-      }}
+      PaperProps={dialogPaperProps}
     >
       <form onSubmit={handleSubmit(onSubmit)}>
         {/* Полноценная шапка модалки */}
-        <Box
-          sx={{
-            px: 3,
-            pt: 3,
-            pb: 2,
-            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-          }}
-        >
+        <Box sx={dialogTitleStyles}>
           <Typography
             variant="h6"
             sx={{
@@ -415,7 +354,7 @@ export function EditUserDialog({ open, user, onClose }: EditUserDialogProps) {
             Редактировать пользователя
           </Typography>
         </Box>
-        <DialogContent sx={{ pt: 1 }}>
+        <DialogContent sx={{ ...dialogContentStyles, pt: 1 }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, pt: 1 }}>
             {/* Сообщение об ошибке */}
             <AnimatedCollapse in={!!errorMessage} timeout={300}>
@@ -570,7 +509,7 @@ export function EditUserDialog({ open, user, onClose }: EditUserDialogProps) {
             )}
           </Box>
         </DialogContent>
-        <DialogActions sx={{ p: 3, pt: 2, gap: 2 }}>
+        <DialogActions sx={{ ...dialogActionsStyles, gap: 2 }}>
           <CancelButton onClick={handleClose} disabled={updateMutation.isPending}>
             Отмена
           </CancelButton>

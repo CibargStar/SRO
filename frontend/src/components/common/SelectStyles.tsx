@@ -93,6 +93,11 @@ export const MenuProps = {
       border: '1px solid rgba(255, 255, 255, 0.1)',
       maxHeight: '300px',
       minWidth: '200px',
+      '&::-webkit-scrollbar': {
+        display: 'none',
+      },
+      scrollbarWidth: 'none',
+      msOverflowStyle: 'none',
       '& .MuiMenuItem-root': {
         color: 'rgba(255, 255, 255, 0.9)',
         padding: '10px 16px',

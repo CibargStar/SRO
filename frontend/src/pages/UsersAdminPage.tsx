@@ -15,33 +15,13 @@ import {
   Alert,
   CircularProgress,
 } from '@mui/material';
-import { styled } from '@mui/material/styles';
+import { StyledButton } from '@/components/common/FormStyles';
 import AddIcon from '@mui/icons-material/Add';
 import { useUsers } from '@/hooks/useUsers';
 import { UserTable } from '@/components/UserTable';
 import { CreateUserDialog } from '@/components/CreateUserDialog';
 import { EditUserDialog } from '@/components/EditUserDialog';
 import type { User } from '@/types';
-
-/**
- * Стилизованная кнопка создания пользователя
- * 
- * Минималистичный дизайн в духе страницы логина.
- */
-const StyledButton = styled(Button)(({ theme }) => ({
-  borderRadius: '12px',
-  backgroundColor: '#f5f5f5',
-  color: '#212121',
-  textTransform: 'none',
-  fontWeight: 500,
-  padding: theme.spacing(1.5, 3),
-  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-  '&:hover': {
-    backgroundColor: '#ffffff',
-    transform: 'translateY(-2px)',
-    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-  },
-}));
 
 /**
  * Страница админки пользователей

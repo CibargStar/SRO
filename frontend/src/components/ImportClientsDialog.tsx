@@ -41,31 +41,10 @@ import { ClientGroupSelector } from './ClientGroupSelector';
 import { CreateClientGroupDialog } from './CreateClientGroupDialog';
 import { ImportConfigDialog } from './ImportConfigDialog';
 import { StyledSelect, MenuProps, selectInputLabelStyles } from './common/SelectStyles';
+import { StyledButton, CancelButton } from './common/FormStyles';
+import { dialogPaperProps, dialogTitleStyles, dialogContentStyles, dialogActionsStyles } from './common/DialogStyles';
+import { LOADING_ICON_SIZE } from './common/Constants';
 import type { ImportClientsResponse, ImportConfig } from '@/utils/api';
-
-const StyledButton = styled(Button)(({ theme }) => ({
-  borderRadius: '12px',
-  backgroundColor: '#f5f5f5',
-  color: '#212121',
-  textTransform: 'none',
-  fontWeight: 500,
-  padding: theme.spacing(1.5, 3),
-  '&:hover': { backgroundColor: '#ffffff', transform: 'translateY(-2px)' },
-  '&.Mui-disabled': {
-    backgroundColor: '#f5f5f5',
-    color: '#212121',
-    opacity: 0.6,
-  },
-}));
-
-const CancelButton = styled(Button)(({ theme }) => ({
-  borderRadius: '12px',
-  backgroundColor: 'transparent',
-  color: 'rgba(255, 255, 255, 0.7)',
-  textTransform: 'none',
-  padding: theme.spacing(1.5, 3),
-  '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.1)', color: '#ffffff' },
-}));
 
 const StyledPaper = styled(Paper)(({ theme }) => ({
   padding: theme.spacing(2),
@@ -96,9 +75,10 @@ const HiddenInput = styled('input')({
 interface ImportClientsDialogProps {
   open: boolean;
   onClose: () => void;
+  userId?: string; // Опциональный ID пользователя для ROOT (передается из родительского компонента)
 }
 
-export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps) {
+export function ImportClientsDialog({ open, onClose, userId: propUserId }: ImportClientsDialogProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [groupId, setGroupId] = useState<string>('');
   const [selectedConfigId, setSelectedConfigId] = useState<string | undefined>(undefined);
@@ -108,7 +88,7 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
   const [fileError, setFileError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: groups = [], isLoading: groupsLoading } = useClientGroups();
+  const { data: groups = [], isLoading: groupsLoading } = useClientGroups(propUserId);
   const { data: configsData, isLoading: configsLoading } = useImportConfigs(false);
   const { data: defaultConfig, isLoading: defaultConfigLoading } = useDefaultImportConfig();
   const importMutation = useImportClients();
@@ -256,28 +236,15 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
       maxWidth="md"
       fullWidth
       disableEnforceFocus
-      PaperProps={{ 
-        sx: { 
-          backgroundColor: '#212121', 
-          borderRadius: '12px',
-          '& .MuiDialogContent-root': {
-            overflow: 'hidden',
-            '&::-webkit-scrollbar': {
-              display: 'none',
-            },
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
-          },
-        } 
-      }}
+      PaperProps={{ ...dialogPaperProps, sx: { ...dialogPaperProps.sx, '& .MuiDialogContent-root': { ...dialogPaperProps.sx['& .MuiDialogContent-root'], overflow: 'hidden' } } }}
     >
-      <Box sx={{ px: 3, pt: 3, pb: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+      <Box sx={dialogTitleStyles}>
         <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
           Импорт клиентов из Excel
         </Typography>
       </Box>
 
-      <DialogContent sx={{ px: 3, pt: 3, overflow: 'hidden' }}>
+      <DialogContent sx={{ ...dialogContentStyles, overflow: 'hidden' }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           {/* Выбор группы (скрывается после завершения импорта) */}
           {!importResult && (
@@ -319,6 +286,7 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
                   onChange={(val) => setGroupId(val || '')}
                   required
                   disabled={isLoading}
+                  userId={propUserId}
                 />
               )}
             </Box>
@@ -773,7 +741,7 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
         </Box>
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, pb: 3, pt: 2 }}>
+      <DialogActions sx={dialogActionsStyles}>
         {!isLoading && (
           <CancelButton onClick={handleClose}>
             {importResult ? 'Закрыть' : 'Отмена'}
@@ -792,7 +760,7 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
               !!fileError ||
               isNewConfigSelected // Блокируем импорт при выборе "Новая конфигурация"
             }
-            startIcon={isLoading ? <CircularProgress size={20} sx={{ color: '#212121' }} /> : <CloudUploadIcon />}
+            startIcon={isLoading ? <CircularProgress size={LOADING_ICON_SIZE} sx={{ color: '#212121' }} /> : <CloudUploadIcon />}
             sx={isLoading ? {
               animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
               '@keyframes pulse': {
@@ -817,6 +785,7 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
         open={createGroupDialogOpen}
         onClose={() => setCreateGroupDialogOpen(false)}
         onSuccess={handleGroupCreated}
+        userId={propUserId}
       />
 
       {/* Диалог настройки конфигурации */}
