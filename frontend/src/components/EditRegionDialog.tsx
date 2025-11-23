@@ -96,7 +96,7 @@ export function EditRegionDialog({ open, region, onClose }: EditRegionDialogProp
       maxWidth="sm"
       fullWidth
     >
-      <DialogTitle sx={dialogTitleStyles}>Редактирование региона</DialogTitle>
+      <DialogTitle sx={{ ...dialogTitleStyles, color: '#f5f5f5' }}>Редактирование региона</DialogTitle>
       <form onSubmit={handleSubmit(onSubmit)}>
         <DialogContent sx={{ px: 3, pt: 3 }}>
           <StyledTextField
