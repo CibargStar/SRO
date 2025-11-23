@@ -384,6 +384,13 @@ export function EditUserDialog({ open, user, onClose }: EditUserDialogProps) {
         sx: {
           backgroundColor: '#212121',
           borderRadius: '12px',
+          '& .MuiDialogContent-root': {
+            '&::-webkit-scrollbar': {
+              display: 'none',
+            },
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+          },
         },
       }}
     >

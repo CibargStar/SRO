@@ -345,7 +345,19 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
       maxWidth="md"
       fullWidth
       disableEnforceFocus
-      PaperProps={{ sx: { backgroundColor: '#212121', borderRadius: '12px' } }}
+      PaperProps={{ 
+        sx: { 
+          backgroundColor: '#212121', 
+          borderRadius: '12px',
+          '& .MuiDialogContent-root': {
+            '&::-webkit-scrollbar': {
+              display: 'none',
+            },
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+          },
+        } 
+      }}
     >
       <Box sx={{ px: 3, pt: 3, pb: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
         <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
@@ -1066,9 +1078,9 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
         </TabPanel>
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, pb: 3, pt: 2, justifyContent: 'space-between' }}>
-        <Box>
-          {config.id && (
+      <DialogActions sx={{ px: 3, pb: 3, pt: 2, justifyContent: config.id ? 'space-between' : 'flex-end' }}>
+        {config.id && (
+          <Box>
             <DeleteButton
               onClick={() => setDeleteConfirmOpen(true)}
               disabled={
@@ -1081,8 +1093,8 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
             >
               Удалить
             </DeleteButton>
-          )}
-        </Box>
+          </Box>
+        )}
         <Box sx={{ display: 'flex', gap: 1 }}>
           <CancelButton 
             onClick={onClose}
@@ -1124,7 +1136,19 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
       <Dialog
         open={deleteConfirmOpen}
         onClose={() => setDeleteConfirmOpen(false)}
-        PaperProps={{ sx: { backgroundColor: '#212121', borderRadius: '12px' } }}
+        PaperProps={{ 
+        sx: { 
+          backgroundColor: '#212121', 
+          borderRadius: '12px',
+          '& .MuiDialogContent-root': {
+            '&::-webkit-scrollbar': {
+              display: 'none',
+            },
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+          },
+        } 
+      }}
       >
         <Box sx={{ px: 3, pt: 3, pb: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
           <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>

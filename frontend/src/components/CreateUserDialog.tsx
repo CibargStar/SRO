@@ -276,6 +276,13 @@ export function CreateUserDialog({ open, onClose }: CreateUserDialogProps) {
         sx: {
           backgroundColor: '#212121',
           borderRadius: '12px',
+          '& .MuiDialogContent-root': {
+            '&::-webkit-scrollbar': {
+              display: 'none',
+            },
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+          },
         },
       }}
     >

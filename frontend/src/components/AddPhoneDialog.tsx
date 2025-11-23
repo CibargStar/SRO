@@ -99,7 +99,19 @@ export function AddPhoneDialog({ open, clientId, onClose }: AddPhoneDialogProps)
       maxWidth="sm"
       fullWidth
       disableEnforceFocus
-      PaperProps={{ sx: { backgroundColor: '#212121', borderRadius: '12px' } }}
+      PaperProps={{ 
+        sx: { 
+          backgroundColor: '#212121', 
+          borderRadius: '12px',
+          '& .MuiDialogContent-root': {
+            '&::-webkit-scrollbar': {
+              display: 'none',
+            },
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+          },
+        } 
+      }}
     >
       <form onSubmit={handleSubmit(onSubmit)}>
         <Box sx={{ px: 3, pt: 3, pb: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>

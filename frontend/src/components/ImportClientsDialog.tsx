@@ -113,6 +113,15 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
   const { data: defaultConfig, isLoading: defaultConfigLoading } = useDefaultImportConfig();
   const importMutation = useImportClients();
 
+  // Проверяем наличие конфигураций
+  const hasConfigs = !configsLoading && !defaultConfigLoading && (!!defaultConfig || (configsData?.configs && configsData.configs.length > 0));
+  
+  // Проверяем, существует ли выбранная конфигурация
+  const selectedConfigExists = selectedConfigId && (
+    defaultConfig?.id === selectedConfigId ||
+    configsData?.configs?.some((c) => c.id === selectedConfigId)
+  );
+
   // Устанавливаем конфигурацию по умолчанию при загрузке
   React.useEffect(() => {
     if (defaultConfig && !selectedConfigId && !defaultConfigLoading) {
@@ -226,7 +235,19 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
       maxWidth="md"
       fullWidth
       disableEnforceFocus
-      PaperProps={{ sx: { backgroundColor: '#212121', borderRadius: '12px' } }}
+      PaperProps={{ 
+        sx: { 
+          backgroundColor: '#212121', 
+          borderRadius: '12px',
+          '& .MuiDialogContent-root': {
+            '&::-webkit-scrollbar': {
+              display: 'none',
+            },
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+          },
+        } 
+      }}
     >
       <Box sx={{ px: 3, pt: 3, pb: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
         <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
@@ -287,16 +308,16 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
                   onClick={() => setConfigDialogOpen(true)}
                   sx={{ minWidth: 'auto', px: 2 }}
                 >
-                  Настроить
+                  {hasConfigs && selectedConfigExists ? 'Настроить' : 'Создать'}
                 </StyledButton>
               </Box>
-              <FormControl fullWidth disabled={isLoading || configsLoading || defaultConfigLoading}>
+              <FormControl fullWidth disabled={isLoading || configsLoading || defaultConfigLoading || !hasConfigs}>
                 <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Выберите конфигурацию</InputLabel>
                 <StyledSelect
                   value={selectedConfigId || ''}
                   onChange={(e) => setSelectedConfigId(e.target.value || undefined)}
                   label="Выберите конфигурацию"
-                  disabled={isLoading || configsLoading || defaultConfigLoading}
+                  disabled={isLoading || configsLoading || defaultConfigLoading || !hasConfigs}
                 >
                   {defaultConfigLoading || configsLoading ? (
                     <MenuItem value="" disabled>
@@ -721,7 +742,7 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
         onClose={() => setConfigDialogOpen(false)}
         onSave={handleConfigSaved}
         initialConfig={
-          selectedConfigId
+          selectedConfigId && selectedConfigExists
             ? configsData?.configs?.find((c) => c.id === selectedConfigId) ||
               (defaultConfig?.id === selectedConfigId ? defaultConfig : null)
             : null
