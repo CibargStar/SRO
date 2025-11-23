@@ -93,17 +93,36 @@ export const MenuProps = {
       border: '1px solid rgba(255, 255, 255, 0.1)',
       maxHeight: '300px',
       minWidth: '200px',
+      padding: 0,
+      overflowY: 'auto',
+      overflowX: 'hidden',
       '&::-webkit-scrollbar': {
         display: 'none',
+        width: 0,
+        height: 0,
       },
       scrollbarWidth: 'none',
       msOverflowStyle: 'none',
+      '& .MuiList-root': {
+        padding: 0,
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        '&::-webkit-scrollbar': {
+          display: 'none',
+          width: 0,
+          height: 0,
+        },
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none',
+      },
       '& .MuiMenuItem-root': {
         color: 'rgba(255, 255, 255, 0.9)',
         padding: '10px 16px',
         fontSize: '0.9rem',
         minHeight: '48px',
         transition: 'all 0.2s ease-in-out',
+        marginLeft: 0,
+        marginRight: 0,
         '&:hover': {
           backgroundColor: 'rgba(255, 255, 255, 0.1)',
         },
@@ -123,6 +142,49 @@ export const MenuProps = {
         '&.Mui-disabled': {
           opacity: 0.5,
           cursor: 'not-allowed',
+        },
+        // Первый элемент - скругление верхних углов и расширяем фон до края
+        '&:first-of-type': {
+          borderTopLeftRadius: '12px',
+          borderTopRightRadius: '12px',
+          marginTop: 0,
+          paddingTop: '10px',
+          '&:hover': {
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            borderTopLeftRadius: '12px',
+            borderTopRightRadius: '12px',
+          },
+          '&.Mui-selected': {
+            borderTopLeftRadius: '12px',
+            borderTopRightRadius: '12px',
+          },
+        },
+        // Последний элемент - скругление нижних углов и расширяем фон до края
+        '&:last-of-type': {
+          borderBottomLeftRadius: '12px',
+          borderBottomRightRadius: '12px',
+          marginBottom: 0,
+          paddingBottom: '10px',
+          '&:hover': {
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            borderBottomLeftRadius: '12px',
+            borderBottomRightRadius: '12px',
+          },
+          '&.Mui-selected': {
+            borderBottomLeftRadius: '12px',
+            borderBottomRightRadius: '12px',
+          },
+        },
+        // Если только один элемент - скругление всех углов
+        '&:first-of-type:last-of-type': {
+          borderRadius: '12px',
+          margin: 0,
+          '&:hover': {
+            borderRadius: '12px',
+          },
+          '&.Mui-selected': {
+            borderRadius: '12px',
+          },
         },
       },
     },
