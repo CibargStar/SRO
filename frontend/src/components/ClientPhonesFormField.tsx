@@ -5,13 +5,16 @@
  */
 
 import React, { useState } from 'react';
-import { Box, IconButton, Chip, Typography } from '@mui/material';
+import { Box, IconButton, Chip, Typography, FormControl, InputLabel, MenuItem } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import { StyledTextField } from './common/FormStyles';
+import { StyledTextField, StyledSelect } from './common/FormStyles';
+import { MenuProps, selectInputLabelStyles } from './common/SelectStyles';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PhoneIcon from '@mui/icons-material/Phone';
+import CheckIcon from '@mui/icons-material/Check';
+import CloseIcon from '@mui/icons-material/Close';
 import { createClientPhoneSchema } from '@/schemas/client-phone.schema';
 
 const PhoneItem = styled(Box)(({ theme }) => ({
@@ -44,9 +47,13 @@ const AddPhoneBox = styled(Box)(({ theme }) => ({
   marginTop: theme.spacing(1),
 }));
 
+import type { MessengerStatus } from '@/types';
+
 interface PhoneItem {
   id: string;
   phone: string;
+  whatsAppStatus?: MessengerStatus;
+  telegramStatus?: MessengerStatus;
   isNew?: boolean; // Флаг для новых телефонов (еще не сохраненных)
 }
 
@@ -73,6 +80,8 @@ export function ClientPhonesFormField({ phones, onChange }: ClientPhonesFormFiel
       const phoneItem: PhoneItem = {
         id: `temp-${Date.now()}-${Math.random()}`,
         phone: validated.phone,
+        whatsAppStatus: 'Unknown',
+        telegramStatus: 'Unknown',
         isNew: true,
       };
 
@@ -89,12 +98,17 @@ export function ClientPhonesFormField({ phones, onChange }: ClientPhonesFormFiel
     }
   };
 
-  const handleEditPhone = (id: string, newPhoneValue: string) => {
+  const handleEditPhone = (id: string, newPhoneValue: string, whatsAppStatus?: MessengerStatus, telegramStatus?: MessengerStatus) => {
     try {
       const validated = createClientPhoneSchema.parse({ phone: newPhoneValue.trim() });
       
       onChange(
-        phones.map((p) => (p.id === id ? { ...p, phone: validated.phone } : p))
+        phones.map((p) => (p.id === id ? { 
+          ...p, 
+          phone: validated.phone,
+          whatsAppStatus: whatsAppStatus ?? p.whatsAppStatus ?? 'Unknown',
+          telegramStatus: telegramStatus ?? p.telegramStatus ?? 'Unknown',
+        } : p))
       );
       setEditingId(null);
       setError(null);
@@ -105,6 +119,13 @@ export function ClientPhonesFormField({ phones, onChange }: ClientPhonesFormFiel
       } else {
         setError('Неверный формат номера телефона');
       }
+    }
+  };
+
+  const handleSaveEdit = (id: string) => {
+    const phone = phones.find((p) => p.id === id);
+    if (phone) {
+      handleEditPhone(id, phone.phone, phone.whatsAppStatus, phone.telegramStatus);
     }
   };
 
@@ -128,7 +149,7 @@ export function ClientPhonesFormField({ phones, onChange }: ClientPhonesFormFiel
       {phones.map((phone) => (
         <PhoneItem key={phone.id}>
           {editingId === phone.id ? (
-            <Box sx={{ display: 'flex', gap: 1, flex: 1, alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, flex: 1 }}>
               <StyledTextField
                 size="small"
                 value={phone.phone}
@@ -138,13 +159,65 @@ export function ClientPhonesFormField({ phones, onChange }: ClientPhonesFormFiel
                   );
                   onChange(updated);
                 }}
-                onBlur={() => handleEditPhone(phone.id, phone.phone)}
-                onKeyPress={(e) => handleKeyPress(e, () => handleEditPhone(phone.id, phone.phone))}
+                onKeyPress={(e) => handleKeyPress(e, () => handleSaveEdit(phone.id))}
                 autoFocus
                 fullWidth
                 error={!!error}
                 helperText={error}
+                placeholder="+7 (999) 123-45-67"
               />
+              <Box sx={{ display: 'flex', gap: 1.5 }}>
+                <FormControl fullWidth size="small">
+                  <InputLabel id={`whatsapp-${phone.id}`} sx={selectInputLabelStyles}>
+                    WhatsApp
+                  </InputLabel>
+                  <StyledSelect
+                    labelId={`whatsapp-${phone.id}`}
+                    label="WhatsApp"
+                    value={phone.whatsAppStatus || 'Unknown'}
+                    onChange={(e) => {
+                      const updated = phones.map((p) =>
+                        p.id === phone.id ? { ...p, whatsAppStatus: e.target.value as MessengerStatus } : p
+                      );
+                      onChange(updated);
+                    }}
+                    MenuProps={MenuProps}
+                  >
+                    <MenuItem value="Unknown">Неизвестно</MenuItem>
+                    <MenuItem value="Valid">Валиден</MenuItem>
+                    <MenuItem value="Invalid">Невалиден</MenuItem>
+                  </StyledSelect>
+                </FormControl>
+                <FormControl fullWidth size="small">
+                  <InputLabel id={`telegram-${phone.id}`} sx={selectInputLabelStyles}>
+                    Telegram
+                  </InputLabel>
+                  <StyledSelect
+                    labelId={`telegram-${phone.id}`}
+                    label="Telegram"
+                    value={phone.telegramStatus || 'Unknown'}
+                    onChange={(e) => {
+                      const updated = phones.map((p) =>
+                        p.id === phone.id ? { ...p, telegramStatus: e.target.value as MessengerStatus } : p
+                      );
+                      onChange(updated);
+                    }}
+                    MenuProps={MenuProps}
+                  >
+                    <MenuItem value="Unknown">Неизвестно</MenuItem>
+                    <MenuItem value="Valid">Валиден</MenuItem>
+                    <MenuItem value="Invalid">Невалиден</MenuItem>
+                  </StyledSelect>
+                </FormControl>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 0.5 }}>
+                <StyledIconButton size="small" onClick={() => handleSaveEdit(phone.id)}>
+                  <CheckIcon fontSize="small" />
+                </StyledIconButton>
+                <StyledIconButton size="small" onClick={() => setEditingId(null)}>
+                  <CloseIcon fontSize="small" />
+                </StyledIconButton>
+              </Box>
             </Box>
           ) : (
             <>

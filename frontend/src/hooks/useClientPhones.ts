@@ -12,6 +12,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listClientPhones, createClientPhone, updateClientPhone, deleteClientPhone } from '@/utils/api';
 import type { ClientPhone } from '@/types';
 import type { CreateClientPhoneFormData, UpdateClientPhoneFormData } from '@/schemas/client-phone.schema';
+import { clientsKeys } from './useClients';
 
 /**
  * Ключи для React Query кэша
@@ -50,8 +51,9 @@ export function useCreateClientPhone() {
       createClientPhone(clientId, phoneData),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: clientPhonesKeys.list(variables.clientId) });
-      // Также инвалидируем кэш клиента, чтобы обновить список телефонов
-      queryClient.invalidateQueries({ queryKey: ['clients', 'detail', variables.clientId] });
+      // Инвалидируем кэш конкретного клиента, чтобы обновить список телефонов
+      queryClient.invalidateQueries({ queryKey: clientsKeys.detail(variables.clientId) });
+      // НЕ инвалидируем список клиентов, чтобы избежать дублирования
     },
   });
 }
@@ -78,7 +80,9 @@ export function useUpdateClientPhone() {
         clientPhonesKeys.detail(variables.clientId, updatedPhone.id),
         updatedPhone
       );
-      queryClient.invalidateQueries({ queryKey: ['clients', 'detail', variables.clientId] });
+      // Инвалидируем кэш конкретного клиента
+      queryClient.invalidateQueries({ queryKey: clientsKeys.detail(variables.clientId) });
+      // НЕ инвалидируем список клиентов, чтобы избежать дублирования
     },
   });
 }
@@ -94,7 +98,9 @@ export function useDeleteClientPhone() {
       deleteClientPhone(clientId, phoneId),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: clientPhonesKeys.list(variables.clientId) });
-      queryClient.invalidateQueries({ queryKey: ['clients', 'detail', variables.clientId] });
+      // Инвалидируем кэш конкретного клиента
+      queryClient.invalidateQueries({ queryKey: clientsKeys.detail(variables.clientId) });
+      // НЕ инвалидируем список клиентов, чтобы избежать дублирования
     },
   });
 }

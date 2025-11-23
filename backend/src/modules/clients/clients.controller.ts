@@ -50,7 +50,7 @@ export async function createClientHandler(
       return;
     }
 
-    const { lastName, firstName, middleName, regionId, groupId, status, userId: targetUserId } = req.body;
+    const { lastName, firstName, middleName, regionId, groupId, status, userId: targetUserId, phones } = req.body;
 
     // Определение userId для создания клиента:
     // - Если ROOT и передан userId в body - используем его (создание клиента от имени другого пользователя)
@@ -97,7 +97,7 @@ export async function createClientHandler(
       return;
     }
 
-    // Создание клиента
+    // Создание клиента с телефонами (если указаны)
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const newClient = await prisma.client.create({
       data: {
@@ -108,6 +108,15 @@ export async function createClientHandler(
         regionId: regionId ?? null,
         groupId, // Обязательное поле
         status: status ?? 'NEW',
+        phones: phones && Array.isArray(phones) && phones.length > 0
+          ? {
+              create: phones.map((phone: { phone: string; whatsAppStatus?: string; telegramStatus?: string }) => ({
+                phone: phone.phone,
+                whatsAppStatus: phone.whatsAppStatus ?? 'Unknown',
+                telegramStatus: phone.telegramStatus ?? 'Unknown',
+              })),
+            }
+          : undefined,
       },
       include: {
         region: {

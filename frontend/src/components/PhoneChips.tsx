@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import { Box, Chip, Typography } from '@mui/material';
+import { Box, Chip, Typography, Tooltip } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import type { ClientPhone, MessengerStatus } from '@/types';
 
@@ -51,6 +51,7 @@ function getTelegramColor(status: MessengerStatus): string {
  * Получение градиентного фона для телефона
  * 
  * Левая половина - статус WhatsApp, правая половина - статус Telegram
+ * С плавным переходом в центре
  * 
  * @param whatsAppStatus - Статус WhatsApp
  * @param telegramStatus - Статус Telegram
@@ -60,7 +61,40 @@ function getPhoneGradient(whatsAppStatus: MessengerStatus, telegramStatus: Messe
   const whatsAppColor = getWhatsAppColor(whatsAppStatus);
   const telegramColor = getTelegramColor(telegramStatus);
   
-  return `linear-gradient(to right, ${whatsAppColor} 50%, ${telegramColor} 50%)`;
+  // Плавный переход: левая часть до 48%, переход 48-52%, правая часть с 52%
+  return `linear-gradient(to right, ${whatsAppColor} 0%, ${whatsAppColor} 48%, ${telegramColor} 52%, ${telegramColor} 100%)`;
+}
+
+/**
+ * Получение текстового описания статуса мессенджера
+ * 
+ * @param status - Статус мессенджера
+ * @returns Текстовое описание статуса
+ */
+function getStatusText(status: MessengerStatus): string {
+  switch (status) {
+    case 'Valid':
+      return 'Валиден';
+    case 'Invalid':
+      return 'Невалиден';
+    case 'Unknown':
+    default:
+      return 'Неизвестно';
+  }
+}
+
+/**
+ * Формирование текста подсказки для телефона
+ * 
+ * @param whatsAppStatus - Статус WhatsApp
+ * @param telegramStatus - Статус Telegram
+ * @returns Текст подсказки
+ */
+function getPhoneTooltipText(whatsAppStatus: MessengerStatus, telegramStatus: MessengerStatus): string {
+  const whatsAppText = getStatusText(whatsAppStatus);
+  const telegramText = getStatusText(telegramStatus);
+  
+  return `WhatsApp: ${whatsAppText}\nTelegram: ${telegramText}`;
 }
 
 /**
@@ -123,40 +157,64 @@ export function PhoneChips({ phones, emptyText = '-' }: PhoneChipsProps) {
   return (
     <PhoneChipsContainer>
       {phones.map((phone) => {
-        const gradient = getPhoneGradient(
-          phone.whatsAppStatus || 'Unknown',
-          phone.telegramStatus || 'Unknown'
-        );
+        const whatsAppStatus = phone.whatsAppStatus || 'Unknown';
+        const telegramStatus = phone.telegramStatus || 'Unknown';
+        const gradient = getPhoneGradient(whatsAppStatus, telegramStatus);
+        const tooltipText = getPhoneTooltipText(whatsAppStatus, telegramStatus);
         
         return (
-          <Box
+          <Tooltip
             key={phone.id}
-            sx={{
-              display: 'inline-flex',
-              backgroundImage: gradient,
-              background: gradient,
-              borderRadius: '16px',
-              padding: '1px',
-              overflow: 'hidden',
+            title={tooltipText}
+            arrow
+            componentsProps={{
+              tooltip: {
+                sx: {
+                  backgroundColor: 'rgba(33, 33, 33, 0.95)',
+                  color: '#ffffff',
+                  fontSize: '0.875rem',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  whiteSpace: 'pre-line',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                },
+              },
+              arrow: {
+                sx: {
+                  color: 'rgba(33, 33, 33, 0.95)',
+                },
+              },
             }}
           >
-            <PhoneChipBase
-              label={phone.phone}
-              size="small"
+            <Box
               sx={{
-                backgroundColor: 'transparent !important',
-                background: 'transparent !important',
-                height: '22px',
-                '& .MuiChip-root': {
+                display: 'inline-flex',
+                backgroundImage: gradient,
+                background: gradient,
+                borderRadius: '16px',
+                padding: '1px',
+                overflow: 'hidden',
+                cursor: 'help',
+              }}
+            >
+              <PhoneChipBase
+                label={phone.phone}
+                size="small"
+                sx={{
                   backgroundColor: 'transparent !important',
                   background: 'transparent !important',
-                },
-                '& .MuiChip-label': {
-                  padding: '0 8px',
-                },
-              }}
-            />
-          </Box>
+                  height: '22px',
+                  '& .MuiChip-root': {
+                    backgroundColor: 'transparent !important',
+                    background: 'transparent !important',
+                  },
+                  '& .MuiChip-label': {
+                    padding: '0 8px',
+                  },
+                }}
+              />
+            </Box>
+          </Tooltip>
         );
       })}
     </PhoneChipsContainer>

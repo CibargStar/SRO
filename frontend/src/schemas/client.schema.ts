@@ -7,6 +7,8 @@
 
 import { z } from 'zod';
 
+import { createClientPhoneSchema } from './client-phone.schema';
+
 /**
  * Схема валидации для создания клиента
  */
@@ -47,6 +49,8 @@ export const createClientSchema = z.object({
     .string()
     .uuid({ message: 'Неверный формат ID пользователя' })
     .optional(), // Опциональный параметр для ROOT (для создания клиента от имени другого пользователя)
+
+  phones: z.array(createClientPhoneSchema).optional().default([]),
 });
 
 /**

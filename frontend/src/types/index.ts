@@ -197,6 +197,12 @@ export interface CreateClientInput {
   regionId?: string | null;
   groupId?: string | null;
   status?: ClientStatus;
+  userId?: string; // Опциональный параметр для ROOT (для создания клиента от имени другого пользователя)
+  phones?: Array<{
+    phone: string;
+    whatsAppStatus?: MessengerStatus;
+    telegramStatus?: MessengerStatus;
+  }>;
 }
 
 /**

@@ -15,6 +15,27 @@ import { z } from 'zod';
 export const ClientStatusEnum = z.enum(['NEW', 'OLD']);
 
 /**
+ * Enum для статусов мессенджеров
+ */
+export const MessengerStatusEnum = z.enum(['Valid', 'Invalid', 'Unknown']);
+
+/**
+ * Схема валидации для телефона при создании клиента
+ */
+const createClientPhoneInputSchema = z.object({
+  phone: z
+    .string({ required_error: 'Phone is required' })
+    .min(1, { message: 'Phone cannot be empty' })
+    .max(20, { message: 'Phone must be at most 20 characters long' })
+    .trim()
+    .regex(/^[\+]?[(]?[0-9]{1,4}[)]?[-\s\.]?[(]?[0-9]{1,4}[)]?[-\s\.]?[0-9]{1,9}$/, {
+      message: 'Invalid phone number format',
+    }),
+  whatsAppStatus: MessengerStatusEnum.optional().default('Unknown'),
+  telegramStatus: MessengerStatusEnum.optional().default('Unknown'),
+});
+
+/**
  * Схема валидации для создания клиента
  * 
  * @property lastName - Фамилия клиента (обязательно)
@@ -24,6 +45,7 @@ export const ClientStatusEnum = z.enum(['NEW', 'OLD']);
  * @property groupId - ID группы клиентов (обязательно, UUID)
  * @property status - Статус клиента (NEW или OLD, по умолчанию NEW)
  * @property userId - ID пользователя-владельца (опционально, UUID, только для ROOT)
+ * @property phones - Массив телефонов (опционально)
  * 
  * @example
  * ```typescript
@@ -67,6 +89,8 @@ export const createClientSchema = z.object({
     .string()
     .uuid({ message: 'User ID must be a valid UUID' })
     .optional(), // Опциональный параметр для ROOT (для создания клиентов от имени другого пользователя)
+
+  phones: z.array(createClientPhoneInputSchema).optional().default([]),
 });
 
 /**

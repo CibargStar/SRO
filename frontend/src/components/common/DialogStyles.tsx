@@ -12,9 +12,22 @@ export const dialogPaperProps = {
   sx: {
     backgroundColor: '#212121',
     borderRadius: '12px',
+    overflow: 'hidden',
     '& .MuiDialogContent-root': {
+      overflowY: 'auto',
       '&::-webkit-scrollbar': {
         display: 'none',
+        width: 0,
+        height: 0,
+      },
+      scrollbarWidth: 'none',
+      msOverflowStyle: 'none',
+    },
+    '& *': {
+      '&::-webkit-scrollbar': {
+        display: 'none',
+        width: 0,
+        height: 0,
       },
       scrollbarWidth: 'none',
       msOverflowStyle: 'none',

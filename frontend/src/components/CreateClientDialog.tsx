@@ -30,7 +30,6 @@ import { createClientSchema, type CreateClientFormData } from '@/schemas/client.
 import { useCreateClient } from '@/hooks/useClients';
 import { useRegions } from '@/hooks/useRegions';
 import { useClientGroups } from '@/hooks/useClientGroups';
-import { useCreateClientPhone } from '@/hooks/useClientPhones';
 import { useAuthStore } from '@/store';
 import { ClientPhonesFormField } from './ClientPhonesFormField';
 import { CreateClientGroupDialog } from './CreateClientGroupDialog';
@@ -42,28 +41,14 @@ interface CreateClientDialogProps {
   userId?: string; // Опциональный ID пользователя для ROOT (передается из родительского компонента)
 }
 
-interface PhoneItem {
-  id: string;
-  phone: string;
-  isNew?: boolean;
-}
-
 export function CreateClientDialog({ open, onClose, userId: propUserId }: CreateClientDialogProps) {
   const user = useAuthStore((state) => state.user);
   const isRoot = user?.role === 'ROOT';
   const createMutation = useCreateClient();
-  const createPhoneMutation = useCreateClientPhone();
   const { data: regions = [] } = useRegions();
   const { data: groups = [], isLoading: groupsLoading } = useClientGroups(isRoot && propUserId ? propUserId : undefined);
-  const [phones, setPhones] = React.useState<PhoneItem[]>([]);
   const [createGroupDialogOpen, setCreateGroupDialogOpen] = React.useState(false);
-
-  // Сброс телефонов при закрытии диалога
-  useEffect(() => {
-    if (!open) {
-      setPhones([]);
-    }
-  }, [open]);
+  const [phones, setPhones] = React.useState<Array<{ id: string; phone: string; whatsAppStatus?: string; telegramStatus?: string }>>([]);
 
   const {
     register,
@@ -81,6 +66,7 @@ export function CreateClientDialog({ open, onClose, userId: propUserId }: Create
       regionId: null,
       groupId: null,
       status: 'NEW',
+      phones: [],
     },
   });
 
@@ -88,35 +74,38 @@ export function CreateClientDialog({ open, onClose, userId: propUserId }: Create
     createMutation.mutate(
       {
         ...data,
+        phones: phones.map((p) => ({
+          phone: p.phone,
+          whatsAppStatus: (p.whatsAppStatus || 'Unknown') as 'Valid' | 'Invalid' | 'Unknown',
+          telegramStatus: (p.telegramStatus || 'Unknown') as 'Valid' | 'Invalid' | 'Unknown',
+        })),
         userId: isRoot && propUserId ? propUserId : undefined, // Для ROOT - создание от имени переданного пользователя
       },
       {
-      onSuccess: async (createdClient) => {
-        // Создаем телефоны после создания клиента
-        if (phones.length > 0) {
-          const phonePromises = phones.map((phone) =>
-            createPhoneMutation.mutateAsync({
-              clientId: createdClient.id,
-              phoneData: { phone: phone.phone },
-            })
-          );
-          await Promise.all(phonePromises);
-        }
-        reset();
-        setPhones([]);
-        onClose();
-      },
-    });
+        onSuccess: () => {
+          reset();
+          setPhones([]);
+          onClose();
+        },
+      }
+    );
   };
 
   const handleClose = () => {
-    if (!createMutation.isPending && !createPhoneMutation.isPending) {
+    if (!createMutation.isPending) {
         reset();
         setPhones([]);
         setCreateGroupDialogOpen(false);
         onClose();
     }
   };
+
+  // Сброс состояния при закрытии диалога
+  useEffect(() => {
+    if (!open) {
+      setPhones([]);
+    }
+  }, [open]);
 
   const handleGroupCreated = (newGroupId: string) => {
     // После создания группы обновляем форму, устанавливая новую группу
@@ -139,7 +128,38 @@ export function CreateClientDialog({ open, onClose, userId: propUserId }: Create
       maxWidth="sm"
       fullWidth
       disableEnforceFocus
-      PaperProps={dialogPaperProps}
+      sx={{
+        '& .MuiDialog-container': {
+          '&::-webkit-scrollbar': {
+            display: 'none !important',
+            width: '0 !important',
+            height: '0 !important',
+          },
+          scrollbarWidth: 'none !important',
+          msOverflowStyle: 'none !important',
+        },
+      }}
+      PaperProps={{
+        ...dialogPaperProps,
+        sx: {
+          ...dialogPaperProps.sx,
+          maxHeight: '90vh',
+          height: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          '& .MuiDialogContent-root': {
+            overflowY: 'auto',
+            flex: '1 1 auto',
+            '&::-webkit-scrollbar': {
+              display: 'none',
+              width: 0,
+              height: 0,
+            },
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+          },
+        },
+      }}
     >
       <form onSubmit={handleSubmit(onSubmit)}>
         <Box sx={dialogTitleStyles}>
@@ -148,7 +168,30 @@ export function CreateClientDialog({ open, onClose, userId: propUserId }: Create
           </Typography>
         </Box>
 
-        <DialogContent sx={dialogContentStyles}>
+        <DialogContent
+          sx={{
+            ...dialogContentStyles,
+            overflowY: 'auto !important',
+            flex: '1 1 auto',
+            minHeight: 0,
+            '&::-webkit-scrollbar': {
+              display: 'none !important',
+              width: '0 !important',
+              height: '0 !important',
+            },
+            scrollbarWidth: 'none !important',
+            msOverflowStyle: 'none !important',
+            '& *': {
+              '&::-webkit-scrollbar': {
+                display: 'none !important',
+                width: '0 !important',
+                height: '0 !important',
+              },
+              scrollbarWidth: 'none !important',
+              msOverflowStyle: 'none !important',
+            },
+          }}
+        >
           {errorMessage && (
             <Alert severity="error" sx={{ mb: 2, borderRadius: '12px' }}>
               {errorMessage}
@@ -280,7 +323,9 @@ export function CreateClientDialog({ open, onClose, userId: propUserId }: Create
               />
             </FormControl>
 
-            <ClientPhonesFormField phones={phones} onChange={setPhones} />
+            <Box sx={{ mt: 1 }}>
+              <ClientPhonesFormField phones={phones} onChange={setPhones} />
+            </Box>
           </Box>
         </DialogContent>
 
@@ -290,9 +335,9 @@ export function CreateClientDialog({ open, onClose, userId: propUserId }: Create
           </CancelButton>
           <StyledButton 
             type="submit" 
-            disabled={createMutation.isPending || createPhoneMutation.isPending || !hasGroups || groupsLoading}
+            disabled={createMutation.isPending || !hasGroups || groupsLoading}
           >
-            {createMutation.isPending || createPhoneMutation.isPending ? <CircularProgress size={LOADING_ICON_SIZE} /> : 'Создать'}
+            {createMutation.isPending ? <CircularProgress size={LOADING_ICON_SIZE} /> : 'Создать'}
           </StyledButton>
         </DialogActions>
       </form>
