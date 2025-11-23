@@ -568,8 +568,8 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
                 </Box>
               )}
               
-              {/* Сохраненные конфигурации */}
-              {configsData?.configs && configsData.configs.length > 0 && (
+              {/* Сохраненные конфигурации - скрыто по запросу пользователя, логика сохранена */}
+              {/* {configsData?.configs && configsData.configs.length > 0 && (
                 <Box>
                   <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)', mb: 0.5, display: 'block' }}>
                     Сохраненные конфигурации:
@@ -607,10 +607,9 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
                     ))}
                   </Box>
                 </Box>
-              )}
+              )} */}
               
-              {(!configsData?.templates || configsData.templates.length === 0) &&
-               (!configsData?.configs || configsData.configs.length === 0) && (
+              {(!configsData?.templates || configsData.templates.length === 0) && (
                 <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.5)', fontStyle: 'italic' }}>
                   Нет доступных шаблонов или сохраненных конфигураций
                 </Typography>
@@ -1287,9 +1286,7 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
           >
             {createMutation.isPending || updateMutation.isPending
               ? 'Сохранение...'
-              : config.id
-                ? 'Сохранить изменения'
-                : 'Сохранить конфигурацию'}
+              : 'Сохранить'}
           </StyledButton>
         </Box>
       </DialogActions>

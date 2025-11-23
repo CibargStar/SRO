@@ -51,6 +51,11 @@ const StyledButton = styled(Button)(({ theme }) => ({
   fontWeight: 500,
   padding: theme.spacing(1.5, 3),
   '&:hover': { backgroundColor: '#ffffff', transform: 'translateY(-2px)' },
+  '&.Mui-disabled': {
+    backgroundColor: '#f5f5f5',
+    color: '#212121',
+    opacity: 0.6,
+  },
 }));
 
 const CancelButton = styled(Button)(({ theme }) => ({
@@ -306,9 +311,6 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
           {/* Выбор группы (скрывается после завершения импорта) */}
           {!importResult && (
             <Box>
-              <Typography variant="body2" sx={{ mb: 1, color: 'rgba(255, 255, 255, 0.7)' }}>
-                Выберите группу для импорта:
-              </Typography>
               {!groupsLoading && !hasGroups ? (
                 <Alert 
                   severity="warning" 
@@ -425,6 +427,7 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
               <StyledButton
                 size="small"
                 onClick={() => setConfigDialogOpen(true)}
+                disabled={isLoading}
                 sx={{ minWidth: 'auto', px: 2, whiteSpace: 'nowrap' }}
               >
                 {isNewConfigSelected ? 'Создать' : 'Настроить'}
@@ -520,7 +523,16 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
               <Typography variant="body2" sx={{ mb: 1, color: 'rgba(255, 255, 255, 0.7)' }}>
                 Импорт в процессе...
               </Typography>
-              <LinearProgress sx={{ borderRadius: '12px', height: 8 }} />
+              <LinearProgress 
+                sx={{ 
+                  borderRadius: '12px', 
+                  height: 8,
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  '& .MuiLinearProgress-bar': {
+                    backgroundColor: '#ffffff',
+                  },
+                }} 
+              />
             </Box>
           )}
 
@@ -747,7 +759,7 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
               icon={false}
               sx={{ 
                 borderRadius: '12px', 
-                backgroundColor: 'rgba(33, 150, 243, 0.1)', 
+                backgroundColor: 'rgba(255, 255, 255, 0.05)', 
                 color: '#ffffff', 
                 border: 'none',
                 '& .MuiAlert-message': {
@@ -755,7 +767,7 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
                 },
               }}
             >
-              <Typography variant="body2" sx={{ fontWeight: 600, mb: 1, color: '#ffffff' }}>
+              <Typography variant="body2" sx={{ mb: 1, color: '#ffffff' }}>
                 Требования к файлу:
               </Typography>
               <Box component="ul" sx={{ margin: 0, paddingLeft: '24px', color: 'rgba(255, 255, 255, 0.9)' }}>
@@ -784,9 +796,11 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
       </DialogContent>
 
       <DialogActions sx={{ px: 3, pb: 3, pt: 2 }}>
-        <CancelButton onClick={handleClose} disabled={isLoading}>
-          {importResult ? 'Закрыть' : 'Отмена'}
-        </CancelButton>
+        {!isLoading && (
+          <CancelButton onClick={handleClose}>
+            {importResult ? 'Закрыть' : 'Отмена'}
+          </CancelButton>
+        )}
         {!importResult && (
           <StyledButton
             onClick={handleImport}
@@ -797,9 +811,23 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
               !hasGroups || 
               configsLoading || 
               defaultConfigLoading ||
-              !!fileError
+              !!fileError ||
+              isNewConfigSelected // Блокируем импорт при выборе "Новая конфигурация"
             }
-            startIcon={isLoading ? <CircularProgress size={20} /> : <CloudUploadIcon />}
+            startIcon={isLoading ? <CircularProgress size={20} sx={{ color: '#212121' }} /> : <CloudUploadIcon />}
+            sx={isLoading ? {
+              animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              '@keyframes pulse': {
+                '0%, 100%': {
+                  opacity: 1,
+                  transform: 'scale(1)',
+                },
+                '50%': {
+                  opacity: 0.8,
+                  transform: 'scale(1.02)',
+                },
+              },
+            } : {}}
           >
             {isLoading ? 'Импорт...' : 'Импортировать'}
           </StyledButton>
