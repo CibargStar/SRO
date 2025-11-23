@@ -105,6 +105,15 @@ const PhoneChipsContainer = styled(Box)({
   gap: '0.5rem',
   flexWrap: 'wrap',
   alignItems: 'flex-start',
+  width: '100%',
+});
+
+/**
+ * Обёртка для каждого чипса
+ */
+const PhoneChipWrapper = styled(Box)({
+  display: 'inline-flex',
+  flexShrink: 0,
 });
 
 /**
@@ -163,58 +172,59 @@ export function PhoneChips({ phones, emptyText = '-' }: PhoneChipsProps) {
         const tooltipText = getPhoneTooltipText(whatsAppStatus, telegramStatus);
         
         return (
-          <Tooltip
-            key={phone.id}
-            title={tooltipText}
-            arrow
-            componentsProps={{
-              tooltip: {
-                sx: {
-                  backgroundColor: 'rgba(33, 33, 33, 0.95)',
-                  color: '#ffffff',
-                  fontSize: '0.875rem',
-                  padding: '8px 12px',
-                  borderRadius: '8px',
-                  whiteSpace: 'pre-line',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
+          <PhoneChipWrapper key={phone.id}>
+            <Tooltip
+              title={tooltipText}
+              arrow
+              componentsProps={{
+                tooltip: {
+                  sx: {
+                    backgroundColor: 'rgba(33, 33, 33, 0.95)',
+                    color: '#ffffff',
+                    fontSize: '0.875rem',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    whiteSpace: 'pre-line',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                  },
                 },
-              },
-              arrow: {
-                sx: {
-                  color: 'rgba(33, 33, 33, 0.95)',
+                arrow: {
+                  sx: {
+                    color: 'rgba(33, 33, 33, 0.95)',
+                  },
                 },
-              },
-            }}
-          >
-            <Box
-              sx={{
-                display: 'inline-flex',
-                backgroundImage: gradient,
-                background: gradient,
-                borderRadius: '16px',
-                padding: '1px',
-                overflow: 'hidden',
-                cursor: 'help',
               }}
             >
-              <PhoneChipBase
-                label={phone.phone}
-                size="small"
+              <Box
                 sx={{
-                  backgroundColor: 'transparent !important',
-                  background: 'transparent !important',
-                  height: '22px',
-                  '& .MuiChip-root': {
+                  display: 'inline-flex',
+                  backgroundImage: gradient,
+                  background: gradient,
+                  borderRadius: '16px',
+                  padding: '1px',
+                  overflow: 'hidden',
+                  cursor: 'help',
+                }}
+              >
+                <PhoneChipBase
+                  label={phone.phone}
+                  size="small"
+                  sx={{
                     backgroundColor: 'transparent !important',
                     background: 'transparent !important',
-                  },
-                  '& .MuiChip-label': {
-                    padding: '0 8px',
-                  },
-                }}
-              />
-            </Box>
-          </Tooltip>
+                    height: '22px',
+                    '& .MuiChip-root': {
+                      backgroundColor: 'transparent !important',
+                      background: 'transparent !important',
+                    },
+                    '& .MuiChip-label': {
+                      padding: '0 8px',
+                    },
+                  }}
+                />
+              </Box>
+            </Tooltip>
+          </PhoneChipWrapper>
         );
       })}
     </PhoneChipsContainer>

@@ -146,39 +146,50 @@ export function ClientTable({ clients, isLoading, onEdit, onDelete }: ClientTabl
       <Table>
         <TableHead>
           <TableRow>
-            <StyledTableCell>ФИО</StyledTableCell>
-            <StyledTableCell>Регион</StyledTableCell>
-            <StyledTableCell>Группа</StyledTableCell>
-            <StyledTableCell align="center">Статус</StyledTableCell>
-            <StyledTableCell>Телефоны</StyledTableCell>
+            <StyledTableCell sx={{ width: '18%' }}>ФИО</StyledTableCell>
+            <StyledTableCell sx={{ padding: 'calc(16px * 0.85)' }}>Регион</StyledTableCell>
+            <StyledTableCell sx={{ padding: 'calc(16px * 0.85)' }}>Группа</StyledTableCell>
+            <StyledTableCell align="center" sx={{ width: '100px', padding: 'calc(16px * 0.85)' }}>Статус</StyledTableCell>
+            <StyledTableCell sx={{ width: '28%', minWidth: '300px' }}>Телефоны</StyledTableCell>
             <StyledTableCell>Создан</StyledTableCell>
-            <StyledTableCell align="center">Действия</StyledTableCell>
+            <StyledTableCell align="center" sx={{ width: '120px' }}>Действия</StyledTableCell>
           </TableRow>
         </TableHead>
         <TableBody>
           {clients.map((client) => (
             <StyledTableRow key={client.id}>
-              <StyledTableCell>{formatClientName(client)}</StyledTableCell>
-              <StyledTableCell sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+              <StyledTableCell sx={{ width: '18%' }}>{formatClientName(client)}</StyledTableCell>
+              <StyledTableCell sx={{ color: 'rgba(255, 255, 255, 0.7)', padding: 'calc(16px * 0.85)' }}>
                 {client.region?.name || '-'}
               </StyledTableCell>
-              <StyledTableCell sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+              <StyledTableCell sx={{ color: 'rgba(255, 255, 255, 0.7)', padding: 'calc(16px * 0.85)' }}>
                 {client.group?.name || '-'}
               </StyledTableCell>
-              <StyledTableCell align="center">
+              <StyledTableCell align="center" sx={{ width: '100px', padding: 'calc(16px * 0.85)' }}>
                 <StatusChip label={client.status === 'NEW' ? 'Новый' : 'Старый'} status={client.status} size="small" />
               </StyledTableCell>
-              <StyledTableCell>
+              <StyledTableCell sx={{ width: '28%', minWidth: '300px' }}>
                 <PhoneChips phones={client.phones || []} />
               </StyledTableCell>
               <StyledTableCell sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
                 {formatDate(client.createdAt)}
               </StyledTableCell>
-              <StyledTableCell align="center">
+              <StyledTableCell align="center" sx={{ width: '120px' }}>
                 <StyledIconButton size="small" onClick={() => onEdit(client)} aria-label="Редактировать">
                   <EditIcon fontSize="small" />
                 </StyledIconButton>
-                <StyledIconButton size="small" onClick={() => onDelete(client)} aria-label="Удалить">
+                <StyledIconButton
+                  size="small"
+                  onClick={() => onDelete(client)}
+                  aria-label="Удалить"
+                  sx={{
+                    color: 'rgba(244, 67, 54, 0.7)',
+                    '&:hover': {
+                      color: '#f44336',
+                      backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                    },
+                  }}
+                >
                   <DeleteIcon fontSize="small" />
                 </StyledIconButton>
               </StyledTableCell>
