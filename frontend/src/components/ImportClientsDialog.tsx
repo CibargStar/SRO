@@ -91,6 +91,11 @@ const StyledSelect = styled(Select)({
   '&:hover .MuiOutlinedInput-notchedOutline': { border: 'none' },
   '&.Mui-focused .MuiOutlinedInput-notchedOutline': { border: 'none' },
   '& .MuiSelect-icon': { color: 'rgba(255, 255, 255, 0.7)' },
+  '&.Mui-disabled': {
+    color: '#ffffff',
+    '& .MuiSelect-icon': { color: 'rgba(255, 255, 255, 0.3)' },
+    '& .MuiInputBase-input': { color: '#ffffff' },
+  },
 });
 
 interface ImportClientsDialogProps {
@@ -113,21 +118,36 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
   const { data: defaultConfig, isLoading: defaultConfigLoading } = useDefaultImportConfig();
   const importMutation = useImportClients();
 
-  // Проверяем наличие конфигураций
-  const hasConfigs = !configsLoading && !defaultConfigLoading && (!!defaultConfig || (configsData?.configs && configsData.configs.length > 0));
+  // Проверяем наличие сохраненных конфигураций (не считая системную "Новую конфигурацию")
+  const hasSavedConfigs = !configsLoading && !defaultConfigLoading && (
+    (configsData?.configs && configsData.configs.length > 0) || 
+    (defaultConfig?.id && defaultConfig.id !== 'default')
+  );
   
-  // Проверяем, существует ли выбранная конфигурация
-  const selectedConfigExists = selectedConfigId && (
+  // Проверяем, выбрана ли новая конфигурация (системная, без id)
+  const isNewConfigSelected = selectedConfigId === 'default' || (defaultConfig && !defaultConfig.id);
+  
+  // Проверяем, существует ли выбранная конфигурация (сохраненная)
+  const selectedConfigExists = selectedConfigId && !isNewConfigSelected && (
     defaultConfig?.id === selectedConfigId ||
     configsData?.configs?.some((c) => c.id === selectedConfigId)
   );
 
-  // Устанавливаем конфигурацию по умолчанию при загрузке
+  // Устанавливаем конфигурацию по умолчанию при открытии модалки и загрузке данных
   React.useEffect(() => {
-    if (defaultConfig && !selectedConfigId && !defaultConfigLoading) {
-      setSelectedConfigId(defaultConfig.id);
+    if (!open) {
+      // Сбрасываем состояние при закрытии модалки
+      setSelectedConfigId(undefined);
+      setImportResult(null);
+      setSelectedFile(null);
+      setFileError(null);
+      setGroupId('');
+    } else if (open && !selectedConfigId && defaultConfig && !defaultConfigLoading) {
+      // При открытии модалки устанавливаем конфигурацию по умолчанию
+      // Если у конфигурации по умолчанию есть id, используем его, иначе используем специальное значение 'default'
+      setSelectedConfigId(defaultConfig.id || 'default');
     }
-  }, [defaultConfig, selectedConfigId, defaultConfigLoading]);
+  }, [open, defaultConfig, selectedConfigId, defaultConfigLoading]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -180,10 +200,11 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
     }
 
     try {
-      const result = await importMutation.mutateAsync({
+      const result =       await importMutation.mutateAsync({
         groupId,
         file: selectedFile,
-        configId: selectedConfigId,
+        // Если выбрана системная конфигурация по умолчанию (без id), передаем undefined
+        configId: selectedConfigId === 'default' ? undefined : selectedConfigId,
       });
       setImportResult(result);
     } catch (error) {
@@ -199,7 +220,7 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
       setSelectedConfigId(undefined);
       // Устанавливаем конфигурацию по умолчанию, если она есть
       if (defaultConfig) {
-        setSelectedConfigId(defaultConfig.id);
+        setSelectedConfigId(defaultConfig.id || 'default');
       }
     }
   };
@@ -299,26 +320,19 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
           {/* Выбор конфигурации импорта */}
           {!importResult && (
             <Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                  Конфигурация импорта:
-                </Typography>
-                <StyledButton
-                  size="small"
-                  onClick={() => setConfigDialogOpen(true)}
-                  sx={{ minWidth: 'auto', px: 2 }}
-                >
-                  {hasConfigs && selectedConfigExists ? 'Настроить' : 'Создать'}
-                </StyledButton>
-              </Box>
-              <FormControl fullWidth disabled={isLoading || configsLoading || defaultConfigLoading || !hasConfigs}>
-                <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Выберите конфигурацию</InputLabel>
-                <StyledSelect
-                  value={selectedConfigId || ''}
-                  onChange={(e) => setSelectedConfigId(e.target.value || undefined)}
-                  label="Выберите конфигурацию"
-                  disabled={isLoading || configsLoading || defaultConfigLoading || !hasConfigs}
-                >
+              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                <FormControl sx={{ flex: 1 }} disabled={isLoading || configsLoading || defaultConfigLoading || !hasSavedConfigs}>
+                  <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Выберите конфигурацию</InputLabel>
+                  <StyledSelect
+                    value={selectedConfigId || ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Если значение пустое, устанавливаем undefined, иначе сохраняем значение (включая 'default')
+                      setSelectedConfigId(value === '' ? undefined : value);
+                    }}
+                    label="Выберите конфигурацию"
+                    disabled={isLoading || configsLoading || defaultConfigLoading || !hasSavedConfigs}
+                  >
                   {defaultConfigLoading || configsLoading ? (
                     <MenuItem value="" disabled>
                       <CircularProgress size={16} sx={{ mr: 1 }} />
@@ -327,7 +341,7 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
                   ) : (
                     [
                       defaultConfig && (
-                        <MenuItem key={defaultConfig.id || 'default'} value={defaultConfig.id || ''}>
+                        <MenuItem key={defaultConfig.id || 'default'} value={defaultConfig.id || 'default'}>
                           {defaultConfig.name} {defaultConfig.isDefault ? '(по умолчанию)' : ''}
                         </MenuItem>
                       ),
@@ -347,6 +361,14 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
                   )}
                 </StyledSelect>
               </FormControl>
+              <StyledButton
+                size="small"
+                onClick={() => setConfigDialogOpen(true)}
+                sx={{ minWidth: 'auto', px: 2, whiteSpace: 'nowrap' }}
+              >
+                {isNewConfigSelected ? 'Создать' : selectedConfigExists ? 'Настроить' : 'Создать'}
+              </StyledButton>
+              </Box>
             </Box>
           )}
 
@@ -742,7 +764,9 @@ export function ImportClientsDialog({ open, onClose }: ImportClientsDialogProps)
         onClose={() => setConfigDialogOpen(false)}
         onSave={handleConfigSaved}
         initialConfig={
-          selectedConfigId && selectedConfigExists
+          isNewConfigSelected
+            ? null // Для новой конфигурации передаем null, чтобы создать новую
+            : selectedConfigId && selectedConfigExists
             ? configsData?.configs?.find((c) => c.id === selectedConfigId) ||
               (defaultConfig?.id === selectedConfigId ? defaultConfig : null)
             : null

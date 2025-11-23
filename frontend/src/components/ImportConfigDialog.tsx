@@ -10,7 +10,7 @@
  * Поддерживает сохранение конфигураций и загрузку из шаблонов.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -44,6 +44,7 @@ import ErrorIcon from '@mui/icons-material/Error';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useImportConfigs, useCreateImportConfig, useUpdateImportConfig, useCreateConfigFromTemplate, useDeleteImportConfig } from '@/hooks/useImportConfigs';
 import { useAuthStore } from '@/store';
+import { getImportConfig } from '@/utils/api';
 import type { ImportConfig } from '@/utils/api';
 
 const StyledButton = styled(Button)(({ theme }) => ({
@@ -162,6 +163,7 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
   const userId = useAuthStore((state) => state.user?.id || '');
   const [saveError, setSaveError] = useState<string | null>(null);
   const [loadingTemplateId, setLoadingTemplateId] = useState<string | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   // Обновляем userId в конфигурации
@@ -176,6 +178,9 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
     if (initialConfig) {
       setConfig(initialConfig);
       setSaveError(null);
+      setSelectedTemplateId(null); // Сбрасываем выбор шаблона при загрузке существующей конфигурации
+    } else {
+      setSelectedTemplateId(null); // Сбрасываем выбор шаблона при создании новой конфигурации
     }
   }, [initialConfig]);
 
@@ -257,24 +262,34 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
     }
   };
 
-  const handleLoadTemplate = async (templateId: string) => {
+  const handleLoadTemplate = useCallback(async (templateId: string) => {
     try {
       setLoadingTemplateId(templateId);
       setSaveError(null);
-      const templateName = templateId.replace('template_', '');
-      const template = configsData?.templates?.find((t) => t.id === templateId);
-      const templateConfig = await createFromTemplateMutation.mutateAsync({
-        templateName,
-        customName: `${template?.name || templateName} (копия)`,
-      });
-      setConfig(templateConfig);
+      
+      // Получаем шаблон через API (без создания конфига)
+      const templateConfig = await getImportConfig(templateId);
+      
+      // Используем функциональное обновление для предотвращения проблем с замыканиями
+      // и батчим обновления состояния
+      setConfig((prevConfig) => ({
+        ...templateConfig,
+        name: templateConfig.name, // Всегда используем название шаблона
+        description: templateConfig.description || null, // Всегда используем описание шаблона
+        isDefault: templateConfig.isDefault ?? false, // Всегда используем isDefault шаблона
+        id: prevConfig.id, // Сохраняем текущий id (если есть)
+        userId: prevConfig.userId || userId, // Сохраняем текущий userId
+      }));
+      
+      // Обновляем выбранный шаблон синхронно для мгновенной визуальной обратной связи
+      setSelectedTemplateId(templateId);
       setActiveTab(0); // Переключаем на первую вкладку для просмотра
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'Не удалось загрузить шаблон');
     } finally {
       setLoadingTemplateId(null);
     }
-  };
+  }, [userId]);
 
   const handleLoadSaved = (savedConfig: ImportConfig) => {
     setSaveError(null);
@@ -288,7 +303,7 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
 
     // Область поиска
     if (config.searchScope.scopes.includes('none')) {
-      preview.push('• Поиск дубликатов: отключен');
+      preview.push('Поиск дубликатов: отключен');
     } else {
       const scopes = config.searchScope.scopes.map((s) => {
         if (s === 'current_group') return 'в выбранной группе';
@@ -296,8 +311,8 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
         if (s === 'all_users') return 'по всем пользователям';
         return s;
       });
-      preview.push(`• Поиск дубликатов: ${scopes.join(', ')}`);
-      preview.push(`• Критерии поиска: ${config.searchScope.matchCriteria === 'phone' ? 'по телефону' : config.searchScope.matchCriteria === 'phone_and_name' ? 'по телефону + ФИО' : 'по ФИО'}`);
+      preview.push(`Поиск дубликатов: ${scopes.join(', ')}`);
+      preview.push(`Критерии поиска: ${config.searchScope.matchCriteria === 'phone' ? 'по телефону' : config.searchScope.matchCriteria === 'phone_and_name' ? 'по телефону + ФИО' : 'по ФИО'}`);
     }
 
     // Действия при дубликате
@@ -314,10 +329,10 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
     } else {
       duplicateActions.push('создать нового');
     }
-    preview.push(`• При дубликате: ${duplicateActions.join(', ')}`);
+    preview.push(`При дубликате: ${duplicateActions.join(', ')}`);
 
     // Действие при отсутствии дубликата
-    preview.push(`• При отсутствии дубликата: ${config.noDuplicateAction === 'create' ? 'создать нового' : 'пропустить'}`);
+    preview.push(`При отсутствии дубликата: ${config.noDuplicateAction === 'create' ? 'создать нового' : 'пропустить'}`);
 
     // Валидация
     const validationRules: string[] = [];
@@ -325,14 +340,14 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
     if (config.validation.requirePhone) validationRules.push('обязателен телефон');
     if (config.validation.requireRegion) validationRules.push('обязателен регион');
     if (validationRules.length > 0) {
-      preview.push(`• Валидация: ${validationRules.join(', ')}`);
+      preview.push(`Валидация: ${validationRules.join(', ')}`);
     }
-    preview.push(`• Обработка ошибок: ${config.validation.errorHandling === 'stop' ? 'остановить' : config.validation.errorHandling === 'skip' ? 'пропустить' : 'предупреждение'}`);
+    preview.push(`Обработка ошибок: ${config.validation.errorHandling === 'stop' ? 'остановить' : config.validation.errorHandling === 'skip' ? 'пропустить' : 'предупреждение'}`);
 
     // Дополнительно
-    preview.push(`• Статус новых клиентов: ${config.additional.newClientStatus}`);
+    preview.push(`Статус новых клиентов: ${config.additional.newClientStatus}`);
     if (config.additional.updateStatus) {
-      preview.push('• Обновлять статус существующих клиентов');
+      preview.push('Обновлять статус существующих клиентов');
     }
 
     return preview;
@@ -410,7 +425,6 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
             multiline
             rows={2}
             sx={{ mb: 2 }}
-            helperText="Краткое описание назначения конфигурации"
           />
           <FormControlLabel
             control={
@@ -418,8 +432,8 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
                 checked={config.isDefault || false}
                 onChange={(e) => setConfig({ ...config, isDefault: e.target.checked })}
                 sx={{
-                  color: 'rgba(255, 255, 255, 0.7)',
-                  '&.Mui-checked': { color: '#4caf50' },
+                  color: '#ffffff',
+                  '&.Mui-checked': { color: '#ffffff' },
                 }}
               />
             }
@@ -439,7 +453,7 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
         {/* Загрузка из шаблонов и сохраненных */}
         <Box sx={{ mb: 3 }}>
           <Typography variant="body2" sx={{ mb: 1.5, color: 'rgba(255, 255, 255, 0.7)', fontWeight: 500 }}>
-            Загрузить из:
+            Предустановленные шаблоны:
           </Typography>
           
           {/* Шаблоны */}
@@ -454,34 +468,71 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
             <>
               {configsData?.templates && configsData.templates.length > 0 && (
                 <Box sx={{ mb: 2 }}>
-                  <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)', mb: 0.5, display: 'block' }}>
-                    Предустановленные шаблоны:
-                  </Typography>
-                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    {configsData.templates.map((template) => (
-                      <Chip
-                        key={template.id}
-                        label={template.name}
-                        onClick={() => handleLoadTemplate(template.id)}
-                        disabled={loadingTemplateId === template.id || createFromTemplateMutation.isPending}
-                        icon={
-                          loadingTemplateId === template.id ? (
-                            <CircularProgress size={16} sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />
-                          ) : undefined
-                        }
-                        sx={{
-                          backgroundColor: 'rgba(33, 150, 243, 0.2)',
-                          color: '#ffffff',
-                          cursor: loadingTemplateId === template.id ? 'wait' : 'pointer',
-                          '&:hover': {
-                            backgroundColor: loadingTemplateId === template.id ? 'rgba(33, 150, 243, 0.2)' : 'rgba(33, 150, 243, 0.3)',
-                          },
-                          '&.Mui-disabled': {
-                            opacity: 0.6,
-                          },
-                        }}
-                      />
-                    ))}
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                    {configsData.templates.map((template) => {
+                      const isSelected = selectedTemplateId === template.id;
+                      const isLoading = loadingTemplateId === template.id;
+                      
+                      return (
+                        <Chip
+                          key={template.id}
+                          label={template.name}
+                          onClick={() => handleLoadTemplate(template.id)}
+                          disabled={isLoading || createFromTemplateMutation.isPending}
+                          icon={
+                            isLoading ? (
+                              <CircularProgress size={16} sx={{ color: 'rgba(33, 33, 33, 0.7)' }} />
+                            ) : undefined
+                          }
+                          sx={{
+                            backgroundColor: isSelected ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 255, 255, 0.1)',
+                            color: isSelected ? '#212121' : 'rgba(255, 255, 255, 0.9)',
+                            cursor: isLoading ? 'wait' : 'pointer',
+                            transition: 'background-color 0.2s ease-in-out',
+                            position: 'relative',
+                            boxSizing: 'border-box',
+                            // Фиксируем ширину для предотвращения изменения размеров
+                            width: 'max-content',
+                            flexShrink: 0,
+                            // Создаем новый слой композиции для изоляции изменений
+                            transform: 'translateZ(0)',
+                            // Используем псевдоэлемент для outline, чтобы не влиять на layout
+                            '&::before': {
+                              content: '""',
+                              position: 'absolute',
+                              top: '-2px',
+                              left: '-2px',
+                              right: '-2px',
+                              bottom: '-2px',
+                              border: isSelected ? '2px solid rgba(255, 255, 255, 0.3)' : '2px solid transparent',
+                              borderRadius: 'inherit',
+                              pointerEvents: 'none',
+                              transition: 'border-color 0.2s ease-in-out',
+                            },
+                            // Оптимизация для предотвращения reflow
+                            contain: 'layout style paint',
+                            // Предотвращаем изменение размеров при изменении цвета текста
+                            '& .MuiChip-label': {
+                              whiteSpace: 'nowrap',
+                              // Фиксируем рендеринг текста для стабильности ширины
+                              textRendering: 'optimizeSpeed',
+                              fontKerning: 'none',
+                              letterSpacing: 'normal',
+                            },
+                            '&:hover': {
+                              backgroundColor: isLoading 
+                                ? 'rgba(255, 255, 255, 0.1)' 
+                                : isSelected 
+                                ? 'rgba(255, 255, 255, 0.95)' 
+                                : 'rgba(255, 255, 255, 0.2)',
+                            },
+                            '&.Mui-disabled': {
+                              opacity: 0.5,
+                            },
+                          }}
+                        />
+                      );
+                    })}
                   </Box>
                 </Box>
               )}
@@ -506,8 +557,8 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
                                 sx={{
                                   height: '18px',
                                   fontSize: '0.65rem',
-                                  backgroundColor: 'rgba(76, 175, 80, 0.3)',
-                                  color: '#4caf50',
+                                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                                  color: '#ffffff',
                                   ml: 0.5,
                                 }}
                               />
@@ -516,10 +567,10 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
                         }
                         onClick={() => handleLoadSaved(savedConfig)}
                         sx={{
-                          backgroundColor: 'rgba(76, 175, 80, 0.2)',
+                          backgroundColor: 'rgba(255, 255, 255, 0.1)',
                           color: '#ffffff',
                           cursor: 'pointer',
-                          '&:hover': { backgroundColor: 'rgba(76, 175, 80, 0.3)' },
+                          '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.2)' },
                         }}
                       />
                     ))}
@@ -548,7 +599,7 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
               '&.Mui-selected': { color: '#ffffff' },
             },
             '& .MuiTabs-indicator': {
-              backgroundColor: '#4caf50',
+              backgroundColor: '#ffffff',
             },
           }}
         >
@@ -563,7 +614,16 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
         <TabPanel value={activeTab} index={0}>
           <Box sx={{ mb: 3 }}>
             <FormControl fullWidth>
-              <FormLabel sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1.5, fontWeight: 500 }}>
+              <FormLabel 
+                sx={{ 
+                  color: 'rgba(255, 255, 255, 0.7)', 
+                  mb: 1.5, 
+                  fontWeight: 500,
+                  '&.Mui-focused': {
+                    color: 'rgba(255, 255, 255, 0.7)',
+                  },
+                }}
+              >
                 Область поиска дубликатов:
               </FormLabel>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -585,76 +645,78 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
                       }
                     }}
                     sx={{
-                      color: 'rgba(255, 255, 255, 0.7)',
-                      '&.Mui-checked': { color: '#4caf50' },
+                      color: '#ffffff',
+                      '&.Mui-checked': { color: '#ffffff' },
                     }}
                   />
                 }
                 label="Не искать дубликаты"
                 sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
               />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={config.searchScope.scopes.includes('current_group')}
-                    onChange={(e) => {
-                      const scopes = config.searchScope.scopes.filter((s) => s !== 'none');
-                      if (e.target.checked) {
-                        setConfig({
-                          ...config,
-                          searchScope: { ...config.searchScope, scopes: [...scopes, 'current_group'] },
-                        });
-                      } else {
-                        setConfig({
-                          ...config,
-                          searchScope: {
-                            ...config.searchScope,
-                            scopes: scopes.filter((s) => s !== 'current_group'),
-                          },
-                        });
-                      }
-                    }}
-                    disabled={config.searchScope.scopes.includes('none')}
-                    sx={{
-                      color: 'rgba(255, 255, 255, 0.7)',
-                      '&.Mui-checked': { color: '#4caf50' },
-                    }}
-                  />
-                }
-                label="Только в выбранной группе"
-                sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={config.searchScope.scopes.includes('owner_groups')}
-                    onChange={(e) => {
-                      const scopes = config.searchScope.scopes.filter((s) => s !== 'none');
-                      if (e.target.checked) {
-                        setConfig({
-                          ...config,
-                          searchScope: { ...config.searchScope, scopes: [...scopes, 'owner_groups'] },
-                        });
-                      } else {
-                        setConfig({
-                          ...config,
-                          searchScope: {
-                            ...config.searchScope,
-                            scopes: scopes.filter((s) => s !== 'owner_groups'),
-                          },
-                        });
-                      }
-                    }}
-                    disabled={config.searchScope.scopes.includes('none')}
-                    sx={{
-                      color: 'rgba(255, 255, 255, 0.7)',
-                      '&.Mui-checked': { color: '#4caf50' },
-                    }}
-                  />
-                }
-                label="Во всех группах владельца"
-                sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
-              />
+              {!config.searchScope.scopes.includes('none') && (
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={config.searchScope.scopes.includes('current_group')}
+                      onChange={(e) => {
+                        const scopes = config.searchScope.scopes.filter((s) => s !== 'none');
+                        if (e.target.checked) {
+                          setConfig({
+                            ...config,
+                            searchScope: { ...config.searchScope, scopes: [...scopes, 'current_group'] },
+                          });
+                        } else {
+                          setConfig({
+                            ...config,
+                            searchScope: {
+                              ...config.searchScope,
+                              scopes: scopes.filter((s) => s !== 'current_group'),
+                            },
+                          });
+                        }
+                      }}
+                      sx={{
+                        color: '#ffffff',
+                        '&.Mui-checked': { color: '#ffffff' },
+                      }}
+                    />
+                  }
+                  label="Только в выбранной группе"
+                  sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                />
+              )}
+              {!config.searchScope.scopes.includes('none') && (
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={config.searchScope.scopes.includes('owner_groups')}
+                      onChange={(e) => {
+                        const scopes = config.searchScope.scopes.filter((s) => s !== 'none');
+                        if (e.target.checked) {
+                          setConfig({
+                            ...config,
+                            searchScope: { ...config.searchScope, scopes: [...scopes, 'owner_groups'] },
+                          });
+                        } else {
+                          setConfig({
+                            ...config,
+                            searchScope: {
+                              ...config.searchScope,
+                              scopes: scopes.filter((s) => s !== 'owner_groups'),
+                            },
+                          });
+                        }
+                      }}
+                      sx={{
+                        color: '#ffffff',
+                        '&.Mui-checked': { color: '#ffffff' },
+                      }}
+                    />
+                  }
+                  label="Во всех группах владельца"
+                  sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                />
+              )}
               </Box>
             </FormControl>
           </Box>
@@ -662,7 +724,16 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
           <Divider sx={{ my: 3, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
 
           <FormControl fullWidth>
-            <FormLabel sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1.5, fontWeight: 500 }}>
+            <FormLabel 
+              sx={{ 
+                color: 'rgba(255, 255, 255, 0.7)', 
+                mb: 1.5, 
+                fontWeight: 500,
+                '&.Mui-focused': {
+                  color: 'rgba(255, 255, 255, 0.7)',
+                },
+              }}
+            >
               Критерии поиска:
             </FormLabel>
             <RadioGroup
@@ -676,19 +747,19 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
             >
               <FormControlLabel
                 value="phone"
-                control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: '#4caf50' } }} />}
+                control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
                 label="По телефону"
                 sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
               />
               <FormControlLabel
                 value="phone_and_name"
-                control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: '#4caf50' } }} />}
+                control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
                 label="По телефону + ФИО"
                 sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
               />
               <FormControlLabel
                 value="name"
-                control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: '#4caf50' } }} />}
+                control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
                 label="По ФИО"
                 sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
               />
@@ -699,7 +770,16 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
         {/* Вкладка: Действия */}
         <TabPanel value={activeTab} index={1}>
           <FormControl fullWidth sx={{ mb: 3 }}>
-            <FormLabel sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1.5, fontWeight: 500 }}>
+            <FormLabel 
+              sx={{ 
+                color: 'rgba(255, 255, 255, 0.7)', 
+                mb: 1.5, 
+                fontWeight: 500,
+                '&.Mui-focused': {
+                  color: 'rgba(255, 255, 255, 0.7)',
+                },
+              }}
+            >
               Действие по умолчанию при дубликате:
             </FormLabel>
             <RadioGroup
@@ -716,19 +796,19 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
             >
               <FormControlLabel
                 value="skip"
-                control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: '#4caf50' } }} />}
+                control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
                 label="Пропустить строку"
                 sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
               />
               <FormControlLabel
                 value="update"
-                control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: '#4caf50' } }} />}
+                control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
                 label="Обновить существующего"
                 sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
               />
               <FormControlLabel
                 value="create"
-                control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: '#4caf50' } }} />}
+                control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
                 label="Создать нового (игнорировать дубликат)"
                 sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
               />
@@ -752,8 +832,8 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
                       })
                     }
                     sx={{
-                      color: 'rgba(255, 255, 255, 0.7)',
-                      '&.Mui-checked': { color: '#4caf50' },
+                      color: '#ffffff',
+                      '&.Mui-checked': { color: '#ffffff' },
                     }}
                   />
                 }
@@ -771,8 +851,8 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
                       })
                     }
                     sx={{
-                      color: 'rgba(255, 255, 255, 0.7)',
-                      '&.Mui-checked': { color: '#4caf50' },
+                      color: '#ffffff',
+                      '&.Mui-checked': { color: '#ffffff' },
                     }}
                   />
                 }
@@ -790,8 +870,8 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
                       })
                     }
                     sx={{
-                      color: 'rgba(255, 255, 255, 0.7)',
-                      '&.Mui-checked': { color: '#4caf50' },
+                      color: '#ffffff',
+                      '&.Mui-checked': { color: '#ffffff' },
                     }}
                   />
                 }
@@ -809,8 +889,8 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
                       })
                     }
                     sx={{
-                      color: 'rgba(255, 255, 255, 0.7)',
-                      '&.Mui-checked': { color: '#4caf50' },
+                      color: '#ffffff',
+                      '&.Mui-checked': { color: '#ffffff' },
                     }}
                   />
                 }
@@ -832,8 +912,8 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
                       })
                     }
                     sx={{
-                      color: 'rgba(255, 255, 255, 0.7)',
-                      '&.Mui-checked': { color: '#4caf50' },
+                      color: '#ffffff',
+                      '&.Mui-checked': { color: '#ffffff' },
                     }}
                   />
                 }
@@ -847,7 +927,16 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
           <Divider sx={{ my: 3, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
 
           <FormControl fullWidth>
-            <FormLabel sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1.5, fontWeight: 500 }}>
+            <FormLabel 
+              sx={{ 
+                color: 'rgba(255, 255, 255, 0.7)', 
+                mb: 1.5, 
+                fontWeight: 500,
+                '&.Mui-focused': {
+                  color: 'rgba(255, 255, 255, 0.7)',
+                },
+              }}
+            >
               Действие при отсутствии дубликата:
             </FormLabel>
             <RadioGroup
@@ -861,13 +950,13 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
             >
               <FormControlLabel
                 value="create"
-                control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: '#4caf50' } }} />}
+                control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
                 label="Создать нового клиента"
                 sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
               />
               <FormControlLabel
                 value="skip"
-                control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: '#4caf50' } }} />}
+                control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
                 label="Пропустить строку"
                 sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
               />
@@ -896,8 +985,8 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
                   })
                 }
                 sx={{
-                  color: 'rgba(255, 255, 255, 0.7)',
-                  '&.Mui-checked': { color: '#4caf50' },
+                  color: '#ffffff',
+                  '&.Mui-checked': { color: '#ffffff' },
                 }}
               />
             }
@@ -915,8 +1004,8 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
                   })
                 }
                 sx={{
-                  color: 'rgba(255, 255, 255, 0.7)',
-                  '&.Mui-checked': { color: '#4caf50' },
+                  color: '#ffffff',
+                  '&.Mui-checked': { color: '#ffffff' },
                 }}
               />
             }
@@ -934,8 +1023,8 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
                   })
                 }
                 sx={{
-                  color: 'rgba(255, 255, 255, 0.7)',
-                  '&.Mui-checked': { color: '#4caf50' },
+                  color: '#ffffff',
+                  '&.Mui-checked': { color: '#ffffff' },
                 }}
               />
             }
@@ -948,7 +1037,16 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
           <Divider sx={{ my: 3, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
 
           <FormControl fullWidth>
-            <FormLabel sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1.5, fontWeight: 500 }}>
+            <FormLabel 
+              sx={{ 
+                color: 'rgba(255, 255, 255, 0.7)', 
+                mb: 1.5, 
+                fontWeight: 500,
+                '&.Mui-focused': {
+                  color: 'rgba(255, 255, 255, 0.7)',
+                },
+              }}
+            >
               Обработка ошибок валидации:
             </FormLabel>
             <RadioGroup
@@ -965,19 +1063,19 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
             >
               <FormControlLabel
                 value="stop"
-                control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: '#4caf50' } }} />}
+                control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
                 label="Останавливать импорт при первой ошибке"
                 sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
               />
               <FormControlLabel
                 value="skip"
-                control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: '#4caf50' } }} />}
+                control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
                 label="Пропускать строки с ошибками и продолжать"
                 sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
               />
               <FormControlLabel
                 value="warn"
-                control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: '#4caf50' } }} />}
+                control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
                 label="Показывать предупреждения и продолжать"
                 sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
               />
@@ -988,7 +1086,16 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
         {/* Вкладка: Дополнительно */}
         <TabPanel value={activeTab} index={3}>
           <FormControl fullWidth sx={{ mb: 3 }}>
-            <FormLabel sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1.5, fontWeight: 500 }}>
+            <FormLabel 
+              sx={{ 
+                color: 'rgba(255, 255, 255, 0.7)', 
+                mb: 1.5, 
+                fontWeight: 500,
+                '&.Mui-focused': {
+                  color: 'rgba(255, 255, 255, 0.7)',
+                },
+              }}
+            >
               Статус для новых клиентов:
             </FormLabel>
             <RadioGroup
@@ -1005,19 +1112,19 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
             >
               <FormControlLabel
                 value="NEW"
-                control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: '#4caf50' } }} />}
+                control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
                 label="NEW (новый клиент)"
                 sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
               />
               <FormControlLabel
                 value="OLD"
-                control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: '#4caf50' } }} />}
+                control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
                 label="OLD (старый клиент)"
                 sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
               />
               <FormControlLabel
                 value="from_file"
-                control={<Radio sx={{ color: 'rgba(255, 255, 255, 0.7)', '&.Mui-checked': { color: '#4caf50' } }} />}
+                control={<Radio sx={{ color: '#ffffff', '&.Mui-checked': { color: '#ffffff' } }} />}
                 label="Из файла (если есть колонка status)"
                 sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
               />
@@ -1035,8 +1142,8 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
                   })
                 }
                 sx={{
-                  color: 'rgba(255, 255, 255, 0.7)',
-                  '&.Mui-checked': { color: '#4caf50' },
+                  color: '#ffffff',
+                  '&.Mui-checked': { color: '#ffffff' },
                 }}
               />
             }
@@ -1048,31 +1155,55 @@ export function ImportConfigDialog({ open, onClose, onSave, initialConfig }: Imp
         {/* Вкладка: Предпросмотр */}
         <TabPanel value={activeTab} index={4}>
           <StyledPaper>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
               <InfoIcon sx={{ color: 'rgba(33, 150, 243, 0.7)' }} />
               <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
                 Предпросмотр конфигурации
               </Typography>
             </Box>
             <Box
-              component="ul"
               sx={{
-                pl: 2.5,
-                m: 0,
-                color: 'rgba(255, 255, 255, 0.9)',
-                '& li': {
-                  mb: 1.5,
-                  lineHeight: 1.6,
-                },
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 2.5,
               }}
             >
-              {generatePreview().map((line, index) => (
-                <li key={index}>
-                  <Typography variant="body2" component="span" sx={{ color: 'rgba(255, 255, 255, 0.9)' }}>
-                    {line}
-                  </Typography>
-                </li>
-              ))}
+              {generatePreview().map((line, index) => {
+                const [label, value] = line.split(':');
+                return (
+                  <Box
+                    key={index}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 2,
+                      pb: 2,
+                      borderBottom: index < generatePreview().length - 1 ? '1px solid rgba(255, 255, 255, 0.1)' : 'none',
+                    }}
+                  >
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: 'rgba(255, 255, 255, 0.6)',
+                        fontWeight: 500,
+                        minWidth: '200px',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {label}:
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: 'rgba(255, 255, 255, 0.9)',
+                        flex: 1,
+                      }}
+                    >
+                      {value?.trim() || ''}
+                    </Typography>
+                  </Box>
+                );
+              })}
             </Box>
           </StyledPaper>
         </TabPanel>
