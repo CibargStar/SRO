@@ -12,7 +12,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Box, Typography } from '@mui/material';
 import { AuthProvider, ProtectedRoute, RootRoute, PublicRoute, ErrorBoundary, Sidebar } from '@/components';
-import { LoginPage, UsersAdminPage, ClientsPage, RegionsAdminPage } from '@/pages';
+import { LoginPage, UsersAdminPage, ClientsPage, RegionsAdminPage, ProfilesPage, ProfileLimitsPage } from '@/pages';
 import { useAuthStore } from '@/store';
 
 /**
@@ -191,6 +191,26 @@ const App: React.FC = () => {
                       <ClientsPage />
                     </AppLayout>
                   </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profiles"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <ProfilesPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/profile-limits"
+                element={
+                  <RootRoute>
+                    <AppLayout>
+                      <ProfileLimitsPage />
+                    </AppLayout>
+                  </RootRoute>
                 }
               />
               <Route path="*" element={<Navigate to="/" replace />} />

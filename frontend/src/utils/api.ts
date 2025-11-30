@@ -32,6 +32,24 @@ import type {
   ClientPhone,
   CreateClientPhoneInput,
   UpdateClientPhoneInput,
+  Profile,
+  ProfilesListResponse,
+  ListProfilesQuery,
+  CreateProfileInput,
+  UpdateProfileInput,
+  ProfileStatusResponse,
+  StartProfileOptions,
+  StartProfileResponse,
+  ProcessResourceStats,
+  ProfileResourcesHistoryResponse,
+  ProfileHealthCheck,
+  NetworkStats,
+  ProfileAlertsResponse,
+  ProfileUnreadAlertsCountResponse,
+  ProfileAnalytics,
+  AggregationPeriod,
+  ProfileLimits,
+  SetProfileLimitsInput,
 } from '@/types';
 import { isValidJWTFormat, isTokenExpired } from './jwt';
 
@@ -1228,5 +1246,538 @@ export async function exportGroup(groupId: string, format: 'xlsx' | 'xls' | 'csv
   link.click();
   document.body.removeChild(link);
   window.URL.revokeObjectURL(downloadUrl);
+}
+
+// ============================================
+// Profiles API
+// ============================================
+
+/**
+ * Создание профиля
+ * 
+ * @param profileData - Данные для создания профиля
+ * @returns Созданный профиль
+ */
+export async function createProfile(profileData: CreateProfileInput): Promise<Profile> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/profiles`, {
+    method: 'POST',
+    headers: createHeaders(token),
+    body: JSON.stringify(profileData),
+  });
+
+  return handleResponse<Profile>(response);
+}
+
+/**
+ * Получение списка профилей
+ * 
+ * @param query - Query параметры (пагинация, фильтрация, сортировка)
+ * @returns Список профилей с метаданными пагинации
+ */
+export async function listProfiles(query?: ListProfilesQuery): Promise<ProfilesListResponse> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  // Построение query строки
+  const queryParams = new URLSearchParams();
+  if (query?.page) queryParams.append('page', query.page.toString());
+  if (query?.limit) queryParams.append('limit', query.limit.toString());
+  if (query?.status) queryParams.append('status', query.status);
+  if (query?.sortBy) queryParams.append('sortBy', query.sortBy);
+  if (query?.sortOrder) queryParams.append('sortOrder', query.sortOrder);
+
+  const queryString = queryParams.toString();
+  const url = `${API_BASE_URL}/profiles${queryString ? `?${queryString}` : ''}`;
+
+  const response = await fetchWithAutoRefresh(url, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<ProfilesListResponse>(response);
+}
+
+/**
+ * Получение профиля по ID
+ * 
+ * @param profileId - ID профиля
+ * @returns Данные профиля
+ */
+export async function getProfile(profileId: string): Promise<Profile> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/profiles/${profileId}`, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<Profile>(response);
+}
+
+/**
+ * Обновление профиля
+ * 
+ * @param profileId - ID профиля
+ * @param profileData - Данные для обновления профиля
+ * @returns Обновленный профиль
+ */
+export async function updateProfile(profileId: string, profileData: UpdateProfileInput): Promise<Profile> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/profiles/${profileId}`, {
+    method: 'PATCH',
+    headers: createHeaders(token),
+    body: JSON.stringify(profileData),
+  });
+
+  return handleResponse<Profile>(response);
+}
+
+/**
+ * Удаление профиля
+ * 
+ * @param profileId - ID профиля
+ */
+export async function deleteProfile(profileId: string): Promise<void> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/profiles/${profileId}`, {
+    method: 'DELETE',
+    headers: createHeaders(token),
+  });
+
+  await handleResponse<void>(response);
+}
+
+/**
+ * Получение статуса профиля
+ * 
+ * @param profileId - ID профиля
+ * @returns Статус профиля
+ */
+export async function getProfileStatus(profileId: string): Promise<ProfileStatusResponse> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/profiles/${profileId}/status`, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<ProfileStatusResponse>(response);
+}
+
+/**
+ * Запуск профиля
+ * 
+ * @param profileId - ID профиля
+ * @param options - Опции запуска (опционально)
+ * @returns Информация о запущенном процессе
+ */
+export async function startProfile(profileId: string, options?: StartProfileOptions): Promise<StartProfileResponse> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/profiles/${profileId}/start`, {
+    method: 'POST',
+    headers: createHeaders(token),
+    body: options ? JSON.stringify(options) : undefined,
+  });
+
+  return handleResponse<StartProfileResponse>(response);
+}
+
+/**
+ * Остановка профиля
+ * 
+ * @param profileId - ID профиля
+ * @param force - Принудительная остановка
+ * @returns Сообщение об успешной остановке
+ */
+export async function stopProfile(profileId: string, force: boolean = false): Promise<{ message: string }> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const queryParams = new URLSearchParams();
+  if (force) queryParams.append('force', 'true');
+
+  const queryString = queryParams.toString();
+  const url = `${API_BASE_URL}/profiles/${profileId}/stop${queryString ? `?${queryString}` : ''}`;
+
+  const response = await fetchWithAutoRefresh(url, {
+    method: 'POST',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<{ message: string }>(response);
+}
+
+/**
+ * Получение статистики ресурсов профиля
+ * 
+ * @param profileId - ID профиля
+ * @returns Статистика ресурсов или null, если профиль не запущен
+ */
+export async function getProfileResources(profileId: string): Promise<ProcessResourceStats | null> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/profiles/${profileId}/resources`, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  // Если профиль не запущен, может вернуться 404
+  if (response.status === 404) {
+    return null;
+  }
+
+  return handleResponse<ProcessResourceStats | null>(response);
+}
+
+/**
+ * Получение истории статистики ресурсов профиля
+ * 
+ * @param profileId - ID профиля
+ * @param limit - Максимальное количество записей
+ * @param from - Начальная дата (ISO 8601)
+ * @param to - Конечная дата (ISO 8601)
+ * @returns История статистики ресурсов
+ */
+export async function getProfileResourcesHistory(
+  profileId: string,
+  limit?: number,
+  from?: string,
+  to?: string
+): Promise<ProfileResourcesHistoryResponse> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const queryParams = new URLSearchParams();
+  if (limit) queryParams.append('limit', limit.toString());
+  if (from) queryParams.append('from', from);
+  if (to) queryParams.append('to', to);
+
+  const queryString = queryParams.toString();
+  const url = `${API_BASE_URL}/profiles/${profileId}/resources/history${queryString ? `?${queryString}` : ''}`;
+
+  const response = await fetchWithAutoRefresh(url, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<ProfileResourcesHistoryResponse>(response);
+}
+
+/**
+ * Проверка здоровья профиля
+ * 
+ * @param profileId - ID профиля
+ * @returns Результат проверки здоровья
+ */
+export async function checkProfileHealth(profileId: string): Promise<ProfileHealthCheck> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/profiles/${profileId}/health`, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<ProfileHealthCheck>(response);
+}
+
+/**
+ * Получение статистики сетевой активности профиля
+ * 
+ * @param profileId - ID профиля
+ * @returns Статистика сетевой активности или null, если профиль не запущен
+ */
+export async function getProfileNetworkStats(profileId: string): Promise<NetworkStats | null> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/profiles/${profileId}/network`, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  // Если профиль не запущен, может вернуться 404
+  if (response.status === 404) {
+    return null;
+  }
+
+  return handleResponse<NetworkStats | null>(response);
+}
+
+/**
+ * Получение алертов профиля
+ * 
+ * @param profileId - ID профиля
+ * @param limit - Максимальное количество алертов
+ * @param unreadOnly - Только непрочитанные
+ * @param from - Начальная дата (ISO 8601)
+ * @param to - Конечная дата (ISO 8601)
+ * @returns Список алертов
+ */
+export async function getProfileAlerts(
+  profileId: string,
+  limit?: number,
+  unreadOnly?: boolean,
+  from?: string,
+  to?: string
+): Promise<ProfileAlertsResponse> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const queryParams = new URLSearchParams();
+  if (limit) queryParams.append('limit', limit.toString());
+  if (unreadOnly) queryParams.append('unreadOnly', 'true');
+  if (from) queryParams.append('from', from);
+  if (to) queryParams.append('to', to);
+
+  const queryString = queryParams.toString();
+  const url = `${API_BASE_URL}/profiles/${profileId}/alerts${queryString ? `?${queryString}` : ''}`;
+
+  const response = await fetchWithAutoRefresh(url, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<ProfileAlertsResponse>(response);
+}
+
+/**
+ * Получение количества непрочитанных алертов
+ * 
+ * @param profileId - ID профиля
+ * @returns Количество непрочитанных алертов
+ */
+export async function getProfileUnreadAlertsCount(profileId: string): Promise<ProfileUnreadAlertsCountResponse> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/profiles/${profileId}/alerts/unread-count`, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<ProfileUnreadAlertsCountResponse>(response);
+}
+
+/**
+ * Отметка алерта как прочитанного
+ * 
+ * @param profileId - ID профиля
+ * @param alertId - ID алерта
+ * @returns Сообщение об успехе
+ */
+export async function markAlertAsRead(profileId: string, alertId: string): Promise<{ message: string }> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/profiles/${profileId}/alerts/${alertId}/read`, {
+    method: 'POST',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<{ message: string }>(response);
+}
+
+/**
+ * Отметка всех алертов как прочитанных
+ * 
+ * @param profileId - ID профиля
+ * @returns Сообщение и количество отмеченных алертов
+ */
+export async function markAllAlertsAsRead(profileId: string): Promise<{ message: string; markedCount: number }> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/profiles/${profileId}/alerts/read-all`, {
+    method: 'POST',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<{ message: string; markedCount: number }>(response);
+}
+
+/**
+ * Получение аналитики профиля
+ * 
+ * @param profileId - ID профиля
+ * @param period - Период агрегации
+ * @param from - Начальная дата (ISO 8601)
+ * @param to - Конечная дата (ISO 8601)
+ * @returns Аналитика профиля
+ */
+export async function getProfileAnalytics(
+  profileId: string,
+  period?: AggregationPeriod,
+  from?: string,
+  to?: string
+): Promise<ProfileAnalytics> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const queryParams = new URLSearchParams();
+  if (period) queryParams.append('period', period);
+  if (from) queryParams.append('from', from);
+  if (to) queryParams.append('to', to);
+
+  const queryString = queryParams.toString();
+  const url = `${API_BASE_URL}/profiles/${profileId}/analytics${queryString ? `?${queryString}` : ''}`;
+
+  const response = await fetchWithAutoRefresh(url, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<ProfileAnalytics>(response);
+}
+
+// ============================================
+// Profile Limits API
+// ============================================
+
+/**
+ * Получение собственных лимитов профилей
+ * 
+ * @returns Лимиты профилей текущего пользователя
+ */
+export async function getMyLimits(): Promise<ProfileLimits> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/profiles/limits/me`, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<ProfileLimits>(response);
+}
+
+/**
+ * Получение всех лимитов профилей (ROOT only)
+ * 
+ * @returns Список всех лимитов
+ */
+export async function getAllLimits(): Promise<ProfileLimits[]> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/profiles/limits`, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<ProfileLimits[]>(response);
+}
+
+/**
+ * Получение лимитов профилей пользователя (ROOT only)
+ * 
+ * @param userId - ID пользователя
+ * @returns Лимиты профилей пользователя
+ */
+export async function getUserLimits(userId: string): Promise<ProfileLimits> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/profiles/limits/${userId}`, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<ProfileLimits>(response);
+}
+
+/**
+ * Установка лимитов профилей для пользователя (ROOT only)
+ * 
+ * @param userId - ID пользователя
+ * @param limitsData - Данные для установки лимитов
+ * @returns Установленные лимиты
+ */
+export async function setUserLimits(userId: string, limitsData: SetProfileLimitsInput): Promise<ProfileLimits> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/profiles/limits/${userId}`, {
+    method: 'PUT',
+    headers: createHeaders(token),
+    body: JSON.stringify(limitsData),
+  });
+
+  return handleResponse<ProfileLimits>(response);
 }
 

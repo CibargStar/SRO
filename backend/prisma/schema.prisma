@@ -40,6 +40,20 @@ enum MessengerStatus {
   Unknown
 }
 
+/// Статус профиля Chrome
+/// STOPPED - профиль остановлен
+/// RUNNING - профиль запущен и работает
+/// STARTING - профиль запускается
+/// STOPPING - профиль останавливается
+/// ERROR - ошибка при работе профиля
+enum ProfileStatus {
+  STOPPED
+  RUNNING
+  STARTING
+  STOPPING
+  ERROR
+}
+
 // ============================================
 // Models
 // ============================================
@@ -70,6 +84,8 @@ model User {
   clientGroups   ClientGroup[]
   clients        Client[]
   importConfigs  ImportConfig[] // Конфигурации импорта
+  profiles       Profile[] // Профили Chrome
+  profileLimits  UserProfileLimits? // Лимиты профилей (один-к-одному)
 
   // Индексы для оптимизации запросов
   @@index([email]) // Быстрый поиск по email (уже есть @unique, но явный индекс для ясности)
@@ -200,5 +216,59 @@ model ImportConfig {
   @@index([userId, isDefault]) // Поиск конфигурации по умолчанию
   @@index([userId, name]) // Уникальность названия конфигурации для пользователя
   @@map("import_configs")
+}
+
+/// Профиль Chrome браузера
+/// Каждый пользователь может создавать свои профили для работы с мессенджерами
+model Profile {
+  id          String        @id @default(uuid()) // UUID для безопасности
+  userId      String        // ID пользователя-владельца
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  name        String        // Название профиля
+  description String?       // Описание профиля (опционально)
+  
+  // Путь к директории профиля Chrome (уникальный)
+  profilePath String        @unique
+  
+  // Статус профиля
+  status      ProfileStatus @default(STOPPED)
+  
+  // Режим работы: headless (без UI) или с UI
+  headless    Boolean       @default(true) // По умолчанию без UI
+  
+  // Метаданные
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  lastActiveAt DateTime?     // Последняя активность профиля
+  
+  // Индексы для оптимизации запросов
+  @@index([userId]) // Быстрый поиск профилей пользователя
+  @@index([status]) // Быстрый поиск по статусу
+  @@index([userId, status]) // Комбинированный поиск профилей пользователя по статусу
+  @@map("profiles")
+}
+
+/// Лимиты профилей для пользователей
+/// Настраиваются ROOT пользователем для каждого пользователя
+model UserProfileLimits {
+  id          String   @id @default(uuid()) // UUID для безопасности
+  userId      String   @unique // ID пользователя (один-к-одному)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Лимит количества профилей
+  maxProfiles Int      @default(10) // Максимальное количество профилей (по умолчанию 10)
+  
+  // Лимиты ресурсов на профиль (опционально, для будущего использования)
+  maxCpuPerProfile      Float?   // Максимальное использование CPU на профиль (0-1)
+  maxMemoryPerProfile   Int?     // Максимальное использование памяти на профиль (MB)
+  maxNetworkPerProfile  Int?     // Максимальная скорость сети на профиль (KB/s, опционально)
+  
+  // Метаданные
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedBy   String?  // ID пользователя, который обновил лимиты (обычно ROOT)
+  
+  @@map("user_profile_limits")
 }
 

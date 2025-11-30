@@ -53,3 +53,7 @@ yarn-error.log*
 .temp/
 .tmp/
 
+# Profiles directories
+profiles/
+backend/profiles/
+

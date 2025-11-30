@@ -53,6 +53,26 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   customfavIcon: '/favicon.ico',
 }));
 
+// Инициализация сервисов
+import { ProfilesService } from './modules/profiles';
+import { ProfilesRepository } from './modules/profiles';
+import profilesRoutes from './routes/profiles.routes';
+
+// Инициализация ProfilesService
+import { ProfileLimitsRepository, ProfileLimitsService } from './modules/profiles/limits';
+const profilesRepository = new ProfilesRepository(prisma);
+const profileLimitsRepository = new ProfileLimitsRepository(prisma);
+const profileLimitsService = new ProfileLimitsService(profileLimitsRepository, profilesRepository);
+const profilesService = new ProfilesService(profilesRepository, './profiles', profileLimitsService);
+app.set('profilesService', profilesService);
+app.set('profileLimitsService', profileLimitsService);
+
+// Получение ChromeProcessService для graceful shutdown
+const chromeProcessService = profilesService.chromeProcessService;
+
+// Запуск фоновых сервисов мониторинга профилей
+profilesService.startBackgroundServices();
+
 // API Routes
 import authRoutes from './routes/auth.routes';
 import usersRoutes from './routes/users.routes';
@@ -68,6 +88,7 @@ app.use('/api/client-groups', clientGroupsRoutes);
 app.use('/api/regions', regionsRoutes);
 app.use('/api/import', importRoutes);
 app.use('/api/export', exportRoutes);
+app.use('/api/profiles', profilesRoutes);
 
 // Обработчики ошибок должны быть последними
 app.use(notFoundHandler); // 404 для несуществующих маршрутов
@@ -127,7 +148,7 @@ async function bootstrap(): Promise<void> {
     });
 
     // Настройка graceful shutdown
-    setupGracefulShutdown(server);
+    setupGracefulShutdown(server, profilesService);
   } catch (error) {
     // Критическая ошибка - приложение не должно стартовать
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -146,16 +167,44 @@ async function bootstrap(): Promise<void> {
  * Настройка graceful shutdown для сервера
  * 
  * @param server - HTTP сервер Express
+ * @param profilesService - Сервис управления профилями
  */
-function setupGracefulShutdown(server: ReturnType<typeof app.listen>): void {
+function setupGracefulShutdown(server: ReturnType<typeof app.listen>, profilesService: any): void {
   /**
    * Graceful shutdown - корректное завершение работы сервера
    * Закрывает HTTP сервер и отключается от базы данных перед выходом
    * 
    * @param signal - Сигнал завершения (SIGTERM или SIGINT)
    */
-  const gracefulShutdown = (signal: string): void => {
+  const gracefulShutdown = async (signal: string): Promise<void> => {
     logger.info(`${signal} received, shutting down gracefully`);
+    
+    // Остановка фоновых сервисов мониторинга профилей
+    try {
+      if (profilesService) {
+        logger.info('Stopping background services for profiles...');
+        profilesService.stopBackgroundServices();
+        logger.info('Background services stopped');
+      }
+    } catch (error) {
+      logger.error('Error stopping background services during shutdown', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+    
+    // Остановка всех Chrome процессов перед завершением
+    try {
+      if (profilesService && profilesService.chromeProcessService) {
+        logger.info('Stopping all Chrome processes...');
+        await profilesService.chromeProcessService.stopAllProcesses(true);
+        logger.info('All Chrome processes stopped');
+      }
+    } catch (error) {
+      logger.error('Error stopping Chrome processes during shutdown', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+
     server.close(() => {
       logger.info('HTTP server closed');
       // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access

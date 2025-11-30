@@ -10,4 +10,5 @@ export * from './client.schema';
 export * from './client-group.schema';
 export * from './region.schema';
 export * from './client-phone.schema';
+export * from './profile.schema';
 

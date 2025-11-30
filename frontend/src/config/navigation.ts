@@ -65,6 +65,20 @@ export const navigationConfig: SidebarNavigationItem[] = [
   },
   
   /**
+   * Управление лимитами профилей (только для ROOT)
+   * 
+   * Доступен только пользователям с ролью ROOT.
+   */
+  {
+    id: 'admin-profile-limits',
+    label: 'Лимиты профилей',
+    path: '/admin/profile-limits',
+    visibility: {
+      roles: ['ROOT'], // Только ROOT может видеть этот элемент
+    },
+  },
+  
+  /**
    * Управление клиентами (доступно всем авторизованным)
    * 
    * Каждый пользователь управляет только своими клиентами.
@@ -74,6 +88,21 @@ export const navigationConfig: SidebarNavigationItem[] = [
     id: 'clients',
     label: 'Клиенты',
     path: '/clients',
+    visibility: {
+      roles: [], // Доступно всем авторизованным
+    },
+  },
+  
+  /**
+   * Управление профилями Chrome (доступно всем авторизованным)
+   * 
+   * Каждый пользователь управляет только своими профилями.
+   * Включает создание, запуск, остановку и мониторинг профилей.
+   */
+  {
+    id: 'profiles',
+    label: 'Профили Chrome',
+    path: '/profiles',
     visibility: {
       roles: [], // Доступно всем авторизованным
     },

@@ -31,3 +31,8 @@ export { RegionTable } from './RegionTable';
 export { CreateRegionDialog } from './CreateRegionDialog';
 export { EditRegionDialog } from './EditRegionDialog';
 export { RegionStatistics } from './RegionStatistics';
+export { ProfileTable } from './ProfileTable';
+export { CreateProfileDialog } from './CreateProfileDialog';
+export { EditProfileDialog } from './EditProfileDialog';
+export { ProfileStatusChip } from './ProfileStatusChip';
+export { ProfileDetailsDialog } from './ProfileDetailsDialog';

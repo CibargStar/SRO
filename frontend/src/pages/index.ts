@@ -9,4 +9,6 @@ export { LoginPage } from './LoginPage';
 export { UsersAdminPage } from './UsersAdminPage';
 export { ClientsPage } from './ClientsPage';
 export { RegionsAdminPage } from './RegionsAdminPage';
+export { ProfilesPage } from './ProfilesPage';
+export { ProfileLimitsPage } from './ProfileLimitsPage';
 

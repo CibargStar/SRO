@@ -277,3 +277,8 @@ export type {
   NavigationVisibility,
   VisibilityChecker,
 } from './sidebar';
+
+/**
+ * Экспорт типов для модуля профилей
+ */
+export * from './profile';
