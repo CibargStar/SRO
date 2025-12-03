@@ -282,3 +282,8 @@ export type {
  * Экспорт типов для модуля профилей
  */
 export * from './profile';
+
+/**
+ * Экспорт типов для модуля мессенджеров
+ */
+export * from './messenger';

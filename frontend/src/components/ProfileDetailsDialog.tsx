@@ -77,6 +77,7 @@ export function ProfileDetailsDialog({ open, onClose, profileId }: ProfileDetail
     enabled: !!profileId && open,
   });
 
+
   const { data: resources, isLoading: resourcesLoading } = useProfileResources(profileId || '', {
     enabled: !!profileId && open && activeTab === 1,
     refetchInterval: 5000, // Обновляем каждые 5 секунд
@@ -122,6 +123,7 @@ export function ProfileDetailsDialog({ open, onClose, profileId }: ProfileDetail
       markAllAlertsAsReadMutation.mutate(profileId);
     }
   };
+
 
   if (!profileId) {
     return null;
@@ -337,35 +339,46 @@ export function ProfileDetailsDialog({ open, onClose, profileId }: ProfileDetail
                     </Box>
                   )}
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                    {alertsData.alerts.map((alert) => (
-                      <Alert
-                        key={alert.id}
-                        severity={alert.severity === 'critical' ? 'error' : alert.severity === 'error' ? 'error' : alert.severity === 'warning' ? 'warning' : 'info'}
-                        sx={{
-                          backgroundColor: 'rgba(33, 150, 243, 0.1)',
-                          color: '#ffffff',
-                          opacity: alert.read ? 0.6 : 1,
-                        }}
-                        action={
-                          !alert.read && (
-                            <Button
-                              size="small"
-                              onClick={() => handleMarkAlertAsRead(alert.id)}
-                              disabled={markAlertAsReadMutation.isPending}
-                              sx={{ color: '#ffffff' }}
-                            >
-                              Отметить
-                            </Button>
-                          )
-                        }
-                      >
-                        <Typography variant="subtitle2">{alert.title}</Typography>
-                        <Typography variant="body2">{alert.message}</Typography>
-                        <Typography variant="caption" sx={{ display: 'block', mt: 0.5, opacity: 0.7 }}>
-                          {formatDate(alert.timestamp)}
-                        </Typography>
-                      </Alert>
-                    ))}
+                    {alertsData.alerts.map((alert) => {
+                      const isMessengerLoginAlert = alert.type === 'MESSENGER_LOGIN_REQUIRED';
+                      const alertMetadata = alert.metadata || {};
+                      const qrCodeFromAlert = alertMetadata.qrCode as string | undefined;
+                      const cloudPasswordRequired = alertMetadata.cloudPasswordRequired as boolean | undefined;
+                      const accountId = alertMetadata.accountId as string | undefined;
+                      const serviceName = alertMetadata.serviceName as string | undefined;
+
+                      // Функция для показа QR кода из алерта удалена, так как управление мессенджерами вынесено в отдельный диалог
+
+                      return (
+                        <Alert
+                          key={alert.id}
+                          severity={alert.severity === 'critical' ? 'error' : alert.severity === 'error' ? 'error' : alert.severity === 'warning' ? 'warning' : 'info'}
+                          sx={{
+                            backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                            color: '#ffffff',
+                            opacity: alert.read ? 0.6 : 1,
+                          }}
+                          action={
+                            !alert.read && (
+                              <Button
+                                size="small"
+                                onClick={() => handleMarkAlertAsRead(alert.id)}
+                                disabled={markAlertAsReadMutation.isPending}
+                                sx={{ color: '#ffffff' }}
+                              >
+                                Отметить
+                              </Button>
+                            )
+                          }
+                        >
+                          <Typography variant="subtitle2">{alert.title}</Typography>
+                          <Typography variant="body2">{alert.message}</Typography>
+                          <Typography variant="caption" sx={{ display: 'block', mt: 0.5, opacity: 0.7 }}>
+                            {formatDate(alert.timestamp)}
+                          </Typography>
+                        </Alert>
+                      );
+                    })}
                   </Box>
                 </Box>
               ) : (
@@ -503,6 +516,7 @@ export function ProfileDetailsDialog({ open, onClose, profileId }: ProfileDetail
                 </Alert>
               )}
             </TabPanel>
+
           </DialogContent>
 
           <DialogActions sx={dialogActionsStyles}>
@@ -510,6 +524,7 @@ export function ProfileDetailsDialog({ open, onClose, profileId }: ProfileDetail
           </DialogActions>
         </>
       ) : null}
+
     </Dialog>
   );
 }

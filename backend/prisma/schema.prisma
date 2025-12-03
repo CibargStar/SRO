@@ -54,6 +54,20 @@ enum ProfileStatus {
   ERROR
 }
 
+/// Статус входа аккаунта мессенджера
+/// LOGGED_IN - аккаунт залогинен
+/// NOT_LOGGED_IN - аккаунт не залогинен, требуется вход
+/// CHECKING - проверка статуса выполняется
+/// ERROR - ошибка при проверке
+/// UNKNOWN - статус неизвестен
+enum MessengerAccountStatus {
+  LOGGED_IN
+  NOT_LOGGED_IN
+  CHECKING
+  ERROR
+  UNKNOWN
+}
+
 // ============================================
 // Models
 // ============================================
@@ -242,6 +256,9 @@ model Profile {
   updatedAt   DateTime      @updatedAt
   lastActiveAt DateTime?     // Последняя активность профиля
   
+  // Связь с аккаунтами мессенджеров
+  messengerAccounts ProfileMessengerAccount[]
+  
   // Индексы для оптимизации запросов
   @@index([userId]) // Быстрый поиск профилей пользователя
   @@index([status]) // Быстрый поиск по статусу
@@ -270,5 +287,75 @@ model UserProfileLimits {
   updatedBy   String?  // ID пользователя, который обновил лимиты (обычно ROOT)
   
   @@map("user_profile_limits")
+}
+
+/// Справочник мессенджеров
+/// Статический справочник доступных мессенджеров
+model MessengerService {
+  id          String   @id @default(uuid())
+  name        String   @unique // Техническое имя (whatsapp, telegram, viber и т.д.)
+  displayName String   // Отображаемое имя (WhatsApp, Telegram, Viber)
+  icon        String?  // Иконка или путь к иконке (опционально)
+  enabled     Boolean  @default(true) // Включен ли мессенджер в системе
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Связи
+  accounts    ProfileMessengerAccount[] // Аккаунты этого мессенджера
+  checkConfig MessengerCheckConfig? // Конфигурация проверки (один-к-одному)
+  
+  @@index([name]) // Быстрый поиск по имени
+  @@index([enabled]) // Поиск включенных мессенджеров
+  @@map("messenger_services")
+}
+
+/// Аккаунт мессенджера, привязанный к профилю
+/// Каждый профиль может иметь один аккаунт каждого типа мессенджера
+model ProfileMessengerAccount {
+  id                String                  @id @default(uuid())
+  profileId         String                  // ID профиля
+  profile           Profile                 @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  serviceId         String                  // ID мессенджера
+  service           MessengerService        @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  
+  isEnabled         Boolean                 @default(true) // Включен ли мессенджер для этого профиля
+  status            MessengerAccountStatus  @default(UNKNOWN) // Статус входа
+  
+  lastCheckedAt     DateTime?               // Время последней проверки
+  lastStatusChangeAt DateTime?              // Время последнего изменения статуса
+  
+  // Метаданные в формате JSON (для специфичных данных мессенджеров)
+  // Например: { phoneNumber: "+1234567890", username: "@username" }
+  metadata          String?                 // JSON строка с метаданными
+  
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  
+  // Индексы для оптимизации запросов
+  @@unique([profileId, serviceId]) // Один аккаунт каждого мессенджера на профиль
+  @@index([profileId]) // Быстрый поиск аккаунтов профиля
+  @@index([serviceId]) // Быстрый поиск аккаунтов по мессенджеру
+  @@index([status]) // Поиск по статусу
+  @@index([isEnabled]) // Поиск включенных/выключенных
+  @@index([profileId, isEnabled]) // Поиск включенных аккаунтов профиля
+  @@index([profileId, serviceId, isEnabled]) // Комбинированный поиск
+  @@map("profile_messenger_accounts")
+}
+
+/// Конфигурация проверки статуса входа для мессенджера
+/// Настраивается ROOT пользователем для каждого мессенджера
+model MessengerCheckConfig {
+  id                  String           @id @default(uuid())
+  serviceId           String           @unique // ID мессенджера (один-к-одному)
+  service             MessengerService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  
+  checkIntervalSeconds Int             @default(300) // Интервал проверки в секундах (по умолчанию 5 минут)
+  enabled              Boolean         @default(true) // Включен ли мониторинг этого мессенджера
+  
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  updatedBy            String?         // ID пользователя, который обновил конфигурацию (обычно ROOT)
+  
+  @@map("messenger_check_configs")
 }
 

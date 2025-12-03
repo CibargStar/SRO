@@ -12,7 +12,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Box, Typography } from '@mui/material';
 import { AuthProvider, ProtectedRoute, RootRoute, PublicRoute, ErrorBoundary, Sidebar } from '@/components';
-import { LoginPage, UsersAdminPage, ClientsPage, RegionsAdminPage, ProfilesPage, ProfileLimitsPage } from '@/pages';
+import { LoginPage, UsersAdminPage, ClientsPage, RegionsAdminPage, ProfilesPage, ProfileLimitsPage, MessengerConfigsAdminPage } from '@/pages';
 import { useAuthStore } from '@/store';
 
 /**
@@ -209,6 +209,16 @@ const App: React.FC = () => {
                   <RootRoute>
                     <AppLayout>
                       <ProfileLimitsPage />
+                    </AppLayout>
+                  </RootRoute>
+                }
+              />
+              <Route
+                path="/admin/messenger-configs"
+                element={
+                  <RootRoute>
+                    <AppLayout>
+                      <MessengerConfigsAdminPage />
                     </AppLayout>
                   </RootRoute>
                 }

@@ -16,6 +16,9 @@ import { env, logger, prisma } from './config';
 import { swaggerSpec } from './config/swagger';
 import { ensureRootUser } from './modules/auth';
 import { cleanupExpiredTokens } from './modules/auth/token.service';
+import { ensureMessengerServices } from './modules/profiles/messenger-accounts/init-messenger-services';
+import { NotificationService } from './modules/profiles/notifications/notification.service';
+import { LaunchCheckService } from './modules/profiles/messenger-accounts/launch-check/launch-check.service';
 import {
   securityMiddleware,
   corsMiddleware,
@@ -60,18 +63,79 @@ import profilesRoutes from './routes/profiles.routes';
 
 // Инициализация ProfilesService
 import { ProfileLimitsRepository, ProfileLimitsService } from './modules/profiles/limits';
+import { MessengerAccountsRepository, MessengerAccountsService } from './modules/profiles/messenger-accounts';
 const profilesRepository = new ProfilesRepository(prisma);
 const profileLimitsRepository = new ProfileLimitsRepository(prisma);
 const profileLimitsService = new ProfileLimitsService(profileLimitsRepository, profilesRepository);
-const profilesService = new ProfilesService(profilesRepository, './profiles', profileLimitsService);
+// КРИТИЧНО: Короткий путь для профилей (Windows имеет ограничение 260 символов)
+// CacheStorage создаёт ОЧЕНЬ длинные пути внутри userDataDir
+// На Windows используем C:\SROProf, на Linux/Mac - ~/.sroprof
+import { mkdirSync, existsSync } from 'fs';
+
+const getProfilesBasePath = (): string => {
+  if (process.platform === 'win32') {
+    // Windows: короткий путь в корне диска C:
+    return 'C:\\SROProf';
+  } else {
+    // Linux/Mac: папка в домашней директории
+    return process.env.HOME ? `${process.env.HOME}/.sroprof` : '/tmp/sroprof';
+  }
+};
+
+const profilesBasePath = getProfilesBasePath();
+
+// Автоматическое создание папки профилей при старте
+if (!existsSync(profilesBasePath)) {
+  try {
+    mkdirSync(profilesBasePath, { recursive: true });
+    logger.info('Profiles directory created', { path: profilesBasePath });
+  } catch (err) {
+    logger.error('Failed to create profiles directory', { path: profilesBasePath, error: err });
+  }
+}
+
+logger.info('Profiles base path configured', { path: profilesBasePath, platform: process.platform });
+const profilesService = new ProfilesService(profilesRepository, profilesBasePath, profileLimitsService);
 app.set('profilesService', profilesService);
 app.set('profileLimitsService', profileLimitsService);
 
-// Получение ChromeProcessService для graceful shutdown
+// Получение ChromeProcessService для использования в других сервисах
 const chromeProcessService = profilesService.chromeProcessService;
+
+// Инициализация MessengerAccountsService (передаем ChromeProcessService и Prisma для проверки статусов и мониторинга)
+const messengerAccountsRepository = new MessengerAccountsRepository(prisma);
+const notificationServiceForMessengers = new NotificationService();
+const messengerAccountsService = new MessengerAccountsService(
+  messengerAccountsRepository,
+  profilesRepository,
+  chromeProcessService,
+  prisma,
+  notificationServiceForMessengers
+);
+app.set('messengerAccountsService', messengerAccountsService);
+
+// Инициализация LaunchCheckService для проверки аккаунтов мессенджеров при запуске профиля
+const statusCheckerService = messengerAccountsService.getStatusCheckerService();
+if (statusCheckerService) {
+  // Используем существующий NotificationService (можно использовать тот же, что и для мониторинга)
+  const launchCheckService = new LaunchCheckService(
+    prisma,
+    messengerAccountsRepository,
+    statusCheckerService,
+    chromeProcessService, // Для открытия вкладок мессенджеров
+    notificationServiceForMessengers // Используем тот же NotificationService
+  );
+  // Передаем LaunchCheckService в ProfilesService
+  profilesService.setLaunchCheckService(launchCheckService);
+}
 
 // Запуск фоновых сервисов мониторинга профилей
 profilesService.startBackgroundServices();
+
+// Запуск мониторинга статусов мессенджеров
+messengerAccountsService.startMonitoring().catch((err) => {
+  logger.warn('Failed to start messenger accounts monitoring', { error: err instanceof Error ? err.message : 'Unknown error' });
+});
 
 // API Routes
 import authRoutes from './routes/auth.routes';
@@ -89,6 +153,9 @@ app.use('/api/regions', regionsRoutes);
 app.use('/api/import', importRoutes);
 app.use('/api/export', exportRoutes);
 app.use('/api/profiles', profilesRoutes);
+// Маршруты для аккаунтов мессенджеров (используют префикс /api, не /api/profiles, так как есть отдельные endpoints)
+import messengerAccountsRoutes from './modules/profiles/messenger-accounts/messenger-accounts.routes';
+app.use('/api', messengerAccountsRoutes);
 
 // Обработчики ошибок должны быть последними
 app.use(notFoundHandler); // 404 для несуществующих маршрутов
@@ -138,6 +205,21 @@ async function bootstrap(): Promise<void> {
     await ensureRootUser(prisma, env, logger);
     logger.info('Root user initialization completed');
 
+    // Инициализация справочника мессенджеров
+    logger.info('Initializing messenger services...');
+    await ensureMessengerServices(prisma);
+    logger.info('Messenger services initialization completed');
+
+    // Восстановление профилей со статусом RUNNING при старте сервиса
+    logger.info('Restoring running profiles...');
+    await profilesService.restoreRunningProfiles();
+    logger.info('Running profiles restoration completed');
+
+    // Запуск мониторинга статусов аккаунтов мессенджеров
+    logger.info('Starting messenger accounts status monitoring...');
+    await messengerAccountsService.startMonitoring();
+    logger.info('Messenger accounts status monitoring started');
+
     // Очистка истекших токенов при старте и настройка периодической очистки
     logger.info('Setting up token cleanup...');
     setupTokenCleanup();
@@ -148,7 +230,7 @@ async function bootstrap(): Promise<void> {
     });
 
     // Настройка graceful shutdown
-    setupGracefulShutdown(server, profilesService);
+    setupGracefulShutdown(server, profilesService, messengerAccountsService);
   } catch (error) {
     // Критическая ошибка - приложение не должно стартовать
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -169,7 +251,11 @@ async function bootstrap(): Promise<void> {
  * @param server - HTTP сервер Express
  * @param profilesService - Сервис управления профилями
  */
-function setupGracefulShutdown(server: ReturnType<typeof app.listen>, profilesService: any): void {
+function setupGracefulShutdown(
+  server: ReturnType<typeof app.listen>,
+  profilesService: any,
+  messengerAccountsService: any
+): void {
   /**
    * Graceful shutdown - корректное завершение работы сервера
    * Закрывает HTTP сервер и отключается от базы данных перед выходом
@@ -192,6 +278,19 @@ function setupGracefulShutdown(server: ReturnType<typeof app.listen>, profilesSe
       });
     }
     
+    // Остановка мониторинга статусов аккаунтов мессенджеров
+    try {
+      if (messengerAccountsService) {
+        logger.info('Stopping messenger accounts monitoring...');
+        messengerAccountsService.stopMonitoring();
+        logger.info('Messenger accounts monitoring stopped');
+      }
+    } catch (error) {
+      logger.error('Error stopping messenger accounts monitoring during shutdown', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+
     // Остановка всех Chrome процессов перед завершением
     try {
       if (profilesService && profilesService.chromeProcessService) {

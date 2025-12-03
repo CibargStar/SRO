@@ -11,4 +11,5 @@ export { ClientsPage } from './ClientsPage';
 export { RegionsAdminPage } from './RegionsAdminPage';
 export { ProfilesPage } from './ProfilesPage';
 export { ProfileLimitsPage } from './ProfileLimitsPage';
+export { MessengerConfigsAdminPage } from './MessengerConfigsAdminPage';
 

@@ -28,7 +28,7 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction): 
   // Логируем после завершения ответа, чтобы получить финальный статус
   res.on('finish', () => {
     const duration = Date.now() - start;
-    logger.info({
+    logger.info('HTTP request', {
       method: req.method,
       url: req.url,
       status: res.statusCode,

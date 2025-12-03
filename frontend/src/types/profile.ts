@@ -116,7 +116,8 @@ export type AlertType =
   | 'PROFILE_RESTARTED' 
   | 'PROFILE_HEALTH_DEGRADED' 
   | 'NETWORK_LIMIT_EXCEEDED' 
-  | 'PROFILE_ERROR';
+  | 'PROFILE_ERROR'
+  | 'MESSENGER_LOGIN_REQUIRED';
 
 /**
  * Уровень серьезности алерта

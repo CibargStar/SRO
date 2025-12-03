@@ -50,6 +50,13 @@ import type {
   AggregationPeriod,
   ProfileLimits,
   SetProfileLimitsInput,
+  MessengerService,
+  ProfileMessengerAccount,
+  MessengerCheckConfig,
+  LoginCheckResult,
+  CreateMessengerAccountInput,
+  UpdateMessengerAccountInput,
+  UpdateMessengerCheckConfigInput,
 } from '@/types';
 import { isValidJWTFormat, isTokenExpired } from './jwt';
 
@@ -1781,3 +1788,353 @@ export async function setUserLimits(userId: string, limitsData: SetProfileLimits
   return handleResponse<ProfileLimits>(response);
 }
 
+// ============================================
+// Messenger Accounts API
+// ============================================
+
+/**
+ * Получение всех мессенджеров (справочник)
+ * 
+ * @returns Список всех доступных мессенджеров в системе
+ */
+export async function getAllMessengerServices(): Promise<MessengerService[]> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/services`, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<MessengerService[]>(response);
+}
+
+/**
+ * Получение мессенджера по ID
+ * 
+ * @param serviceId - ID мессенджера
+ * @returns Информация о мессенджере
+ */
+export async function getMessengerServiceById(serviceId: string): Promise<MessengerService> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/services/${serviceId}`, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<MessengerService>(response);
+}
+
+/**
+ * Получение всех аккаунтов мессенджеров профиля
+ * 
+ * @param profileId - ID профиля
+ * @returns Список аккаунтов мессенджеров профиля
+ */
+export async function getMessengerAccountsByProfile(profileId: string): Promise<ProfileMessengerAccount[]> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/profiles/${profileId}/messenger-accounts`, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<ProfileMessengerAccount[]>(response);
+}
+
+/**
+ * Получение аккаунта мессенджера по ID
+ * 
+ * @param profileId - ID профиля
+ * @param accountId - ID аккаунта
+ * @returns Информация об аккаунте мессенджера
+ */
+export async function getMessengerAccountById(profileId: string, accountId: string): Promise<ProfileMessengerAccount> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/profiles/${profileId}/messenger-accounts/${accountId}`, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<ProfileMessengerAccount>(response);
+}
+
+/**
+ * Создание аккаунта мессенджера для профиля
+ * 
+ * @param profileId - ID профиля
+ * @param accountData - Данные для создания аккаунта
+ * @returns Созданный аккаунт мессенджера
+ */
+export async function createMessengerAccount(
+  profileId: string,
+  accountData: CreateMessengerAccountInput
+): Promise<ProfileMessengerAccount> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/profiles/${profileId}/messenger-accounts`, {
+    method: 'POST',
+    headers: createHeaders(token),
+    body: JSON.stringify(accountData),
+  });
+
+  return handleResponse<ProfileMessengerAccount>(response);
+}
+
+/**
+ * Обновление аккаунта мессенджера
+ * 
+ * @param profileId - ID профиля
+ * @param accountId - ID аккаунта
+ * @param accountData - Данные для обновления аккаунта
+ * @returns Обновленный аккаунт мессенджера
+ */
+export async function updateMessengerAccount(
+  profileId: string,
+  accountId: string,
+  accountData: UpdateMessengerAccountInput
+): Promise<ProfileMessengerAccount> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/profiles/${profileId}/messenger-accounts/${accountId}`, {
+    method: 'PATCH',
+    headers: createHeaders(token),
+    body: JSON.stringify(accountData),
+  });
+
+  return handleResponse<ProfileMessengerAccount>(response);
+}
+
+/**
+ * Удаление аккаунта мессенджера
+ * 
+ * @param profileId - ID профиля
+ * @param accountId - ID аккаунта
+ */
+export async function deleteMessengerAccount(profileId: string, accountId: string): Promise<void> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/profiles/${profileId}/messenger-accounts/${accountId}`, {
+    method: 'DELETE',
+    headers: createHeaders(token),
+  });
+
+  await handleResponse<void>(response);
+}
+
+/**
+ * Включение мессенджера для профиля
+ * 
+ * @param profileId - ID профиля
+ * @param accountId - ID аккаунта
+ * @returns Обновленный аккаунт мессенджера
+ */
+export async function enableMessengerAccount(profileId: string, accountId: string): Promise<ProfileMessengerAccount> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/profiles/${profileId}/messenger-accounts/${accountId}/enable`, {
+    method: 'POST',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<ProfileMessengerAccount>(response);
+}
+
+/**
+ * Выключение мессенджера для профиля
+ * 
+ * @param profileId - ID профиля
+ * @param accountId - ID аккаунта
+ * @returns Обновленный аккаунт мессенджера
+ */
+export async function disableMessengerAccount(profileId: string, accountId: string): Promise<ProfileMessengerAccount> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/profiles/${profileId}/messenger-accounts/${accountId}/disable`, {
+    method: 'POST',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<ProfileMessengerAccount>(response);
+}
+
+/**
+ * Получение количества аккаунтов мессенджеров для списка профилей
+ * 
+ * @param profileIds - Массив ID профилей
+ * @returns Объект с количеством аккаунтов для каждого профиля: { profileId: count }
+ */
+export async function getMessengerAccountsCounts(profileIds: string[]): Promise<Record<string, number>> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/messenger-accounts/counts`, {
+    method: 'POST',
+    headers: createHeaders(token),
+    body: JSON.stringify({ profileIds }),
+  });
+
+  return handleResponse<Record<string, number>>(response);
+}
+
+/**
+ * Проверка статуса входа аккаунта мессенджера
+ * 
+ * @param profileId - ID профиля
+ * @param accountId - ID аккаунта
+ * @returns Результат проверки статуса с QR кодом (если требуется вход)
+ */
+export async function checkMessengerAccountStatus(profileId: string, accountId: string): Promise<LoginCheckResult> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/profiles/${profileId}/messenger-accounts/${accountId}/check`, {
+    method: 'POST',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<LoginCheckResult>(response);
+}
+
+/**
+ * Результат ввода облачного пароля
+ */
+export interface CloudPasswordResult {
+  success: boolean;
+  status: string;
+  error?: string;
+}
+
+/**
+ * Ввод облачного пароля (2FA) для Telegram
+ * 
+ * @param profileId - ID профиля
+ * @param accountId - ID аккаунта мессенджера
+ * @param password - Облачный пароль
+ * @returns Результат ввода пароля
+ */
+export async function submitCloudPassword(profileId: string, accountId: string, password: string): Promise<CloudPasswordResult> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/profiles/${profileId}/messenger-accounts/${accountId}/cloud-password`, {
+    method: 'POST',
+    headers: createHeaders(token),
+    body: JSON.stringify({ password }),
+  });
+
+  return handleResponse<CloudPasswordResult>(response);
+}
+
+/**
+ * Получение всех конфигураций проверки (ROOT only)
+ * 
+ * @returns Список всех конфигураций проверки
+ */
+export async function getAllMessengerCheckConfigs(): Promise<MessengerCheckConfig[]> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/messenger-check-configs`, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<MessengerCheckConfig[]>(response);
+}
+
+/**
+ * Получение конфигурации проверки по serviceId (ROOT only)
+ * 
+ * @param serviceId - ID мессенджера
+ * @returns Конфигурация проверки
+ */
+export async function getMessengerCheckConfigByServiceId(serviceId: string): Promise<MessengerCheckConfig> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/messenger-check-configs/${serviceId}`, {
+    method: 'GET',
+    headers: createHeaders(token),
+  });
+
+  return handleResponse<MessengerCheckConfig>(response);
+}
+
+/**
+ * Обновление конфигурации проверки (ROOT only)
+ * 
+ * @param serviceId - ID мессенджера
+ * @param configData - Данные для обновления конфигурации
+ * @returns Обновленная конфигурация проверки
+ */
+export async function updateMessengerCheckConfig(
+  serviceId: string,
+  configData: UpdateMessengerCheckConfigInput
+): Promise<MessengerCheckConfig> {
+  const token = useAuthStore.getState().accessToken;
+  
+  if (!token) {
+    throw { message: 'No access token available' } as ApiError;
+  }
+
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/messenger-check-configs/${serviceId}`, {
+    method: 'PUT',
+    headers: createHeaders(token),
+    body: JSON.stringify(configData),
+  });
+
+  return handleResponse<MessengerCheckConfig>(response);
+}

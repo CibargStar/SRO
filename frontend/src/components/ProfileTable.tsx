@@ -24,6 +24,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
 import InfoIcon from '@mui/icons-material/Info';
+import MessageIcon from '@mui/icons-material/Message';
 import type { Profile } from '@/types';
 import { ProfileStatusChip } from './ProfileStatusChip';
 
@@ -89,6 +90,8 @@ interface ProfileTableProps {
   onStart: (profile: Profile) => void;
   onStop: (profile: Profile) => void;
   onDetails: (profile: Profile) => void;
+  onMessengers?: (profile: Profile) => void; // Обработчик открытия диалога мессенджеров
+  messengerAccountsCounts?: Record<string, number>; // Количество аккаунтов мессенджеров для каждого профиля
   isStarting?: string | null; // ID профиля, который сейчас запускается
   isStopping?: string | null; // ID профиля, который сейчас останавливается
 }
@@ -104,6 +107,8 @@ export function ProfileTable({
   onStart,
   onStop,
   onDetails,
+  onMessengers,
+  messengerAccountsCounts = {},
   isStarting,
   isStopping,
 }: ProfileTableProps) {
@@ -149,9 +154,10 @@ export function ProfileTable({
             <StyledTableCell>Описание</StyledTableCell>
             <StyledTableCell align="center">Статус</StyledTableCell>
             <StyledTableCell align="center">Режим</StyledTableCell>
+            <StyledTableCell align="center">Мессенджеры</StyledTableCell>
             <StyledTableCell>Последняя активность</StyledTableCell>
             <StyledTableCell>Создан</StyledTableCell>
-            <StyledTableCell align="center" sx={{ width: '200px' }}>
+            <StyledTableCell align="center" sx={{ width: '250px' }}>
               Действия
             </StyledTableCell>
           </TableRow>
@@ -175,13 +181,41 @@ export function ProfileTable({
                 <StyledTableCell align="center" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
                   {profile.headless === true ? 'Без UI' : profile.headless === false ? 'С UI' : 'Без UI'}
                 </StyledTableCell>
+                <StyledTableCell align="center">
+                  {messengerAccountsCounts[profile.id] !== undefined ? (
+                    <Box
+                      sx={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 0.5,
+                        padding: '4px 8px',
+                        borderRadius: '12px',
+                        backgroundColor: messengerAccountsCounts[profile.id] > 0 
+                          ? 'rgba(33, 150, 243, 0.2)' 
+                          : 'rgba(255, 255, 255, 0.05)',
+                        color: messengerAccountsCounts[profile.id] > 0 
+                          ? '#2196f3' 
+                          : 'rgba(255, 255, 255, 0.5)',
+                      }}
+                    >
+                      <MessageIcon sx={{ fontSize: 16 }} />
+                      <Typography variant="caption" sx={{ fontWeight: 500 }}>
+                        {messengerAccountsCounts[profile.id]}
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.3)' }}>
+                      -
+                    </Typography>
+                  )}
+                </StyledTableCell>
                 <StyledTableCell sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
                   {profile.lastActiveAt ? formatDate(profile.lastActiveAt) : '-'}
                 </StyledTableCell>
                 <StyledTableCell sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
                   {formatDate(profile.createdAt)}
                 </StyledTableCell>
-                <StyledTableCell align="center" sx={{ width: '200px' }}>
+                <StyledTableCell align="center" sx={{ width: '250px' }}>
                   <Box display="flex" gap={1} justifyContent="center">
                     <StyledIconButton
                       size="small"
@@ -191,6 +225,25 @@ export function ProfileTable({
                     >
                       <InfoIcon fontSize="small" />
                     </StyledIconButton>
+                    {onMessengers && (
+                      <StyledIconButton
+                        size="small"
+                        onClick={() => onMessengers(profile)}
+                        aria-label="Мессенджеры"
+                        title="Управление мессенджерами"
+                        sx={{
+                          color: messengerAccountsCounts[profile.id] > 0 
+                            ? 'rgba(33, 150, 243, 0.7)' 
+                            : 'rgba(255, 255, 255, 0.7)',
+                          '&:hover': {
+                            color: '#2196f3',
+                            backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                          },
+                        }}
+                      >
+                        <MessageIcon fontSize="small" />
+                      </StyledIconButton>
+                    )}
                     {canStart && (
                       <StyledIconButton
                         size="small"

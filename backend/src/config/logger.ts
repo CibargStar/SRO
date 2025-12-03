@@ -39,7 +39,10 @@ if (process.env.NODE_ENV !== 'production') {
     new winston.transports.Console({
       format: winston.format.combine(
         winston.format.colorize(), // Цветной вывод
-        winston.format.simple() // Простой читаемый формат
+        winston.format.printf(({ timestamp, level, message, ...meta }) => {
+          const metaStr = Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta, null, 2)}` : '';
+          return `${timestamp} [${level}]: ${message}${metaStr}`;
+        })
       ),
     })
   );

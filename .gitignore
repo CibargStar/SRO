@@ -54,6 +54,11 @@ yarn-error.log*
 .tmp/
 
 # Profiles directories
+# ВАЖНО: Профили хранятся в системной папке для обхода ограничения Windows (260 символов)
+# Windows: C:\SROProf
+# Linux/Mac: ~/.sroprof
 profiles/
 backend/profiles/
+prof/
+backend/prof/
 
