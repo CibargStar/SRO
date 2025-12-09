@@ -23,6 +23,8 @@ export interface Profile {
   createdAt: string;
   updatedAt: string;
   lastActiveAt: string | null;
+  campaignUsageCount?: number;
+  isInCampaign?: boolean;
 }
 
 /**

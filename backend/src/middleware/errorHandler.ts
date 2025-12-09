@@ -15,6 +15,7 @@ import logger from '../config/logger';
  */
 export interface AppError extends Error {
   statusCode?: number;
+  code?: string;
 }
 
 /**
@@ -60,10 +61,12 @@ export const errorHandler = (
   // Обработка остальных ошибок
   const statusCode = err.statusCode ?? 500;
   const message = err.message ?? 'Internal server error';
+  const errorCode = (err as any).code;
 
   // Логирование ошибки с полным стеком
   logger.error({
     error: message,
+    code: errorCode,
     stack: err.stack,
     statusCode,
   });
@@ -71,6 +74,7 @@ export const errorHandler = (
   // Возврат ошибки клиенту
   res.status(statusCode).json({
     error: message,
+    ...(errorCode ? { code: errorCode } : {}),
     // В development режиме возвращаем стек для отладки
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
   });

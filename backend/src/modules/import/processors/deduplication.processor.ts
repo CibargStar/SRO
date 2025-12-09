@@ -47,7 +47,7 @@ export interface FindClientParams {
 export async function findExistingClient(
   params: FindClientParams
 ): Promise<FindClientResult> {
-  const { phones, parsedName, scopes, matchCriteria, currentGroupId, ownerUserId, currentUserId, userRole, prisma } = params;
+  const { phones, parsedName, scopes, matchCriteria, currentGroupId, ownerUserId, userRole, prisma } = params;
 
   // Если поиск отключен
   if (scopes.includes('none') || scopes.length === 0) {

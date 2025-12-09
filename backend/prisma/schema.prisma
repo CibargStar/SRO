@@ -11,7 +11,7 @@ datasource db {
 }
 
 // ============================================
-// Enums
+// Enums - Существующие
 // ============================================
 
 /// Роли пользователей в системе
@@ -69,7 +69,133 @@ enum MessengerAccountStatus {
 }
 
 // ============================================
-// Models
+// Enums - Шаблоны
+// ============================================
+
+/// Тип шаблона рассылки
+/// SINGLE - одиночный шаблон (1 сообщение + опциональный файл)
+/// MULTI - мульти-шаблон (до 50 элементов в цепочке)
+enum TemplateType {
+  SINGLE
+  MULTI
+}
+
+/// Тип элемента шаблона
+/// TEXT - текстовое сообщение
+/// FILE - файл (изображение, видео, документ)
+enum TemplateItemType {
+  TEXT
+  FILE
+}
+
+/// Тип файла в шаблоне
+/// IMAGE - изображение (jpg, png, gif, webp)
+/// VIDEO - видео (mp4)
+/// DOCUMENT - документ (pdf, doc, docx, xls, xlsx)
+enum FileType {
+  IMAGE
+  VIDEO
+  DOCUMENT
+}
+
+/// Целевой мессенджер для шаблона/кампании
+/// WHATSAPP_ONLY - только WhatsApp
+/// TELEGRAM_ONLY - только Telegram
+/// UNIVERSAL - оба мессенджера
+enum MessengerTarget {
+  WHATSAPP_ONLY
+  TELEGRAM_ONLY
+  UNIVERSAL
+}
+
+// ============================================
+// Enums - Кампании
+// ============================================
+
+/// Конкретный мессенджер для отправки
+/// WHATSAPP - WhatsApp
+/// TELEGRAM - Telegram
+enum MessengerType {
+  WHATSAPP
+  TELEGRAM
+}
+
+/// Приоритет отправки для Universal кампаний
+/// BOTH - отправить в оба мессенджера если номер valid в обоих
+/// WHATSAPP_FIRST - приоритет WhatsApp (если valid в обоих - только WA)
+/// TELEGRAM_FIRST - приоритет Telegram (если valid в обоих - только TG)
+enum UniversalTarget {
+  BOTH
+  WHATSAPP_FIRST
+  TELEGRAM_FIRST
+}
+
+/// Тип запуска кампании
+/// ONE_TIME - одноразовая (ручной запуск)
+/// SCHEDULED - по расписанию (отложенная или периодическая)
+enum CampaignType {
+  ONE_TIME
+  SCHEDULED
+}
+
+/// Статус кампании
+/// DRAFT - черновик (можно редактировать)
+/// SCHEDULED - запланирована (ожидает времени запуска)
+/// QUEUED - в очереди на выполнение
+/// RUNNING - выполняется
+/// PAUSED - приостановлена
+/// COMPLETED - завершена успешно
+/// CANCELLED - отменена
+/// ERROR - завершена с ошибкой
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  QUEUED
+  RUNNING
+  PAUSED
+  COMPLETED
+  CANCELLED
+  ERROR
+}
+
+/// Статус профиля в кампании
+/// PENDING - ожидает начала
+/// RUNNING - выполняет отправку
+/// COMPLETED - завершил свою часть
+/// ERROR - ошибка
+enum CampaignProfileStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  ERROR
+}
+
+/// Статус сообщения в кампании
+/// PENDING - ожидает отправки
+/// PROCESSING - обрабатывается
+/// SENT - отправлено успешно
+/// FAILED - ошибка отправки
+/// SKIPPED - пропущено (invalid номер и т.д.)
+enum MessageStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+/// Уровень логирования
+/// INFO - информационное сообщение
+/// WARNING - предупреждение
+/// ERROR - ошибка
+enum LogLevel {
+  INFO
+  WARNING
+  ERROR
+}
+
+// ============================================
+// Models - Пользователи и аутентификация
 // ============================================
 
 /// Пользователь системы
@@ -81,25 +207,32 @@ enum MessengerAccountStatus {
 /// - isActive: позволяет деактивировать пользователя без удаления
 /// - passwordVersion: позволяет инвалидировать все токены при смене пароля
 model User {
-  id             String    @id @default(uuid()) // UUID для безопасности (не предсказуемый)
-  email          String    @unique // Уникальный email (индекс создается автоматически)
-  passwordHash   String    // Хешированный пароль (bcrypt), НИКОГДА не plaintext!
-  role           UserRole  @default(USER) // Роль пользователя (ROOT или USER)
-  name           String?   // Опциональное имя пользователя
-  isActive       Boolean   @default(true) // Активен ли пользователь (может быть деактивирован root'ом)
+  id              String   @id @default(uuid()) // UUID для безопасности (не предсказуемый)
+  email           String   @unique // Уникальный email (индекс создается автоматически)
+  passwordHash    String // Хешированный пароль (bcrypt), НИКОГДА не plaintext!
+  role            UserRole @default(USER) // Роль пользователя (ROOT или USER)
+  name            String? // Опциональное имя пользователя
+  isActive        Boolean  @default(true) // Активен ли пользователь (может быть деактивирован root'ом)
   passwordVersion Int      @default(1) // Версия пароля (для инвалидации токенов при смене пароля)
-  createdAt      DateTime  @default(now()) // Время создания
-  updatedAt      DateTime  @updatedAt // Время последнего обновления
+  createdAt       DateTime @default(now()) // Время создания
+  updatedAt       DateTime @updatedAt // Время последнего обновления
 
   // Связь с refresh токенами (каскадное удаление)
-  refreshTokens  RefreshToken[]
-  
+  refreshTokens RefreshToken[]
+
   // Связи с клиентами и группами клиентов
-  clientGroups   ClientGroup[]
-  clients        Client[]
-  importConfigs  ImportConfig[] // Конфигурации импорта
-  profiles       Profile[] // Профили Chrome
-  profileLimits  UserProfileLimits? // Лимиты профилей (один-к-одному)
+  clientGroups  ClientGroup[]
+  clients       Client[]
+  importConfigs ImportConfig[] // Конфигурации импорта
+  profiles      Profile[] // Профили Chrome
+  profileLimits UserProfileLimits? // Лимиты профилей (один-к-одному)
+
+  // Связи с шаблонами и кампаниями
+  templateCategories TemplateCategory[] // Категории шаблонов
+  templates          Template[] // Шаблоны рассылки
+  campaigns          Campaign[] // Кампании рассылки
+  campaignLimits     UserCampaignLimits? // Лимиты кампаний (один-к-одному)
+  telegramBot        UserTelegramBot? // Настройки Telegram-бота (один-к-одному)
 
   // Индексы для оптимизации запросов
   @@index([email]) // Быстрый поиск по email (уже есть @unique, но явный индекс для ясности)
@@ -117,7 +250,7 @@ model User {
 model RefreshToken {
   id        String   @id @default(uuid())
   token     String   @unique // JWT refresh token (уникальный для предотвращения дубликатов)
-  userId    String   // ID пользователя
+  userId    String // ID пользователя
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime // Время истечения токена
   createdAt DateTime @default(now())
@@ -129,36 +262,45 @@ model RefreshToken {
   @@map("refresh_tokens") // Явное имя таблицы в БД
 }
 
+// ============================================
+// Models - Справочники
+// ============================================
+
 /// Справочник регионов
 /// Статический справочник, общий для всех пользователей
 model Region {
   id        String   @id @default(uuid())
   name      String   @unique // Название региона (уникальное)
   createdAt DateTime @default(now())
-  
+
   // Связь с клиентами
-  clients   Client[]
-  
+  clients Client[]
+
   @@index([name]) // Быстрый поиск по названию
   @@map("regions")
 }
 
+// ============================================
+// Models - Клиенты
+// ============================================
+
 /// Группы клиентов конкретного пользователя
 /// Каждый пользователь может создавать свои группы для организации клиентов
 model ClientGroup {
-  id          String    @id @default(uuid())
-  userId      String    // ID пользователя-владельца
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name        String    // Название группы
-  description String?   // Описание (опционально)
-  color       String?   // HEX цвет или название цвета (опционально)
-  orderIndex  Int?      // Порядок сортировки (опционально)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
-  // Связь с клиентами
-  clients     Client[]
-  
+  id          String   @id @default(uuid())
+  userId      String // ID пользователя-владельца
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String // Название группы
+  description String? // Описание (опционально)
+  color       String? // HEX цвет или название цвета (опционально)
+  orderIndex  Int? // Порядок сортировки (опционально)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Связь с клиентами и кампаниями
+  clients   Client[]
+  campaigns Campaign[] // Кампании, использующие эту группу
+
   // Индексы для оптимизации запросов
   @@index([userId]) // Быстрый поиск групп пользователя
   @@index([userId, name]) // Уникальность названия группы для пользователя
@@ -169,27 +311,34 @@ model ClientGroup {
 /// Основная информация о клиенте, принадлежащая конкретному пользователю
 model Client {
   id         String       @id @default(uuid())
-  userId     String       // ID пользователя-владельца
+  userId     String // ID пользователя-владельца
   user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  lastName   String       // Фамилия
-  firstName  String       // Имя
-  middleName String?      // Отчество (опционально)
-  regionId   String?      // ID региона (опционально)
+  lastName   String // Фамилия
+  firstName  String // Имя
+  middleName String? // Отчество (опционально)
+  regionId   String? // ID региона (опционально)
   region     Region?      @relation(fields: [regionId], references: [id], onDelete: SetNull)
-  groupId    String       // ID группы клиентов (обязательно)
+  groupId    String // ID группы клиентов (обязательно)
   group      ClientGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
   status     ClientStatus @default(NEW) // Статус клиента (NEW или OLD)
   createdAt  DateTime     @default(now())
-  
-  // Связь с телефонами клиента
-  phones     ClientPhone[]
-  
+
+  // Статистика рассылок
+  lastCampaignAt DateTime? // Дата последней кампании для этого клиента
+  campaignCount  Int       @default(0) // Количество кампаний, в которых участвовал
+
+  // Связь с телефонами клиента и сообщениями кампаний
+  phones           ClientPhone[]
+  campaignMessages CampaignMessage[] // Сообщения кампаний
+
   // Индексы для оптимизации запросов
   @@index([userId]) // Быстрый поиск клиентов пользователя
   @@index([regionId]) // Быстрый поиск по региону
   @@index([groupId]) // Быстрый поиск по группе
   @@index([status]) // Быстрый поиск по статусу
   @@index([userId, status]) // Комбинированный поиск клиентов пользователя по статусу
+  @@index([userId, groupId]) // Клиенты пользователя в группе
+  @@index([lastCampaignAt]) // Поиск по дате последней кампании
   @@map("clients")
 }
 
@@ -197,34 +346,44 @@ model Client {
 /// Один клиент может иметь несколько телефонов (связь один-ко-многим)
 model ClientPhone {
   id             String          @id @default(uuid())
-  clientId      String          // ID клиента
+  clientId       String // ID клиента
   client         Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  phone          String          // Номер телефона
+  phone          String // Номер телефона
   whatsAppStatus MessengerStatus @default(Unknown) // Статус WhatsApp (Valid, Invalid, Unknown)
   telegramStatus MessengerStatus @default(Unknown) // Статус Telegram (Valid, Invalid, Unknown)
-  
+
+  // Связь с сообщениями кампаний
+  campaignMessages CampaignMessage[] // Сообщения кампаний для этого телефона
+
   // Индексы для оптимизации запросов
   @@index([clientId]) // Быстрый поиск телефонов клиента
+  @@index([phone]) // Поиск по номеру телефона
+  @@index([whatsAppStatus]) // Поиск по статусу WhatsApp
+  @@index([telegramStatus]) // Поиск по статусу Telegram
   @@map("client_phones")
 }
+
+// ============================================
+// Models - Импорт
+// ============================================
 
 /// Конфигурации импорта клиентов
 /// Каждый пользователь может создавать свои конфигурации для настройки процесса импорта
 model ImportConfig {
-  id          String   @id @default(uuid())
-  userId      String   // ID пользователя-владельца
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name        String   // Название конфигурации
-  description String?  // Описание (опционально)
-  isDefault   Boolean  @default(false) // Конфигурация по умолчанию
-  
+  id          String  @id @default(uuid())
+  userId      String // ID пользователя-владельца
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String // Название конфигурации
+  description String? // Описание (опционально)
+  isDefault   Boolean @default(false) // Конфигурация по умолчанию
+
   // Конфигурация хранится как JSON
   // Структура: ImportConfig из types/import-config.types.ts
-  config      String   // JSON строка с конфигурацией
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  config String // JSON строка с конфигурацией
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Индексы для оптимизации запросов
   @@index([userId]) // Быстрый поиск конфигураций пользователя
   @@index([userId, isDefault]) // Поиск конфигурации по умолчанию
@@ -232,33 +391,39 @@ model ImportConfig {
   @@map("import_configs")
 }
 
+// ============================================
+// Models - Профили Chrome
+// ============================================
+
 /// Профиль Chrome браузера
 /// Каждый пользователь может создавать свои профили для работы с мессенджерами
 model Profile {
-  id          String        @id @default(uuid()) // UUID для безопасности
-  userId      String        // ID пользователя-владельца
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  name        String        // Название профиля
-  description String?       // Описание профиля (опционально)
-  
+  id     String @id @default(uuid()) // UUID для безопасности
+  userId String // ID пользователя-владельца
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name        String // Название профиля
+  description String? // Описание профиля (опционально)
+
   // Путь к директории профиля Chrome (уникальный)
-  profilePath String        @unique
-  
+  profilePath String @unique
+
   // Статус профиля
-  status      ProfileStatus @default(STOPPED)
-  
+  status ProfileStatus @default(STOPPED)
+
   // Режим работы: headless (без UI) или с UI
-  headless    Boolean       @default(true) // По умолчанию без UI
-  
+  headless Boolean @default(true) // По умолчанию без UI
+
   // Метаданные
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  lastActiveAt DateTime?     // Последняя активность профиля
-  
-  // Связь с аккаунтами мессенджеров
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  lastActiveAt DateTime? // Последняя активность профиля
+
+  // Связь с аккаунтами мессенджеров и кампаниями
   messengerAccounts ProfileMessengerAccount[]
-  
+  campaignProfiles  CampaignProfile[] // Участие в кампаниях
+  campaignMessages  CampaignMessage[] // Сообщения, отправленные этим профилем
+
   // Индексы для оптимизации запросов
   @@index([userId]) // Быстрый поиск профилей пользователя
   @@index([status]) // Быстрый поиск по статусу
@@ -269,41 +434,45 @@ model Profile {
 /// Лимиты профилей для пользователей
 /// Настраиваются ROOT пользователем для каждого пользователя
 model UserProfileLimits {
-  id          String   @id @default(uuid()) // UUID для безопасности
-  userId      String   @unique // ID пользователя (один-к-одному)
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  id     String @id @default(uuid()) // UUID для безопасности
+  userId String @unique // ID пользователя (один-к-одному)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   // Лимит количества профилей
-  maxProfiles Int      @default(10) // Максимальное количество профилей (по умолчанию 10)
-  
+  maxProfiles Int @default(10) // Максимальное количество профилей (по умолчанию 10)
+
   // Лимиты ресурсов на профиль (опционально, для будущего использования)
-  maxCpuPerProfile      Float?   // Максимальное использование CPU на профиль (0-1)
-  maxMemoryPerProfile   Int?     // Максимальное использование памяти на профиль (MB)
-  maxNetworkPerProfile  Int?     // Максимальная скорость сети на профиль (KB/s, опционально)
-  
+  maxCpuPerProfile     Float? // Максимальное использование CPU на профиль (0-1)
+  maxMemoryPerProfile  Int? // Максимальное использование памяти на профиль (MB)
+  maxNetworkPerProfile Int? // Максимальная скорость сети на профиль (KB/s, опционально)
+
   // Метаданные
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  updatedBy   String?  // ID пользователя, который обновил лимиты (обычно ROOT)
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  updatedBy String? // ID пользователя, который обновил лимиты (обычно ROOT)
+
   @@map("user_profile_limits")
 }
+
+// ============================================
+// Models - Мессенджеры
+// ============================================
 
 /// Справочник мессенджеров
 /// Статический справочник доступных мессенджеров
 model MessengerService {
   id          String   @id @default(uuid())
   name        String   @unique // Техническое имя (whatsapp, telegram, viber и т.д.)
-  displayName String   // Отображаемое имя (WhatsApp, Telegram, Viber)
-  icon        String?  // Иконка или путь к иконке (опционально)
+  displayName String // Отображаемое имя (WhatsApp, Telegram, Viber)
+  icon        String? // Иконка или путь к иконке (опционально)
   enabled     Boolean  @default(true) // Включен ли мессенджер в системе
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   // Связи
   accounts    ProfileMessengerAccount[] // Аккаунты этого мессенджера
   checkConfig MessengerCheckConfig? // Конфигурация проверки (один-к-одному)
-  
+
   @@index([name]) // Быстрый поиск по имени
   @@index([enabled]) // Поиск включенных мессенджеров
   @@map("messenger_services")
@@ -312,25 +481,25 @@ model MessengerService {
 /// Аккаунт мессенджера, привязанный к профилю
 /// Каждый профиль может иметь один аккаунт каждого типа мессенджера
 model ProfileMessengerAccount {
-  id                String                  @id @default(uuid())
-  profileId         String                  // ID профиля
-  profile           Profile                 @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  serviceId         String                  // ID мессенджера
-  service           MessengerService        @relation(fields: [serviceId], references: [id], onDelete: Restrict)
-  
-  isEnabled         Boolean                 @default(true) // Включен ли мессенджер для этого профиля
-  status            MessengerAccountStatus  @default(UNKNOWN) // Статус входа
-  
-  lastCheckedAt     DateTime?               // Время последней проверки
-  lastStatusChangeAt DateTime?              // Время последнего изменения статуса
-  
+  id        String           @id @default(uuid())
+  profileId String // ID профиля
+  profile   Profile          @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  serviceId String // ID мессенджера
+  service   MessengerService @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  isEnabled Boolean                @default(true) // Включен ли мессенджер для этого профиля
+  status    MessengerAccountStatus @default(UNKNOWN) // Статус входа
+
+  lastCheckedAt      DateTime? // Время последней проверки
+  lastStatusChangeAt DateTime? // Время последнего изменения статуса
+
   // Метаданные в формате JSON (для специфичных данных мессенджеров)
   // Например: { phoneNumber: "+1234567890", username: "@username" }
-  metadata          String?                 // JSON строка с метаданными
-  
-  createdAt         DateTime                @default(now())
-  updatedAt         DateTime                @updatedAt
-  
+  metadata String? // JSON строка с метаданными
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Индексы для оптимизации запросов
   @@unique([profileId, serviceId]) // Один аккаунт каждого мессенджера на профиль
   @@index([profileId]) // Быстрый поиск аккаунтов профиля
@@ -345,17 +514,382 @@ model ProfileMessengerAccount {
 /// Конфигурация проверки статуса входа для мессенджера
 /// Настраивается ROOT пользователем для каждого мессенджера
 model MessengerCheckConfig {
-  id                  String           @id @default(uuid())
-  serviceId           String           @unique // ID мессенджера (один-к-одному)
-  service             MessengerService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  
-  checkIntervalSeconds Int             @default(300) // Интервал проверки в секундах (по умолчанию 5 минут)
-  enabled              Boolean         @default(true) // Включен ли мониторинг этого мессенджера
-  
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @updatedAt
-  updatedBy            String?         // ID пользователя, который обновил конфигурацию (обычно ROOT)
-  
+  id        String           @id @default(uuid())
+  serviceId String           @unique // ID мессенджера (один-к-одному)
+  service   MessengerService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  checkIntervalSeconds Int     @default(300) // Интервал проверки в секундах (по умолчанию 5 минут)
+  enabled              Boolean @default(true) // Включен ли мониторинг этого мессенджера
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  updatedBy String? // ID пользователя, который обновил конфигурацию (обычно ROOT)
+
   @@map("messenger_check_configs")
 }
 
+// ============================================
+// Models - Шаблоны рассылок
+// ============================================
+
+/// Категория шаблонов (папка)
+/// Каждый пользователь организует свои шаблоны в категории
+model TemplateCategory {
+  id          String   @id @default(uuid())
+  userId      String // ID пользователя-владельца
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String // Название категории
+  description String? // Описание (опционально)
+  color       String? // HEX цвет или название цвета (опционально)
+  orderIndex  Int      @default(0) // Порядок сортировки
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Связь с шаблонами
+  templates Template[]
+
+  // Уникальность названия категории для пользователя
+  @@unique([userId, name])
+  @@index([userId]) // Быстрый поиск категорий пользователя
+  @@index([userId, orderIndex]) // Сортировка категорий
+  @@map("template_categories")
+}
+
+/// Шаблон рассылки
+/// Заготовка сообщения для массовых рассылок
+model Template {
+  id         String           @id @default(uuid())
+  userId     String // ID пользователя-владельца
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId String // ID категории
+  category   TemplateCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  name          String // Название шаблона
+  description   String? // Описание (опционально)
+  type          TemplateType // Тип: SINGLE или MULTI
+  messengerType MessengerTarget // Целевой мессенджер: WA, TG или оба
+  isActive      Boolean         @default(true) // Активен ли шаблон
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Связи
+  items     TemplateItem[] // Элементы шаблона (сообщения, файлы)
+  campaigns Campaign[] // Кампании, использующие этот шаблон
+
+  @@index([userId]) // Быстрый поиск шаблонов пользователя
+  @@index([categoryId]) // Быстрый поиск по категории
+  @@index([userId, categoryId]) // Шаблоны пользователя в категории
+  @@index([type]) // Поиск по типу
+  @@index([messengerType]) // Поиск по целевому мессенджеру
+  @@index([isActive]) // Поиск активных шаблонов
+  @@index([userId, isActive]) // Активные шаблоны пользователя
+  @@map("templates")
+}
+
+/// Элемент шаблона (сообщение или файл)
+/// Составная часть шаблона, отправляется последовательно
+model TemplateItem {
+  id         String   @id @default(uuid())
+  templateId String // ID шаблона
+  template   Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  orderIndex Int // Порядок в цепочке (0, 1, 2, ...)
+  type       TemplateItemType // Тип: TEXT или FILE
+
+  // Для текстовых сообщений
+  content String? // Текст сообщения (поддерживает переменные {{firstName}} и т.д.)
+
+  // Для файлов
+  filePath     String? // Путь к файлу на сервере
+  fileName     String? // Оригинальное имя файла
+  fileType     FileType? // Тип файла: IMAGE, VIDEO, DOCUMENT
+  fileSize     Int? // Размер файла в байтах
+  fileMimeType String? // MIME-тип файла
+
+  // Настройки
+  delayAfterMs Int @default(0) // Задержка после этого элемента (мс), 0 = использовать глобальную
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([templateId]) // Быстрый поиск элементов шаблона
+  @@index([templateId, orderIndex]) // Сортировка элементов
+  @@map("template_items")
+}
+
+// ============================================
+// Models - Кампании рассылок
+// ============================================
+
+/// Кампания рассылки
+/// Основная сущность для организации и выполнения массовых рассылок
+model Campaign {
+  id     String @id @default(uuid())
+  userId String // ID пользователя-владельца
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name        String // Название кампании
+  description String? // Описание (опционально)
+
+  // Связи с шаблоном и группой клиентов
+  templateId    String // ID шаблона
+  template      Template    @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  clientGroupId String // ID группы клиентов
+  clientGroup   ClientGroup @relation(fields: [clientGroupId], references: [id], onDelete: Restrict)
+
+  // Настройки типа
+  campaignType  CampaignType // Тип запуска: ONE_TIME или SCHEDULED
+  messengerType MessengerTarget // Целевой мессенджер: WA, TG или оба
+
+  // Для Universal: куда отправлять если номер valid в обоих мессенджерах
+  universalTarget UniversalTarget? // BOTH, WHATSAPP_FIRST, TELEGRAM_FIRST
+
+  // Статус
+  status CampaignStatus @default(DRAFT)
+
+  // Прогресс выполнения
+  totalContacts      Int @default(0) // Общее количество контактов
+  processedContacts  Int @default(0) // Обработано контактов
+  successfulContacts Int @default(0) // Успешно отправлено
+  failedContacts     Int @default(0) // Ошибки отправки
+  skippedContacts    Int @default(0) // Пропущено (invalid и т.д.)
+
+  // Конфигурации (JSON)
+  scheduleConfig String? // Настройки расписания (CampaignScheduleConfig)
+  filterConfig   String? // Фильтры базы (CampaignFilterConfig)
+  optionsConfig  String? // Дополнительные опции (CampaignOptionsConfig)
+
+  // Временные метки
+  scheduledAt DateTime? // Запланированное время запуска
+  startedAt   DateTime? // Фактическое время запуска
+  pausedAt    DateTime? // Время постановки на паузу
+  completedAt DateTime? // Время завершения
+  archivedAt  DateTime? // Время архивации
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Связи
+  profiles CampaignProfile[] // Профили, участвующие в кампании
+  messages CampaignMessage[] // Сообщения (очередь)
+  logs     CampaignLog[] // Логи событий
+
+  @@index([userId]) // Быстрый поиск кампаний пользователя
+  @@index([status]) // Поиск по статусу
+  @@index([userId, status]) // Кампании пользователя по статусу
+  @@index([campaignType]) // Поиск по типу
+  @@index([scheduledAt]) // Поиск запланированных (для планировщика)
+  @@index([archivedAt]) // Поиск архивных
+  @@index([createdAt]) // Сортировка по дате создания
+  @@map("campaigns")
+}
+
+/// Профиль в кампании
+/// Связь между кампанией и профилем с прогрессом
+model CampaignProfile {
+  id         String   @id @default(uuid())
+  campaignId String // ID кампании
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  profileId  String // ID профиля
+  profile    Profile  @relation(fields: [profileId], references: [id], onDelete: Restrict)
+
+  // Распределение нагрузки
+  assignedCount  Int @default(0) // Назначено контактов
+  processedCount Int @default(0) // Обработано
+  successCount   Int @default(0) // Успешно
+  failedCount    Int @default(0) // Ошибки
+
+  // Статус
+  status    CampaignProfileStatus @default(PENDING)
+  lastError String? // Последняя ошибка
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Уникальность: один профиль - одно участие в кампании
+  @@unique([campaignId, profileId])
+  @@index([campaignId]) // Быстрый поиск профилей кампании
+  @@index([profileId]) // Поиск кампаний профиля
+  @@index([status]) // Поиск по статусу
+  @@map("campaign_profiles")
+}
+
+/// Сообщение кампании
+/// Элемент очереди отправки для каждого контакта
+model CampaignMessage {
+  id         String   @id @default(uuid())
+  campaignId String // ID кампании
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  // Получатель
+  clientId      String // ID клиента
+  client        Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientPhoneId String // ID телефона клиента
+  clientPhone   ClientPhone @relation(fields: [clientPhoneId], references: [id], onDelete: Cascade)
+
+  // Исполнитель (назначается при распределении)
+  profileId String? // ID профиля (может быть null до назначения)
+  profile   Profile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
+
+  // Мессенджер и статус
+  messenger MessengerType? // WHATSAPP или TELEGRAM (определяется при отправке)
+  status    MessageStatus  @default(PENDING)
+
+  // Для Multi-шаблонов: прогресс цепочки
+  messagesSent  Int @default(0) // Отправлено сообщений из цепочки
+  totalMessages Int @default(1) // Всего сообщений в цепочке
+
+  // Обработка ошибок
+  errorMessage String? // Текст ошибки
+  retryCount   Int     @default(0) // Количество повторных попыток
+
+  // Временные метки
+  scheduledAt DateTime? // Запланированное время отправки
+  sentAt      DateTime? // Фактическое время отправки
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([campaignId]) // Быстрый поиск сообщений кампании
+  @@index([campaignId, status]) // Сообщения кампании по статусу
+  @@index([profileId]) // Сообщения профиля
+  @@index([profileId, status]) // Сообщения профиля по статусу
+  @@index([clientPhoneId]) // Сообщения для телефона
+  @@index([status]) // Поиск по статусу
+  @@map("campaign_messages")
+}
+
+/// Лог событий кампании
+/// Запись всех значимых событий для аудита и отладки
+model CampaignLog {
+  id         String   @id @default(uuid())
+  campaignId String // ID кампании
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  level    LogLevel // Уровень: INFO, WARNING, ERROR
+  action   String // Действие: started, paused, profile_disconnected, message_sent, etc.
+  message  String // Описание события
+  metadata String? // JSON с дополнительными данными
+
+  createdAt DateTime @default(now())
+
+  @@index([campaignId]) // Быстрый поиск логов кампании
+  @@index([campaignId, level]) // Логи кампании по уровню
+  @@index([level]) // Поиск по уровню
+  @@index([createdAt]) // Сортировка по времени
+  @@map("campaign_logs")
+}
+
+// ============================================
+// Models - Глобальные настройки и лимиты
+// ============================================
+
+/// Глобальные настройки рассылок
+/// Singleton - одна запись на всю систему, управляется ROOT
+model CampaignGlobalSettings {
+  id String @id @default(uuid())
+
+  // Режим паузы: 1 = между номерами, 2 = между клиентами
+  pauseMode Int @default(2)
+
+  // Тайминги (в миллисекундах)
+  minDelayBetweenContactsMs Int @default(30000) // 30 сек
+  maxDelayBetweenContactsMs Int @default(120000) // 2 мин
+  minDelayBetweenMessagesMs Int @default(3000) // 3 сек
+  maxDelayBetweenMessagesMs Int @default(10000) // 10 сек
+
+  // Лимиты
+  maxContactsPerProfilePerHour Int @default(100)
+  maxContactsPerProfilePerDay  Int @default(500)
+
+  // Рабочее время по умолчанию
+  defaultWorkHoursStart String @default("09:00") // HH:mm
+  defaultWorkHoursEnd   String @default("21:00") // HH:mm
+  defaultWorkDays       String @default("[1,2,3,4,5]") // JSON массив дней недели (1=Пн, 7=Вс)
+
+  // Имитация набора
+  typingSimulationEnabled Boolean @default(true)
+  typingSpeedCharsPerSec  Int     @default(50)
+
+  // Обработка ошибок
+  maxRetriesOnError    Int     @default(3)
+  retryDelayMs         Int     @default(30000) // 30 сек
+  pauseOnCriticalError Boolean @default(true)
+
+  // Мониторинг
+  profileHealthCheckIntervalMs Int     @default(30000) // 30 сек
+  autoResumeAfterRestart       Boolean @default(false) // Автовозобновление после рестарта
+
+  // Хранение
+  keepCompletedCampaignsDays Int @default(90) // Сколько дней хранить завершённые
+
+  // Прогрев профилей (опционально)
+  warmupEnabled      Boolean @default(false)
+  warmupDay1To3Limit Int     @default(50) // Лимит для дней 1-3
+  warmupDay4To7Limit Int     @default(100) // Лимит для дней 4-7
+
+  updatedAt DateTime @updatedAt
+  updatedBy String? // ID пользователя, который обновил (ROOT)
+
+  @@map("campaign_global_settings")
+}
+
+/// Лимиты кампаний для пользователя
+/// Настраиваются ROOT для каждого пользователя
+model UserCampaignLimits {
+  id     String @id @default(uuid())
+  userId String @unique // ID пользователя (один-к-одному)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Лимиты кампаний
+  maxActiveCampaigns    Int @default(3) // Макс. одновременных активных кампаний
+  maxTemplates          Int @default(100) // Макс. шаблонов
+  maxTemplateCategories Int @default(20) // Макс. категорий шаблонов
+
+  // Лимиты файлов
+  maxFileSizeMb     Int @default(50) // Макс. размер одного файла (MB)
+  maxTotalStorageMb Int @default(1000) // Макс. общий объём файлов (MB)
+
+  // Разрешения
+  allowScheduledCampaigns Boolean @default(true) // Разрешены ли scheduled кампании
+  allowUniversalCampaigns Boolean @default(true) // Разрешены ли universal кампании
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  updatedBy String? // ID пользователя, который обновил (ROOT)
+
+  @@map("user_campaign_limits")
+}
+
+/// Настройки Telegram-бота для уведомлений пользователя
+/// Каждый пользователь подключает своего бота
+model UserTelegramBot {
+  id     String @id @default(uuid())
+  userId String @unique // ID пользователя (один-к-одному)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Данные бота
+  botToken String // Токен бота от @BotFather
+  chatId   String? // Chat ID после верификации (null до верификации)
+
+  // Верификация
+  isVerified          Boolean   @default(false) // Подтверждён ли бот
+  verifyCode          String? // Код подтверждения (6 цифр)
+  verifyCodeExpiresAt DateTime? // Срок действия кода
+
+  // Настройки уведомлений
+  notifyOnStart         Boolean @default(true) // При запуске кампании
+  notifyOnComplete      Boolean @default(true) // При завершении
+  notifyOnError         Boolean @default(true) // При ошибках
+  notifyOnProgress50    Boolean @default(false) // При 50% прогресса
+  notifyOnProgress75    Boolean @default(false) // При 75% прогресса
+  notifyOnProgress90    Boolean @default(true) // При 90% прогресса
+  notifyOnProfileIssue  Boolean @default(true) // При проблемах с профилями
+  notifyOnLoginRequired Boolean @default(true) // При необходимости повторного входа
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user_telegram_bots")
+}

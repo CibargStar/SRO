@@ -1,0 +1,157 @@
+/**
+ * Message Sender Service
+ *
+ * Обертка над конкретными отправителями (WhatsApp/Telegram).
+ * Отвечает за валидацию номера, тайминги (typing/pauses),
+ * выбор канала и единый контракт результата отправки.
+ *
+ * В дальнейшем интегрируется с Executor/Worker и Puppeteer-отправителями.
+ *
+ * @module modules/campaigns/message-sender/message-sender.service
+ */
+
+import { MessengerType, UniversalTarget } from '@prisma/client';
+import logger from '../../../config/logger';
+import { WhatsAppSender } from './whatsapp-sender';
+import { TelegramSender } from './telegram-sender';
+
+export interface SendMessageInput {
+  messenger: MessengerType | null;
+  phone: string;
+  text?: string;
+  attachments?: string[]; // пути к файлам
+  simulateTyping?: boolean;
+  typingDelayRange?: { minMs: number; maxMs: number };
+  sendDelayRange?: { minMs: number; maxMs: number };
+  universalTarget?: UniversalTarget | null;
+  hasWhatsApp?: boolean;
+  hasTelegram?: boolean;
+}
+
+export interface SendMessageResult {
+  success: boolean;
+  messenger: MessengerType;
+  error?: string;
+}
+
+export class MessageSenderService {
+  private whatsappSender: WhatsAppSender;
+  private telegramSender: TelegramSender;
+
+  constructor() {
+    this.whatsappSender = new WhatsAppSender();
+    this.telegramSender = new TelegramSender();
+  }
+
+  /**
+   * Отправка сообщения через выбранный мессенджер
+   */
+  async sendMessage(input: SendMessageInput): Promise<SendMessageResult> {
+    const { messenger, phone, text, attachments } = input;
+
+    try {
+      this.ensurePhoneValid(phone);
+
+      // Задержка перед отправкой (анти-спам тайминги)
+      if (input.sendDelayRange) {
+        await this.delay(this.getRandomDelay(input.sendDelayRange.minMs, input.sendDelayRange.maxMs));
+      }
+
+      // Симуляция набора
+      if (input.simulateTyping && input.typingDelayRange) {
+        await this.simulateTyping(input.typingDelayRange.minMs, input.typingDelayRange.maxMs);
+      }
+
+      // Делегируем в конкретный отправитель
+      // Определяем канал: либо заданный, либо по universalTarget
+      const resolvedMessenger =
+        messenger ??
+        this.resolveUniversalMessenger(
+          input.universalTarget,
+          input.hasWhatsApp ?? true,
+          input.hasTelegram ?? true
+        );
+
+      if (resolvedMessenger === 'WHATSAPP') {
+        return await this.whatsappSender.sendMessage({ phone, text, attachments });
+      }
+
+      if (resolvedMessenger === 'TELEGRAM') {
+        return await this.telegramSender.sendMessage({ phone, text, attachments });
+      }
+
+      throw new Error(`Unsupported messenger: ${String(resolvedMessenger)}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Failed to send message', { error: errorMessage, messenger, phone });
+      return {
+        success: false,
+        messenger: (messenger as MessengerType) ?? 'WHATSAPP',
+        error: errorMessage,
+      };
+    }
+  }
+
+  /**
+   * Проверка валидности номера (простая)
+   */
+  ensurePhoneValid(phone: string): void {
+    const normalized = phone.replace(/[^\d+]/g, '');
+    const isValid = /^\+?\d{7,20}$/.test(normalized);
+    if (!isValid) {
+      throw new Error('Invalid phone number format');
+    }
+  }
+
+  /**
+   * Симуляция набора
+   */
+  async simulateTyping(minMs: number, maxMs: number): Promise<void> {
+    const delayMs = this.getRandomDelay(minMs, maxMs);
+    await this.delay(delayMs);
+  }
+
+  /**
+   * Случайная задержка
+   */
+  getRandomDelay(minMs: number, maxMs: number): number {
+    const min = Math.max(0, minMs);
+    const max = Math.max(min, maxMs);
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  /**
+   * Утилита для ожидания
+   */
+  private async delay(ms: number): Promise<void> {
+    if (ms <= 0) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private resolveUniversalMessenger(
+    universalTarget: UniversalTarget | null | undefined,
+    hasWa: boolean,
+    hasTg: boolean
+  ): MessengerType {
+    if (universalTarget === 'TELEGRAM_FIRST') {
+      if (hasTg) return 'TELEGRAM';
+      if (hasWa) return 'WHATSAPP';
+    } else if (universalTarget === 'WHATSAPP_FIRST') {
+      if (hasWa) return 'WHATSAPP';
+      if (hasTg) return 'TELEGRAM';
+    } else if (universalTarget === 'BOTH') {
+      // Для BOTH на уровне sendMessage выберем сначала WA, затем вызывающая сторона может дернуть повторно для TG
+      if (hasWa) return 'WHATSAPP';
+      if (hasTg) return 'TELEGRAM';
+    } else {
+      // Значение по умолчанию
+      if (hasWa) return 'WHATSAPP';
+      if (hasTg) return 'TELEGRAM';
+    }
+    // Ничего недоступно — пробуем WhatsApp для единообразия
+    return 'WHATSAPP';
+  }
+}
+

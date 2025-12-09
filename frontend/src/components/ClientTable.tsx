@@ -151,6 +151,8 @@ export function ClientTable({ clients, isLoading, onEdit, onDelete }: ClientTabl
             <StyledTableCell sx={{ padding: 'calc(16px * 0.85)' }}>Группа</StyledTableCell>
             <StyledTableCell align="center" sx={{ width: '100px', padding: 'calc(16px * 0.85)' }}>Статус</StyledTableCell>
             <StyledTableCell sx={{ width: '28%', minWidth: '300px' }}>Телефоны</StyledTableCell>
+            <StyledTableCell align="center" sx={{ width: '90px' }}>Кампаний</StyledTableCell>
+            <StyledTableCell sx={{ width: '170px' }}>Последняя рассылка</StyledTableCell>
             <StyledTableCell>Создан</StyledTableCell>
             <StyledTableCell align="center" sx={{ width: '120px' }}>Действия</StyledTableCell>
           </TableRow>
@@ -170,6 +172,12 @@ export function ClientTable({ clients, isLoading, onEdit, onDelete }: ClientTabl
               </StyledTableCell>
               <StyledTableCell sx={{ width: '28%', minWidth: '300px' }}>
                 <PhoneChips phones={client.phones || []} />
+              </StyledTableCell>
+              <StyledTableCell align="center" sx={{ color: 'rgba(255, 255, 255, 0.85)' }}>
+                {client.campaignCount ?? 0}
+              </StyledTableCell>
+              <StyledTableCell sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                {client.lastCampaignAt ? formatDate(client.lastCampaignAt) : '—'}
               </StyledTableCell>
               <StyledTableCell sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
                 {formatDate(client.createdAt)}

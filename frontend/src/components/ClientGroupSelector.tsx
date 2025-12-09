@@ -21,6 +21,7 @@ interface ClientGroupSelectorProps {
   helperText?: string;
   disabled?: boolean;
   userId?: string; // Опциональный ID пользователя для ROOT (для фильтрации групп)
+  allowAllOption?: boolean; // Для кампаний — возможность выбрать "Все"
 }
 
 export function ClientGroupSelector({
@@ -33,6 +34,7 @@ export function ClientGroupSelector({
   helperText,
   disabled = false,
   userId,
+  allowAllOption = false,
 }: ClientGroupSelectorProps) {
   const { data: groups = [], isLoading } = useClientGroups(userId);
 
@@ -64,7 +66,7 @@ export function ClientGroupSelector({
             return group?.name || selected;
           }}
         >
-        {!required && <MenuItem value="">{fullWidth ? 'Не выбрана' : 'Все'}</MenuItem>}
+        {(!required || allowAllOption) && <MenuItem value="">{fullWidth ? 'Не выбрана' : 'Все'}</MenuItem>}
         {groups.map((group) => (
           <MenuItem key={group.id} value={group.id}>
             {group.name}

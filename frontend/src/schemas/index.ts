@@ -11,4 +11,5 @@ export * from './client-group.schema';
 export * from './region.schema';
 export * from './client-phone.schema';
 export * from './profile.schema';
-
+export * from './template.schema';
+export * from './campaign.schema';

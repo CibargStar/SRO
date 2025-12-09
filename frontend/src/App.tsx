@@ -12,7 +12,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Box, Typography } from '@mui/material';
 import { AuthProvider, ProtectedRoute, RootRoute, PublicRoute, ErrorBoundary, Sidebar } from '@/components';
-import { LoginPage, UsersAdminPage, ClientsPage, RegionsAdminPage, ProfilesPage, ProfileLimitsPage, MessengerConfigsAdminPage } from '@/pages';
+import { LoginPage, UsersAdminPage, ClientsPage, RegionsAdminPage, ProfilesPage, ProfileLimitsPage, MessengerConfigsAdminPage, TemplatesPage, CreateTemplatePage, EditTemplatePage, CampaignsPage, CampaignDetailsPage, CreateCampaignPage, CampaignSettingsAdminPage, UserCampaignLimitsPage, AllCampaignsAdminPage, TelegramBotSettingsPage } from '@/pages';
 import { useAuthStore } from '@/store';
 
 /**
@@ -50,7 +50,7 @@ const theme = createTheme({
  * Обеспечивает правильное позиционирование контента относительно сайдбара.
  * Добавляет отступ слева, равный ширине сайдбара (200px).
  */
-function AppLayout({ children }: { children: React.ReactNode }) {
+function AppLayout({ children }: { children: React.ReactNode }): React.ReactElement {
   const user = useAuthStore((state) => state.user);
 
   return (
@@ -103,7 +103,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
  * 
  * Пока простая заглушка. В будущем будет заменена на полноценный dashboard.
  */
-function HomePage() {
+function HomePage(): React.ReactElement {
   return (
     <Box
       sx={{
@@ -221,6 +221,106 @@ const App: React.FC = () => {
                       <MessengerConfigsAdminPage />
                     </AppLayout>
                   </RootRoute>
+                }
+              />
+              <Route
+                path="/admin/campaign-settings"
+                element={
+                  <RootRoute>
+                    <AppLayout>
+                      <CampaignSettingsAdminPage />
+                    </AppLayout>
+                  </RootRoute>
+                }
+              />
+              <Route
+                path="/admin/campaign-limits"
+                element={
+                  <RootRoute>
+                    <AppLayout>
+                      <UserCampaignLimitsPage />
+                    </AppLayout>
+                  </RootRoute>
+                }
+              />
+              <Route
+                path="/admin/all-campaigns"
+                element={
+                  <RootRoute>
+                    <AppLayout>
+                      <AllCampaignsAdminPage />
+                    </AppLayout>
+                  </RootRoute>
+                }
+              />
+              <Route
+                path="/templates"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <TemplatesPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/templates/create"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <CreateTemplatePage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/templates/:templateId/edit"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <EditTemplatePage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/campaigns"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <CampaignsPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/campaigns/create"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <CreateCampaignPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/campaigns/:campaignId"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <CampaignDetailsPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/settings/telegram"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <TelegramBotSettingsPage />
+                    </AppLayout>
+                  </ProtectedRoute>
                 }
               />
               <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,0 +1,690 @@
+# Полный список TODO (актуальный)
+
+Обозначения статуса:
+- `[x]` — выполнено
+- `[~]` — в работе/частично
+- `[ ]` — не начато
+
+## ЭТАП 1: ПОДГОТОВКА ИНФРАСТРУКТУРЫ
+- [x] 1 ЭТАП 1: ПОДГОТОВКА ИНФРАСТРУКТУРЫ
+- [x] 1.1 1.1 Prisma Schema - Новые Enums
+- [x] 1.1.1 Добавить enum TemplateType (SINGLE, MULTI)
+- [x] 1.1.2 Добавить enum TemplateItemType (TEXT, FILE)
+- [x] 1.1.3 Добавить enum FileType (IMAGE, VIDEO, DOCUMENT)
+- [x] 1.1.4 Добавить enum MessengerTarget (WHATSAPP_ONLY, TELEGRAM_ONLY, UNIVERSAL)
+- [x] 1.1.5 Добавить enum MessengerType (WHATSAPP, TELEGRAM)
+- [x] 1.1.6 Добавить enum UniversalTarget (BOTH, WHATSAPP_FIRST, TELEGRAM_FIRST)
+- [x] 1.1.7 Добавить enum CampaignType (ONE_TIME, SCHEDULED)
+- [x] 1.1.8 Добавить enum CampaignStatus (DRAFT, SCHEDULED, QUEUED, RUNNING...)
+- [x] 1.1.9 Добавить enum CampaignProfileStatus (PENDING, RUNNING, COMPLETED, ERROR)
+- [x] 1.1.10 Добавить enum MessageStatus (PENDING, PROCESSING, SENT, FAILED, SKIPPED)
+- [x] 1.1.11 Добавить enum LogLevel (INFO, WARNING, ERROR)
+- [x] 1.2 1.2 Prisma Schema - Модели шаблонов
+- [x] 1.2.1 Создать модель TemplateCategory (id, userId, name, orderIndex...)
+- [x] 1.2.2 Создать модель Template (id, userId, categoryId, name, type, messengerType...)
+- [x] 1.2.3 Создать модель TemplateItem (id, templateId, orderIndex, type, content...)
+- [x] 1.2.4 Добавить индексы для TemplateCategory
+- [x] 1.2.5 Добавить индексы для Template
+- [x] 1.2.6 Добавить индексы для TemplateItem
+- [x] 1.3 1.3 Prisma Schema - Модели кампаний
+- [x] 1.3.1 Создать модель Campaign (id, userId, name, templateId, clientGroupId...)
+- [x] 1.3.2 Создать модель CampaignProfile (id, campaignId, profileId, assignedCount...)
+- [x] 1.3.3 Создать модель CampaignMessage (id, campaignId, clientId, phoneId...)
+- [x] 1.3.4 Создать модель CampaignLog (id, campaignId, level, action, message...)
+- [x] 1.3.5 Добавить индексы для Campaign
+- [x] 1.3.6 Добавить индексы для CampaignProfile
+- [x] 1.3.7 Добавить индексы для CampaignMessage
+- [x] 1.3.8 Добавить индексы для CampaignLog
+- [x] 1.4 1.4 Prisma Schema - Настройки и лимиты
+- [x] 1.4.1 Создать модель CampaignGlobalSettings (singleton с таймингами)
+- [x] 1.4.2 Создать модель UserCampaignLimits (maxActiveCampaigns, maxTemplates...)
+- [x] 1.4.3 Создать модель UserTelegramBot (botToken, chatId, настройки уведомлений)
+- [x] 1.5 1.5 Prisma Schema - Обновление существующих моделей
+- [x] 1.5.1 Добавить связи в User (templateCategories, templates, campaigns...)
+- [x] 1.5.2 Добавить связи в Profile (campaignProfiles, campaignMessages)
+- [x] 1.5.3 Добавить связи в ClientGroup (campaigns)
+- [x] 1.5.4 Добавить связи в Client (campaignMessages)
+- [x] 1.5.5 Добавить связи в ClientPhone (campaignMessages)
+- [x] 1.5.6 Добавить lastCampaignAt и campaignCount в Client model
+- [x] 1.6 1.6 Миграции БД
+- [x] 1.6.1 Создать миграцию для новых enums
+- [x] 1.6.2 Создать миграцию для моделей шаблонов
+- [x] 1.6.3 Создать миграцию для моделей кампаний
+- [x] 1.6.4 Создать миграцию для настроек и лимитов
+- [x] 1.6.5 Применить миграции (prisma migrate dev)
+- [x] 1.6.6 Сгенерировать Prisma Client (prisma generate)
+- [x] 1.7 1.7 Инициализация данных
+- [x] 1.7.1 Создать seed для CampaignGlobalSettings (дефолтные настройки)
+- [x] 1.7.2 Добавить инициализацию в bootstrap()
+
+## ЭТАП 2: WEBSOCKET ИНФРАСТРУКТУРА
+- [x] 2 ЭТАП 2: WEBSOCKET ИНФРАСТРУКТУРА
+- [x] 2.1 2.1 Backend WebSocket Setup
+- [x] 2.1.1 Установить ws или socket.io пакет
+- [x] 2.1.2 Создать WebSocketServer класс
+- [x] 2.1.3 Реализовать JWT аутентификацию для WS
+- [x] 2.1.4 Реализовать heartbeat механизм (ping/pong)
+- [x] 2.1.5 Реализовать auto-reconnect логику
+- [x] 2.1.6 Создать систему rooms (campaign:{id}, user:{id}, admin)
+- [x] 2.1.7 Реализовать subscribe/unsubscribe для rooms
+- [x] 2.1.8 Создать broadcast методы для событий
+- [x] 2.1.9 Интегрировать WS сервер в index.ts
+- [x] 2.1.10 Добавить graceful shutdown для WS
+- [~] 2.2 2.2 Frontend WebSocket Setup
+- [x] 2.2.1 Создать WebSocketService класс (singleton)
+- [x] 2.2.2 Реализовать connect/disconnect с JWT
+- [x] 2.2.3 Реализовать auto-reconnect с exponential backoff
+- [x] 2.2.4 Создать event emitter для подписок
+- [x] 2.2.5 Создать useWebSocket hook
+- [x] 2.2.6 Реализовать fallback на polling
+- [x] 2.2.7 Интегрировать WS в AuthProvider
+- [~] 2.3 2.3 Обновление мониторинга профилей на WebSocket
+- [x] 2.3.1 Добавить WS события для profile:status
+- [x] 2.3.2 Добавить WS события для profile:resources
+- [x] 2.3.3 Добавить WS события для profile:health
+- [x] 2.3.4 Добавить WS события для alerts
+- [x] 2.3.5 Обновить ProfilesPage для использования WS
+- [x] 2.3.6 Удалить/оставить polling как fallback (оставлен как fallback)
+- [x] 2.3.7 Добавить WS события для messenger:status (логин/разлогин)
+
+## ЭТАП 3: МОДУЛЬ ШАБЛОНОВ - BACKEND
+- [x] 3 ЭТАП 3: МОДУЛЬ ШАБЛОНОВ - BACKEND
+- [x] 3.1 3.1 Templates Repository
+- [x] 3.1.1 Создать backend/src/modules/templates/ директорию
+- [x] 3.1.2 Создать templates.repository.ts
+- [x] 3.1.3 Реализовать CRUD для TemplateCategory
+- [x] 3.1.4 Реализовать CRUD для Template
+- [x] 3.1.5 Реализовать CRUD для TemplateItem
+- [x] 3.1.6 Реализовать findByUserId с фильтрами
+- [x] 3.1.7 Реализовать findByCategory
+- [x] 3.1.8 Реализовать countByUserId
+- [x] 3.2 3.2 File Storage Service
+- [x] 3.2.1 Создать file-storage/ директорию в templates
+- [x] 3.2.2 Создать file-storage.service.ts
+- [x] 3.2.3 Реализовать uploadFile (валидация + сохранение)
+- [x] 3.2.4 Реализовать deleteFile
+- [x] 3.2.5 Реализовать getFilePath
+- [x] 3.2.6 Реализовать валидацию MIME-type
+- [x] 3.2.7 Реализовать валидацию размера файла (50MB)
+- [x] 3.2.8 Реализовать валидацию расширений (jpg,png,gif,webp,mp4,pdf,doc,xls)
+- [x] 3.2.9 Реализовать создание директорий /uploads/templates/{userId}/{templateId}/
+- [x] 3.2.10 Реализовать очистку файлов при удалении шаблона
+- [x] 3.2.11 Добавить предупреждение для файлов >20MB (в metadata)
+- [x] 3.2.12 Реализовать static file serving для файлов шаблонов (/uploads)
+- [x] 3.2.13 Добавить поддержку docx и xlsx форматов
+- [x] 3.3 3.3 Templates Service
+- [x] 3.3.1 Создать templates.service.ts
+- [x] 3.3.2 Реализовать createCategory
+- [x] 3.3.3 Реализовать updateCategory
+- [x] 3.3.4 Реализовать deleteCategory (с проверкой на пустоту)
+- [x] 3.3.5 Реализовать listCategories
+- [x] 3.3.6 Реализовать createTemplate (Single)
+- [x] 3.3.7 Реализовать createTemplate (Multi)
+- [x] 3.3.8 Реализовать updateTemplate
+- [x] 3.3.9 Реализовать deleteTemplate (с удалением файлов)
+- [x] 3.3.10 Реализовать duplicateTemplate
+- [x] 3.3.11 Реализовать moveToCategory
+- [x] 3.3.12 Реализовать listTemplates (с фильтрами и пагинацией)
+- [x] 3.3.13 Реализовать getTemplate
+- [x] 3.3.14 Реализовать addItem (для Multi)
+- [x] 3.3.15 Реализовать updateItem
+- [x] 3.3.16 Реализовать deleteItem (с удалением файла)
+- [x] 3.3.17 Реализовать reorderItems
+- [x] 3.3.18 Реализовать previewTemplate (с подстановкой переменных)
+- [x] 3.3.19 Реализовать проверку лимитов пользователя
+- [x] 3.4 3.4 Variable Parser Service
+- [x] 3.4.1 Создать variable-parser.service.ts
+- [x] 3.4.2 Реализовать parseVariables ({{firstName}}, {{lastName}}...)
+- [x] 3.4.3 Реализовать replaceVariables с данными клиента
+- [x] 3.4.4 Реализовать validateTemplate (проверка переменных)
+- [x] 3.4.5 Добавить поддержку {{fullName}}, {{phone}}, {{date}}, {{time}}
+- [x] 3.5 3.5 Templates Schemas (Zod)
+- [x] 3.5.1 Создать templates.schemas.ts
+- [x] 3.5.2 Создать createCategorySchema
+- [x] 3.5.3 Создать updateCategorySchema
+- [x] 3.5.4 Создать createTemplateSchema
+- [x] 3.5.5 Создать updateTemplateSchema
+- [x] 3.5.6 Создать createTemplateItemSchema
+- [x] 3.5.7 Создать updateTemplateItemSchema
+- [x] 3.5.8 Создать reorderItemsSchema
+- [x] 3.5.9 Создать listTemplatesQuerySchema
+- [x] 3.5.10 Создать previewTemplateSchema
+- [x] 3.6 3.6 Templates Controller
+- [x] 3.6.1 Создать templates.controller.ts
+- [x] 3.6.2 Реализовать listCategoriesHandler
+- [x] 3.6.3 Реализовать createCategoryHandler
+- [x] 3.6.4 Реализовать updateCategoryHandler
+- [x] 3.6.5 Реализовать deleteCategoryHandler
+- [x] 3.6.6 Реализовать listTemplatesHandler
+- [x] 3.6.7 Реализовать getTemplateHandler
+- [x] 3.6.8 Реализовать createTemplateHandler
+- [x] 3.6.9 Реализовать updateTemplateHandler
+- [x] 3.6.10 Реализовать deleteTemplateHandler
+- [x] 3.6.11 Реализовать duplicateTemplateHandler
+- [x] 3.6.12 Реализовать moveTemplateHandler
+- [x] 3.6.13 Реализовать previewTemplateHandler
+- [x] 3.6.14 Реализовать addItemHandler
+- [x] 3.6.15 Реализовать updateItemHandler
+- [x] 3.6.16 Реализовать deleteItemHandler
+- [x] 3.6.17 Реализовать reorderItemsHandler
+- [x] 3.6.18 Реализовать uploadFileHandler (multer)
+- [x] 3.6.19 Реализовать deleteFileHandler
+- [x] 3.7 3.7 Templates Routes
+- [x] 3.7.1 Создать templates.routes.ts
+- [x] 3.7.2 Добавить маршруты для категорий (/api/templates/categories)
+- [x] 3.7.3 Добавить маршруты для шаблонов (/api/templates)
+- [x] 3.7.4 Добавить маршруты для элементов (/api/templates/:id/items)
+- [x] 3.7.5 Добавить маршрут для загрузки файлов (POST /api/templates/:id/upload)
+- [x] 3.7.6 Настроить multer middleware для файлов
+- [x] 3.7.7 Добавить authMiddleware ко всем маршрутам
+- [ ] 3.7.8 Добавить Swagger документацию
+- [x] 3.7.9 Зарегистрировать routes в index.ts
+- [x] 3.8 3.8 Templates Index
+- [x] 3.8.1 Создать index.ts с экспортами модуля
+- [x] 3.8.2 Инициализировать TemplatesService в bootstrap()
+
+## ЭТАП 4: МОДУЛЬ ШАБЛОНОВ - FRONTEND
+- [~] 4 ЭТАП 4: МОДУЛЬ ШАБЛОНОВ - FRONTEND
+- [x] 4.1 4.1 Types
+- [x] 4.1.1 Создать frontend/src/types/template.ts
+- [x] 4.1.2 Определить TemplateCategory type
+- [x] 4.1.3 Определить Template type
+- [x] 4.1.4 Определить TemplateItem type
+- [x] 4.1.5 Определить CreateTemplateInput, UpdateTemplateInput
+- [x] 4.1.6 Определить CreateCategoryInput, UpdateCategoryInput
+- [x] 4.1.7 Определить ListTemplatesQuery, TemplatesListResponse
+- [x] 4.1.8 Экспортировать в types/index.ts
+- [x] 4.2 4.2 API Functions
+- [x] 4.2.1 Создать frontend/src/utils/templates-api.ts
+- [x] 4.2.2 Реализовать getCategories, createCategory, updateCategory, deleteCategory
+- [x] 4.2.3 Реализовать getTemplates, getTemplate, createTemplate, updateTemplate
+- [x] 4.2.4 Реализовать deleteTemplate, duplicateTemplate, moveTemplate
+- [x] 4.2.5 Реализовать previewTemplate
+- [x] 4.2.6 Реализовать addItem, updateItem, deleteItem, reorderItems
+- [x] 4.2.7 Реализовать uploadFile, deleteFile
+- [x] 4.3 4.3 Zod Schemas
+- [x] 4.3.1 Создать frontend/src/schemas/template.schema.ts
+- [x] 4.3.2 Создать categorySchema
+- [x] 4.3.3 Создать templateSchema
+- [x] 4.3.4 Создать templateItemSchema
+- [x] 4.4 4.4 React Query Hooks
+- [x] 4.4.1 Создать frontend/src/hooks/useTemplates.ts
+- [x] 4.4.2 Создать useTemplateCategories hook
+- [x] 4.4.3 Создать useCreateCategory, useUpdateCategory, useDeleteCategory
+- [x] 4.4.4 Создать useTemplates hook с фильтрами
+- [x] 4.4.5 Создать useTemplate hook (single)
+- [x] 4.4.6 Создать useCreateTemplate, useUpdateTemplate, useDeleteTemplate
+- [x] 4.4.7 Создать useDuplicateTemplate, useMoveTemplate
+- [x] 4.4.8 Создать usePreviewTemplate
+- [x] 4.4.9 Создать useAddItem, useUpdateItem, useDeleteItem, useReorderItems
+- [x] 4.4.10 Создать useUploadFile, useDeleteFile
+- [x] 4.4.11 Экспортировать в hooks/index.ts
+- [x] 4.5 4.5 UI Components - Common
+- [x] 4.5.1 Создать FileUploader.tsx (drag&drop, preview, progress)
+- [x] 4.5.2 Создать FileThumbnail.tsx (preview для разных типов)
+- [x] 4.5.3 Создать VariablesPicker.tsx (выбор переменных)
+- [x] 4.5.4 Создать RichTextInput.tsx (с подсветкой переменных)
+- [x] 4.5.6 Создать FileSizeWarning.tsx (предупреждение >20MB)
+- [x] 4.5.5 Создать MessengerTypeSelector.tsx
+- [x] 4.6 4.6 UI Components - Templates
+- [x] 4.6.1 Создать TemplateCategoryTree.tsx (sidebar дерево)
+- [x] 4.6.2 Создать CreateCategoryDialog.tsx
+- [x] 4.6.3 Создать EditCategoryDialog.tsx
+- [x] 4.6.4 Создать TemplateList.tsx (список с поиском)
+- [x] 4.6.5 Создать TemplateCard.tsx (карточка шаблона)
+- [x] 4.6.6 Создать TemplateTypeBadge.tsx (SINGLE/MULTI)
+- [x] 4.6.7 Создать MessengerTypeBadge.tsx (WA/TG/Universal)
+- [x] 4.7 4.7 UI Components - Template Editor
+- [x] 4.7.1 Создать TemplateEditor.tsx (обертка)
+- [x] 4.7.2 Создать SingleTemplateEditor.tsx
+- [x] 4.7.3 Создать MultiTemplateEditor.tsx (с drag&drop)
+- [x] 4.7.4 Создать TemplateItemEditor.tsx (текст или файл)
+- [x] 4.7.5 Создать TemplateItemDragHandle.tsx
+- [x] 4.7.6 Создать AddItemButton.tsx
+- [x] 4.8 4.8 UI Components - Template Preview
+- [x] 4.8.1 Создать TemplatePreview.tsx
+- [x] 4.8.2 Создать MessageBubble.tsx (preview сообщения)
+- [x] 4.8.3 Создать PreviewClientSelector.tsx (выбор клиента для preview)
+- [x] 4.9 4.9 UI Components - Dialogs
+- [x] 4.9.1 Создать CreateTemplateDialog.tsx
+- [x] 4.9.2 Создать EditTemplateDialog.tsx
+- [x] 4.9.3 Создать DeleteTemplateDialog.tsx
+- [x] 4.9.4 Создать DuplicateTemplateDialog.tsx
+- [x] 4.9.5 Создать MoveToCategoryDialog.tsx
+- [x] 4.9.6 Создать TemplatePreviewDialog.tsx
+- [x] 4.10 4.10 Pages
+- [x] 4.10.1 Создать TemplatesPage.tsx (основная страница)
+- [x] 4.10.2 Создать CreateTemplatePage.tsx (создание)
+- [x] 4.10.3 Создать EditTemplatePage.tsx (редактирование)
+- [x] 4.11 4.11 Routing & Navigation
+- [x] 4.11.1 Добавить /templates route в App.tsx
+- [x] 4.11.2 Добавить /templates/create route
+- [x] 4.11.3 Добавить /templates/:id/edit route
+- [x] 4.11.4 Добавить 'Шаблоны' в Sidebar
+- [x] 4.11.5 Экспортировать страницы в pages/index.ts
+
+## ЭТАП 5: МОДУЛЬ КАМПАНИЙ - BACKEND CORE
+- [x] 5 ЭТАП 5: МОДУЛЬ КАМПАНИЙ - BACKEND CORE
+- [x] 5.1 5.1 Campaigns Repository
+- [x] 5.1.1 Создать backend/src/modules/campaigns/ директорию
+- [x] 5.1.2 Создать campaigns.repository.ts
+- [x] 5.1.3 Реализовать CRUD для Campaign
+- [x] 5.1.4 Реализовать CRUD для CampaignProfile
+- [x] 5.1.5 Реализовать CRUD для CampaignMessage
+- [x] 5.1.6 Реализовать CRUD для CampaignLog
+- [x] 5.1.7 Реализовать findByUserId с фильтрами
+- [x] 5.1.8 Реализовать findScheduled (для планировщика)
+- [x] 5.1.9 Реализовать findRunning
+- [x] 5.1.10 Реализовать updateProgress
+- [x] 5.1.11 Реализовать getMessagesForProfile (chunk)
+- [x] 5.2 5.2 Campaign Schemas (Zod)
+- [x] 5.2.1 Создать campaigns.schemas.ts
+- [x] 5.2.2 Создать createCampaignSchema
+- [x] 5.2.3 Создать updateCampaignSchema
+- [x] 5.2.4 Создать scheduleConfigSchema
+- [x] 5.2.5 Создать filterConfigSchema
+- [x] 5.2.6 Создать optionsConfigSchema
+- [x] 5.2.7 Создать listCampaignsQuerySchema
+- [x] 5.2.8 Создать startCampaignSchema
+- [x] 5.3 5.3 Campaigns Service - Core
+- [x] 5.3.1 Создать campaigns.service.ts
+- [x] 5.3.2 Реализовать createCampaign
+- [x] 5.3.3 Реализовать updateCampaign (только DRAFT)
+- [x] 5.3.4 Реализовать deleteCampaign
+- [x] 5.3.5 Реализовать duplicateCampaign
+- [x] 5.3.6 Реализовать archiveCampaign
+- [x] 5.3.7 Реализовать getCampaign
+- [x] 5.3.8 Реализовать listCampaigns
+- [x] 5.3.9 Реализовать validateCampaign (проверка шаблона, базы, профилей)
+- [x] 5.3.10 Реализовать calculateContacts (применение фильтров)
+- [x] 5.3.11 Реализовать validateProfiles (статус, доступность)
+- [x] 5.3.12 Реализовать проверку лимитов пользователя
+- [x] 5.4 5.4 Profile Load Balancer
+- [x] 5.4.1 Создать load-balancer/ директорию
+- [x] 5.4.2 Создать load-balancer.service.ts
+- [x] 5.4.3 Реализовать distributeContacts (равномерное распределение)
+- [x] 5.4.4 Реализовать createCampaignMessages (генерация очереди)
+- [x] 5.4.5 Реализовать rebalance (перераспределение при падении профиля)
+- [x] 5.4.6 Реализовать getNextMessage (для воркера)
+- [x] 5.4.7 Реализовать markMessageProcessed
+- [x] 5.5 5.5 Campaign Scheduler
+- [x] 5.5.1 Создать scheduler/ директорию
+- [x] 5.5.2 Создать campaign-scheduler.service.ts
+- [x] 5.5.3 Реализовать start (запуск cron)
+- [x] 5.5.4 Реализовать stop
+- [x] 5.5.5 Реализовать checkScheduledCampaigns (каждую минуту)
+- [x] 5.5.6 Реализовать checkWorkHours (рабочие часы)
+- [x] 5.5.7 Реализовать checkWorkDays (рабочие дни)
+- [x] 5.5.8 Реализовать pauseOutsideWorkHours
+- [x] 5.5.9 Реализовать resumeInWorkHours
+- [x] 5.5.11 Реализовать cleanupOldCampaigns cron job (по настройке ROOT)
+- [x] 5.5.10 Реализовать cleanupOldCampaigns (по настройке ROOT) — перенумерация факта
+- [x] 5.6 5.6 Campaign Progress Service
+- [x] 5.6.1 Создать progress/ директорию
+- [x] 5.6.2 Создать campaign-progress.service.ts
+- [x] 5.6.3 Реализовать getProgress
+- [x] 5.6.4 Реализовать calculateETA
+- [x] 5.6.5 Реализовать calculateSpeed (контактов/мин)
+- [x] 5.6.6 Реализовать emitProgress (WebSocket)
+- [x] 5.6.7 Реализовать saveProgress (каждые 5 контактов)
+- [x] 5.7 5.7 Campaign Stats Service
+- [x] 5.7.1 Создать stats/ директорию
+- [x] 5.7.2 Создать campaign-stats.service.ts
+- [x] 5.7.3 Реализовать getStats (агрегированная статистика)
+- [x] 5.7.4 Реализовать getStatsByMessenger (WA vs TG)
+- [x] 5.7.5 Реализовать getStatsByProfile
+- [x] 5.7.6 Реализовать exportToCsv
+
+## ЭТАП 6: МОДУЛЬ КАМПАНИЙ - EXECUTOR
+- [x] 6 ЭТАП 6: МОДУЛЬ КАМПАНИЙ - EXECUTOR
+- [x] 6.1 Message Sender Service
+- [x] 6.1.1 Создать message-sender/ директорию
+- [x] 6.1.2 Создать message-sender.service.ts
+- [x] 6.1.3 Реализовать sendMessage (обертка)
+- [x] 6.1.4 Реализовать checkPhoneValid (проверка номера)
+- [x] 6.1.5 Реализовать simulateTyping
+- [x] 6.1.6 Реализовать getRandomDelay (мин-макс)
+- [x] 6.2 WhatsApp Sender
+- [x] 6.2.1 Создать whatsapp-sender.ts
+- [x] 6.2.2 Реализовать openChat (по номеру)
+- [x] 6.2.3 Реализовать sendTextMessage
+- [x] 6.2.4 Реализовать sendFileMessage (attachment)
+- [x] 6.2.5 Реализовать checkNumberRegistered
+- [x] 6.2.6 Реализовать handleErrors (not found, blocked...)
+- [x] 6.3 Telegram Sender
+- [x] 6.3.1 Создать telegram-sender.ts
+- [x] 6.3.2 Реализовать openChat (по номеру)
+- [x] 6.3.3 Реализовать sendTextMessage
+- [x] 6.3.4 Реализовать sendFileMessage
+- [x] 6.3.5 Реализовать checkNumberRegistered
+- [x] 6.3.6 Реализовать handleErrors
+- [x] 6.4 Campaign Executor
+- [x] 6.4.1 Создать executor/ директорию
+- [x] 6.4.2 Создать campaign-executor.service.ts
+- [x] 6.4.3 Реализовать startCampaign
+- [x] 6.4.4 Реализовать pauseCampaign
+- [x] 6.4.5 Реализовать resumeCampaign
+- [x] 6.4.6 Реализовать cancelCampaign
+- [x] 6.4.7 Реализовать event emitter для событий
+- [x] 6.4.8 Интегрировать с существующим ProfilesService для мониторинга
+- [x] 6.5 Profile Worker
+- [x] 6.5.1 Создать profile-worker.ts
+- [x] 6.5.2 Реализовать start (запуск обработки)
+- [x] 6.5.3 Реализовать stop
+- [x] 6.5.4 Реализовать pause
+- [x] 6.5.5 Реализовать processNextContact
+- [x] 6.5.6 Реализовать processClientPhones (все номера клиента)
+- [x] 6.5.7 Реализовать handlePauseMode (режим 1 vs 2)
+- [x] 6.5.8 Реализовать sendTemplate (Single/Multi)
+- [x] 6.5.9 Реализовать handleRetry (повторные попытки)
+- [x] 6.5.10 Реализовать reportProgress
+- [x] 6.5.11 Реализовать обновление ClientPhone.whatsAppStatus при отправке
+- [x] 6.5.12 Реализовать обновление ClientPhone.telegramStatus при отправке
+- [x] 6.5.13 Реализовать логику: Valid только при успешной отправке
+- [x] 6.6 Error Handling
+- [x] 6.6.1 Создать campaign-error-handler.ts
+- [x] 6.6.2 Реализовать handleProfileDisconnect
+- [x] 6.6.3 Реализовать handleNetworkError
+- [x] 6.6.4 Реализовать handleMessengerError
+- [x] 6.6.5 Реализовать handleCriticalError (пауза кампании)
+- [x] 6.6.6 Реализовать логирование ошибок в CampaignLog
+- [x] 6.7 Recovery Service
+- [x] 6.7.1 Создать campaign-recovery.service.ts
+- [x] 6.7.2 Реализовать restoreRunningCampaigns (после рестарта)
+- [x] 6.7.3 Реализовать handleAutoResume (настройка ROOT)
+- [x] 6.7.4 Реализовать rebalanceOnProfileFailure
+
+## ЭТАП 7: МОДУЛЬ КАМПАНИЙ - CONTROLLER & ROUTES
+- [x] 7 ЭТАП 7: МОДУЛЬ КАМПАНИЙ - CONTROLLER & ROUTES
+- [x] 7.1 Campaigns Controller
+- [x] 7.1.1 Создать campaigns.controller.ts
+- [x] 7.1.2 Реализовать listCampaignsHandler
+- [x] 7.1.3 Реализовать getCampaignHandler
+- [x] 7.1.4 Реализовать createCampaignHandler
+- [x] 7.1.5 Реализовать updateCampaignHandler
+- [x] 7.1.6 Реализовать deleteCampaignHandler
+- [x] 7.1.7 Реализовать duplicateCampaignHandler
+- [x] 7.1.8 Реализовать archiveCampaignHandler
+- [x] 7.1.9 Реализовать startCampaignHandler
+- [x] 7.1.10 Реализовать pauseCampaignHandler
+- [x] 7.1.11 Реализовать resumeCampaignHandler
+- [x] 7.1.12 Реализовать cancelCampaignHandler
+- [x] 7.1.13 Реализовать getProgressHandler
+- [x] 7.1.14 Реализовать getMessagesHandler
+- [x] 7.1.15 Реализовать getLogsHandler
+- [x] 7.1.16 Реализовать getStatsHandler
+- [x] 7.1.17 Реализовать exportHandler
+- [x] 7.2 Campaigns Routes
+- [x] 7.2.1 Создать campaigns.routes.ts
+- [x] 7.2.2 Добавить CRUD routes (/api/campaigns)
+- [x] 7.2.3 Добавить action routes (start, pause, resume, cancel)
+- [x] 7.2.4 Добавить monitoring routes (progress, messages, logs, stats)
+- [x] 7.2.5 Добавить export route
+- [x] 7.2.6 Добавить authMiddleware ко всем маршрутам
+- [ ] 7.2.7 Добавить Swagger документацию
+- [x] 7.2.8 Зарегистрировать routes в index.ts
+- [~] 7.3 WebSocket Events для кампаний
+- [x] 7.3.1 Добавить campaign:progress событие
+- [x] 7.3.2 Добавить campaign:status событие
+- [x] 7.3.3 Добавить campaign:message событие
+- [x] 7.3.4 Добавить campaign:error событие
+- [x] 7.3.5 Добавить campaign:completed событие
+- [x] 7.3.6 Интегрировать события в CampaignExecutor
+
+## ЭТАП 8: TELEGRAM BOT УВЕДОМЛЕНИЯ
+ - [~] 8 ЭТАП 8: TELEGRAM BOT УВЕДОМЛЕНИЯ
+- [x] 8.1 Telegram Bot Service
+- [x] 8.1.1 Создать backend/src/modules/telegram-bot/ директорию
+- [x] 8.1.2 Установить node-telegram-bot-api пакет
+- [x] 8.1.3 Создать telegram-bot.service.ts
+- [x] 8.1.4 Реализовать setupBot (инициализация по токену)
+- [x] 8.1.5 Реализовать handleStartCommand (/start)
+- [x] 8.1.6 Реализовать generateVerifyCode
+- [x] 8.1.7 Реализовать verifyCode (подтверждение)
+- [x] 8.1.8 Реализовать sendNotification
+- [x] 8.1.9 Реализовать formatCampaignStarted
+- [x] 8.1.10 Реализовать formatCampaignCompleted
+- [x] 8.1.11 Реализовать formatCampaignError
+- [x] 8.1.12 Реализовать formatProgress (50%, 75%, 90%)
+- [x] 8.1.13 Реализовать formatProfileIssue
+- [x] 8.1.14 Реализовать formatLoginRequired
+- [x] 8.2 User Bot Manager
+- [x] 8.2.1 Создать user-bot-manager.service.ts
+- [x] 8.2.2 Реализовать registerBot (userId, token)
+- [x] 8.2.3 Реализовать unregisterBot
+- [x] 8.2.4 Реализовать getBotForUser
+- [x] 8.2.5 Реализовать startAllBots (при старте сервера)
+- [x] 8.2.6 Реализовать stopAllBots (graceful shutdown)
+- [x] 8.3 Telegram Bot Controller & Routes
+- [x] 8.3.1 Создать telegram-bot.controller.ts
+- [x] 8.3.2 Реализовать getSettingsHandler
+- [x] 8.3.3 Реализовать setupBotHandler
+- [x] 8.3.4 Реализовать verifyHandler
+- [x] 8.3.5 Реализовать disconnectHandler
+- [x] 8.3.6 Реализовать updateNotificationsHandler
+- [x] 8.3.7 Реализовать testNotificationHandler
+- [x] 8.3.8 Создать telegram-bot.routes.ts
+- [x] 8.3.9 Зарегистрировать routes в index.ts
+- [x] 8.4 Notification Dispatcher
+- [x] 8.4.1 Создать notification-dispatcher.service.ts
+- [x] 8.4.2 Реализовать dispatch (выбор канала: TG + WS)
+- [x] 8.4.3 Реализовать checkUserSettings (какие события включены)
+- [x] 8.4.4 Интегрировать с CampaignExecutor
+- [x] 8.4.5 Интегрировать с ProfilesService (проблемы профилей)
+- [x] 8.4.6 Расширить существующий NotificationService для кампаний
+
+## ЭТАП 9: ГЛОБАЛЬНЫЕ НАСТРОЙКИ (ROOT)
+- [x] 9 ЭТАП 9: ГЛОБАЛЬНЫЕ НАСТРОЙКИ (ROOT)
+- [x] 9.1 Campaign Settings Service
+- [x] 9.1.1 Создать backend/src/modules/campaign-settings/ директорию
+- [x] 9.1.2 Создать campaign-settings.repository.ts
+- [x] 9.1.3 Создать campaign-settings.service.ts
+- [x] 9.1.4 Реализовать getGlobalSettings
+- [x] 9.1.5 Реализовать updateGlobalSettings
+- [x] 9.1.6 Реализовать initDefaultSettings (seed)
+- [x] 9.1.7 Добавить ensureCampaignGlobalSettings в bootstrap()
+- [x] 9.2 User Campaign Limits Service
+- [x] 9.2.1 Создать user-campaign-limits.repository.ts
+- [x] 9.2.2 Создать user-campaign-limits.service.ts
+- [x] 9.2.3 Реализовать getLimits (userId)
+- [x] 9.2.4 Реализовать setLimits
+- [x] 9.2.5 Реализовать getAllLimits (для ROOT)
+- [x] 9.2.6 Реализовать checkLimit (проверка перед созданием)
+- [x] 9.3 Admin Controller & Routes
+- [x] 9.3.1 Создать campaign-admin.controller.ts
+- [x] 9.3.2 Реализовать getGlobalSettingsHandler
+- [x] 9.3.3 Реализовать updateGlobalSettingsHandler
+- [x] 9.3.4 Реализовать getAllLimitsHandler
+- [x] 9.3.5 Реализовать getUserLimitsHandler
+- [x] 9.3.6 Реализовать setUserLimitsHandler
+- [x] 9.3.7 Реализовать getAllCampaignsHandler (все кампании)
+- [x] 9.3.8 Реализовать stopAnyCampaignHandler
+- [x] 9.3.9 Создать campaign-admin.routes.ts
+- [x] 9.3.10 Добавить requireRoot middleware
+- [x] 9.3.11 Зарегистрировать routes в index.ts
+
+## ЭТАП 10: МОДУЛЬ КАМПАНИЙ - FRONTEND
+- [x] 10 ЭТАП 10: МОДУЛЬ КАМПАНИЙ - FRONTEND
+- [x] 10.1 Types
+- [x] 10.1.1 Создать frontend/src/types/campaign.ts
+- [x] 10.1.2 Определить Campaign type
+- [x] 10.1.3 Определить CampaignProfile type
+- [x] 10.1.4 Определить CampaignMessage type
+- [x] 10.1.5 Определить CampaignLog type
+- [x] 10.1.6 Определить CampaignProgress type
+- [x] 10.1.7 Определить CampaignStats type
+- [x] 10.1.8 Определить CreateCampaignInput, UpdateCampaignInput
+- [x] 10.1.9 Определить ScheduleConfig, FilterConfig, OptionsConfig
+- [x] 10.1.10 Определить CampaignGlobalSettings type
+- [x] 10.1.11 Определить UserCampaignLimits type
+- [x] 10.1.12 Экспортировать в types/index.ts
+- [x] 10.2 API Functions
+- [x] 10.2.1 Создать frontend/src/utils/campaigns-api.ts
+- [x] 10.2.2 Реализовать getCampaigns, getCampaign, createCampaign...
+- [x] 10.2.3 Реализовать startCampaign, pauseCampaign, resumeCampaign, cancelCampaign
+- [x] 10.2.4 Реализовать getProgress, getMessages, getLogs, getStats
+- [x] 10.2.5 Реализовать exportCampaign
+- [x] 10.2.6 Создать frontend/src/utils/campaign-admin-api.ts
+- [x] 10.2.7 Реализовать getGlobalSettings, updateGlobalSettings
+- [x] 10.2.8 Реализовать getAllLimits, setUserLimits
+- [x] 10.3 Zod Schemas
+- [x] 10.3.1 Создать frontend/src/schemas/campaign.schema.ts
+- [x] 10.3.2 Создать campaignSchema
+- [x] 10.3.3 Создать scheduleConfigSchema
+- [x] 10.3.4 Создать filterConfigSchema
+- [x] 10.3.5 Создать globalSettingsSchema
+- [x] 10.4 React Query Hooks
+- [x] 10.4.1 Создать frontend/src/hooks/useCampaigns.ts
+- [x] 10.4.2 Создать useCampaigns, useCampaign hooks
+- [x] 10.4.3 Создать useCreateCampaign, useUpdateCampaign, useDeleteCampaign
+- [x] 10.4.4 Создать useDuplicateCampaign, useArchiveCampaign
+- [x] 10.4.5 Создать useStartCampaign, usePauseCampaign, useResumeCampaign...
+- [x] 10.4.6 Создать useCampaignProgress (WebSocket)
+- [x] 10.4.7 Создать useCampaignMessages, useCampaignLogs, useCampaignStats
+- [x] 10.4.8 Создать useExportCampaign
+- [x] 10.4.9 Создать useCampaignSettings.ts (для ROOT)
+- [x] 10.5 WebSocket Hooks для кампаний
+- [x] 10.5.1 Создать useCampaignWebSocket hook
+- [x] 10.5.2 Реализовать subscribe/unsubscribe для campaign:{id}
+- [x] 10.5.3 Реализовать обработку progress events
+- [x] 10.5.4 Реализовать обработку status events
+- [x] 10.5.5 Реализовать обработку message events
+- [x] 10.6 UI Components - Campaign List
+- [x] 10.6.1 Создать CampaignList.tsx
+- [x] 10.6.2 Создать CampaignCard.tsx
+- [x] 10.6.3 Создать CampaignStatusBadge.tsx
+- [x] 10.6.4 Создать CampaignTypeBadge.tsx
+- [x] 10.6.5 Создать CampaignFilters.tsx
+- [x] 10.6.6 Создать CampaignActions.tsx (кнопки действий)
+- [x] 10.6.7 Создать CampaignQuickStats.tsx (мини-статистика в карточке)
+- [x] 10.7 UI Components - Campaign Wizard
+- [x] 10.7.1 Создать CampaignWizard.tsx (обертка)
+- [x] 10.7.2 Создать WizardStep1_BasicInfo.tsx
+- [x] 10.7.3 Создать WizardStep2_SelectTemplate.tsx
+- [x] 10.7.4 Создать WizardStep3_SelectBase.tsx (группа + фильтры)
+- [x] 10.7.5 Создать WizardStep4_SelectProfiles.tsx
+- [x] 10.7.6 Создать WizardStep5_Schedule.tsx (для scheduled)
+- [x] 10.7.7 Создать WizardStep6_Options.tsx (дедупликация, cooldown...)
+- [x] 10.7.8 Создать WizardStep7_Review.tsx (итоговый обзор)
+- [x] 10.7.9 Создать WizardNavigation.tsx (шаги)
+ - [x] 10.8 UI Components - Campaign Progress
+ - [x] 10.8.1 Создать CampaignProgress.tsx (обертка)
+ - [x] 10.8.2 Создать ProgressBar.tsx (общий прогресс)
+ - [x] 10.8.3 Создать ProfilesProgress.tsx (по профилям)
+ - [x] 10.8.4 Создать StatsCards.tsx (успешно/ошибки/пропущено)
+ - [x] 10.8.5 Создать EtaDisplay.tsx (расчёт времени)
+ - [x] 10.8.6 Создать SpeedIndicator.tsx (контактов/мин)
+- [x] 10.9 UI Components - Campaign Details
+- [x] 10.9.1 Создать CampaignDetails.tsx (общая информация)
+- [x] 10.9.2 Создать CampaignMessages.tsx (список сообщений)
+- [x] 10.9.3 Создать CampaignLogs.tsx (логи событий)
+- [x] 10.9.4 Создать CampaignStats.tsx (статистика)
+- [x] 10.9.5 Создать MessageStatusBadge.tsx
+- [x] 10.9.6 Создать LogLevelBadge.tsx
+- [x] 10.10 UI Components - Schedule
+- [x] 10.10.1 Создать ScheduleConfigurator.tsx
+- [x] 10.10.2 Создать WorkHoursPicker.tsx
+- [x] 10.10.3 Создать WorkDaysPicker.tsx
+- [x] 10.10.4 Создать RecurrencePicker.tsx (периодичность)
+- [x] 10.11 UI Components - Filters & Selectors
+- [x] 10.11.1 Создать BaseFilterForm.tsx (фильтры базы)
+- [x] 10.11.2 Создать ProfileSelector.tsx (выбор профилей)
+- [x] 10.11.3 Создать ProfileAvailabilityIndicator.tsx
+- [x] 10.11.4 Создать UniversalTargetSelector.tsx (куда отправлять)
+- [x] 10.12 UI Components - Dialogs
+- [x] 10.12.1 Создать DeleteCampaignDialog.tsx
+- [x] 10.12.2 Создать DuplicateCampaignDialog.tsx
+- [x] 10.12.3 Создать ArchiveCampaignDialog.tsx
+- [x] 10.12.4 Создать CancelCampaignDialog.tsx
+- [x] 10.12.5 Создать ExportCampaignDialog.tsx
+- [x] 10.13 Pages
+- [x] 10.13.1 Создать CampaignsPage.tsx (список кампаний)
+- [x] 10.13.2 Создать CreateCampaignPage.tsx (wizard)
+- [x] 10.13.3 Создать CampaignDetailsPage.tsx (детали + прогресс)
+- [x] 10.14 Routing & Navigation
+- [x] 10.14.1 Добавить /campaigns route в App.tsx
+- [x] 10.14.2 Добавить /campaigns/create route
+- [x] 10.14.3 Добавить /campaigns/:id route
+- [x] 10.14.4 Добавить 'Кампании' в Sidebar
+- [x] 10.14.5 Экспортировать страницы в pages/index.ts
+
+## ЭТАП 11: ADMIN ПАНЕЛЬ FRONTEND
+- [~] 11 ЭТАП 11: ADMIN ПАНЕЛЬ FRONTEND
+- [x] 11.1 Telegram Bot Settings Page
+- [x] 11.1.1 Создать TelegramBotSettingsPage.tsx
+- [x] 11.1.2 Создать TelegramBotSetup.tsx (ввод токена)
+- [x] 11.1.3 Создать TelegramVerifyDialog.tsx (ввод кода)
+- [x] 11.1.4 Создать NotificationSettingsForm.tsx
+- [x] 11.1.5 Создать TelegramTestButton.tsx
+- [x] 11.1.6 Добавить route /settings/telegram
+- [x] 11.1.7 Добавить 'Настройки уведомлений' в Sidebar
+ - [x] 11.2 Campaign Settings Admin Page
+ - [x] 11.2.1 Создать CampaignSettingsAdminPage.tsx
+ - [x] 11.2.2 Создать PauseModeSelector.tsx (режим 1/2)
+ - [x] 11.2.3 Создать TimingsForm.tsx (все тайминги)
+ - [x] 11.2.4 Создать LimitsForm.tsx (контактов/час, /день)
+ - [x] 11.2.5 Создать DefaultWorkHoursForm.tsx
+ - [x] 11.2.6 Создать TypingSimulationForm.tsx
+ - [x] 11.2.7 Создать ErrorHandlingForm.tsx
+ - [x] 11.2.8 Создать MonitoringForm.tsx
+ - [x] 11.2.9 Создать StorageForm.tsx (срок хранения)
+ - [x] 11.2.10 Создать WarmupForm.tsx (прогрев)
+ - [x] 11.2.11 Добавить route /admin/campaign-settings
+ - [x] 11.2.12 Добавить 'Настройки рассылок' в Sidebar (ROOT)
+ - [x] 11.3 User Campaign Limits Admin Page
+ - [x] 11.3.1 Создать UserCampaignLimitsPage.tsx
+ - [x] 11.3.2 Создать UserCampaignLimitsTable.tsx
+ - [x] 11.3.3 Создать EditUserCampaignLimitsDialog.tsx
+ - [x] 11.3.4 Добавить route /admin/campaign-limits
+ - [x] 11.3.5 Добавить 'Лимиты кампаний' в Sidebar (ROOT)
+ - [x] 11.4 All Campaigns Admin Page
+ - [x] 11.4.1 Создать AllCampaignsAdminPage.tsx
+ - [x] 11.4.2 Добавить фильтр по пользователям
+ - [x] 11.4.3 Добавить возможность остановки любой кампании
+ - [x] 11.4.4 Добавить route /admin/all-campaigns
+ - [x] 11.4.5 Добавить 'Все кампании' в Sidebar (ROOT)
+
+## ЭТАП 12: ИНТЕГРАЦИЯ И ФИНАЛИЗАЦИЯ
+- [~] 12 ЭТАП 12: ИНТЕГРАЦИЯ И ФИНАЛИЗАЦИЯ
+- [x] 12.1 Backend Integration
+- [x] 12.1.1 Интегрировать все сервисы в bootstrap()
+- [x] 12.1.2 Добавить graceful shutdown для всех новых сервисов
+- [x] 12.1.3 Настроить инициализацию CampaignScheduler
+- [x] 12.1.4 Настроить инициализацию UserBotManager
+- [x] 12.1.5 Настроить инициализацию WebSocketServer
+- [x] 12.1.6 Добавить восстановление кампаний после рестарта
+- [x] 12.2 Frontend Integration
+- [x] 12.2.1 Интегрировать WebSocket в AuthProvider
+- [x] 12.2.2 Обновить Sidebar с новыми пунктами меню
+- [x] 12.2.3 Обновить navigation.ts
+- [x] 12.2.4 Обновить все index.ts экспорты
+- [x] 12.3 Обновление существующих модулей
+- [x] 12.3.1 Обновить ProfilesPage для интеграции с кампаниями
+- [x] 12.3.2 Добавить индикатор 'используется в кампании' для профилей
+- [x] 12.3.3 Обновить ClientsPage для показа статистики рассылок
+ - [x] 12.3.4 Обновить ClientGroupSelector для кампаний (для кампаний — фильтр/выбор группы)
+- [x] 12.3.5 Добавить поле lastCampaignAt в Client для статистики
+- [x] 12.3.6 Обновить ClientPhones API для массового обновления статусов
+- [x] 12.4 Error Handling & Validation
+- [x] 12.4.1 Добавить глобальную обработку ошибок для кампаний
+- [x] 12.4.2 Добавить валидацию на frontend формах
+- [x] 12.4.3 Добавить rate limiting для новых endpoints
+- [x] 12.4.4 Добавить логирование для новых модулей
+- [ ] 12.5 Swagger Documentation
+- [ ] 12.5.1 Добавить Swagger документацию для Templates API
+- [ ] 12.5.2 Добавить Swagger документацию для Campaigns API
+- [ ] 12.5.3 Добавить Swagger документацию для Telegram Bot API
+- [ ] 12.5.4 Добавить Swagger документацию для Admin API
+- [ ] 12.5.5 Добавить Swagger документацию для WebSocket events
+- [ ] 12.6 Final Testing & Polish
+- [ ] 12.6.1 Протестировать полный flow создания шаблона
+- [ ] 12.6.2 Протестировать полный flow создания кампании
+- [ ] 12.6.3 Протестировать запуск и мониторинг кампании
+- [ ] 12.6.4 Протестировать параллельную работу профилей
+- [ ] 12.6.5 Протестировать Telegram уведомления
+- [ ] 12.6.6 Протестировать WebSocket real-time обновления
+- [ ] 12.6.7 Протестировать восстановление после сбоев
+- [ ] 12.6.8 Протестировать все ROOT функции
+- [ ] 12.6.9 Финальная проверка UI/UX
+- [ ] 12.6.10 Исправление найденных багов
+

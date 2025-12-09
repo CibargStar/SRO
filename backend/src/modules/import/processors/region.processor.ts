@@ -16,7 +16,7 @@ import logger from '../../../config/logger';
  * Ключ: нормализованное название региона (lowercase)
  * Значение: ID региона
  */
-const regionCache = new Map<string, string>();
+const regionCache = new Map<string, RegionResult>();
 
 /**
  * Очищает кэш регионов

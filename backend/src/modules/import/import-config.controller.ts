@@ -26,9 +26,8 @@ import {
   deleteImportConfig,
   createConfigFromTemplate,
 } from './services/import-config.service';
-import { getDefaultImportConfig, PRESET_TEMPLATES } from './types/import-config.types';
+import { getDefaultImportConfig, PRESET_TEMPLATES, type ImportConfig } from './types/import-config.types';
 import type { ImportConfigInput, GetImportConfigsQuery } from './schemas/import-config.schemas';
-import { ImportConfigSchema } from './schemas/import-config.schemas';
 
 /**
  * Обработчик получения списка конфигураций
@@ -184,10 +183,17 @@ export async function createImportConfigHandler(
       return;
     }
 
-    const configData = req.body as Partial<ImportConfigInput>;
+    const input = req.body as ImportConfigInput;
     const config: Omit<ImportConfig, 'id' | 'createdAt' | 'updatedAt'> = {
-      ...configData,
       userId: currentUser.id,
+      name: input.name,
+      description: input.description ?? undefined,
+      isDefault: Boolean(input.isDefault ?? false),
+      searchScope: input.searchScope,
+      duplicateAction: input.duplicateAction,
+      noDuplicateAction: input.noDuplicateAction,
+      validation: input.validation,
+      additional: input.additional,
     };
 
     const created = await createImportConfig(config, prisma);
@@ -228,7 +234,18 @@ export async function updateImportConfigHandler(
       return;
     }
 
-    const updated = await updateImportConfig(id, configData, currentUser.id, prisma);
+    const updatePayload: Partial<Omit<ImportConfig, 'id' | 'userId' | 'createdAt' | 'updatedAt'>> = {
+      ...(configData.name !== undefined ? { name: configData.name } : {}),
+      ...(configData.description !== undefined ? { description: configData.description ?? undefined } : {}),
+      ...(configData.isDefault !== undefined ? { isDefault: configData.isDefault } : {}),
+      ...(configData.searchScope !== undefined ? { searchScope: configData.searchScope } : {}),
+      ...(configData.duplicateAction !== undefined ? { duplicateAction: configData.duplicateAction } : {}),
+      ...(configData.noDuplicateAction !== undefined ? { noDuplicateAction: configData.noDuplicateAction } : {}),
+      ...(configData.validation !== undefined ? { validation: configData.validation } : {}),
+      ...(configData.additional !== undefined ? { additional: configData.additional } : {}),
+    };
+
+    const updated = await updateImportConfig(id, updatePayload, currentUser.id, prisma);
 
     if (!updated) {
       res.status(404).json({ message: 'Import config not found' });

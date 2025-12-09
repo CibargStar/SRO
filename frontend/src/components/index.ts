@@ -41,3 +41,5 @@ export { MessengerAccountsTable } from './MessengerAccountsTable';
 export { CreateMessengerAccountDialog } from './CreateMessengerAccountDialog';
 export { MessengerQRCodeDialog } from './MessengerQRCodeDialog';
 export { MessengerAccountsDialog } from './MessengerAccountsDialog';
+export * from './templates';
+export * from './common';

@@ -30,6 +30,7 @@ import {
   listClientPhonesHandler,
   updateClientPhoneHandler,
   deleteClientPhoneHandler,
+  bulkUpdatePhoneStatusesHandler,
 } from '../modules/clients/client-phones.controller';
 import { createClientPhoneSchema, updateClientPhoneSchema } from '../modules/clients/client-phone.schemas';
 
@@ -453,6 +454,7 @@ router.patch('/:id/phones/:phoneId', authMiddleware, requireAuth, validateBody(u
  *         description: Телефон или клиент не найдены
  */
 router.delete('/:id/phones/:phoneId', authMiddleware, requireAuth, deleteClientPhoneHandler);
+router.patch('/:id/phones/bulk-status', authMiddleware, requireAuth, bulkUpdatePhoneStatusesHandler);
 
 export default router;
 

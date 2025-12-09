@@ -21,6 +21,7 @@
  */
 
 import type { SidebarNavigationItem } from '@/types/sidebar';
+import type { UserRole } from '@/types';
 
 /**
  * Конфигурация элементов навигации
@@ -92,6 +93,38 @@ export const navigationConfig: SidebarNavigationItem[] = [
       roles: ['ROOT'], // Только ROOT может видеть этот элемент
     },
   },
+  {
+    id: 'admin-campaign-settings',
+    label: 'Настройки рассылок',
+    path: '/admin/campaign-settings',
+    visibility: {
+      roles: ['ROOT'],
+    },
+  },
+  {
+    id: 'admin-campaign-limits',
+    label: 'Лимиты кампаний',
+    path: '/admin/campaign-limits',
+    visibility: {
+      roles: ['ROOT'],
+    },
+  },
+  {
+    id: 'admin-all-campaigns',
+    label: 'Все кампании',
+    path: '/admin/all-campaigns',
+    visibility: {
+      roles: ['ROOT'],
+    },
+  },
+  {
+    id: 'settings-telegram',
+    label: 'Настройки уведомлений',
+    path: '/settings/telegram',
+    visibility: {
+      roles: ['ROOT', 'USER'],
+    },
+  },
   
   /**
    * Управление клиентами (доступно всем авторизованным)
@@ -118,6 +151,44 @@ export const navigationConfig: SidebarNavigationItem[] = [
     id: 'profiles',
     label: 'Профили Chrome',
     path: '/profiles',
+    visibility: {
+      roles: [], // Доступно всем авторизованным
+    },
+  },
+  
+  /**
+   * Шаблоны сообщений (доступно всем авторизованным)
+   * 
+   * Создание и управление шаблонами для массовых рассылок.
+   * Поддерживает текстовые сообщения и файлы.
+   */
+  {
+    id: 'templates',
+    label: 'Шаблоны',
+    path: '/templates',
+    visibility: {
+      roles: [], // Доступно всем авторизованным
+    },
+  },
+  {
+    id: 'templates-create',
+    label: 'Создать шаблон',
+    path: '/templates/create',
+    visibility: {
+      roles: [], // Доступно всем авторизованным
+    },
+  },
+  
+  /**
+   * Кампании рассылок (доступно всем авторизованным)
+   * 
+   * Создание и управление кампаниями массовых рассылок.
+   * Поддерживает WhatsApp, Telegram и универсальные рассылки.
+   */
+  {
+    id: 'campaigns',
+    label: 'Кампании',
+    path: '/campaigns',
     visibility: {
       roles: [], // Доступно всем авторизованным
     },
@@ -157,7 +228,7 @@ export const navigationConfig: SidebarNavigationItem[] = [
  */
 export function filterVisibleItems(
   items: SidebarNavigationItem[],
-  user: { role: string; [key: string]: unknown } | null
+  user: { role: UserRole; [key: string]: unknown } | null
 ): SidebarNavigationItem[] {
   if (!user) {
     return []; // Если пользователь не авторизован, ничего не показываем

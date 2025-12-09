@@ -112,8 +112,8 @@ export async function createClientHandler(
           ? {
               create: phones.map((phone: { phone: string; whatsAppStatus?: string; telegramStatus?: string }) => ({
                 phone: phone.phone,
-                whatsAppStatus: phone.whatsAppStatus ?? 'Unknown',
-                telegramStatus: phone.telegramStatus ?? 'Unknown',
+                whatsAppStatus: (phone.whatsAppStatus as any) ?? 'Unknown',
+                telegramStatus: (phone.telegramStatus as any) ?? 'Unknown',
               })),
             }
           : undefined,
@@ -257,18 +257,23 @@ export async function listClientsHandler(
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const clients = await prisma.client.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        userId: true,
+        lastName: true,
+        firstName: true,
+        middleName: true,
+        regionId: true,
+        groupId: true,
+        status: true,
+        createdAt: true,
+        lastCampaignAt: true,
+        campaignCount: true,
         region: {
-          select: {
-            id: true,
-            name: true,
-          },
+          select: { id: true, name: true },
         },
         group: {
-          select: {
-            id: true,
-            name: true,
-          },
+          select: { id: true, name: true },
         },
         phones: {
           select: {
@@ -276,6 +281,11 @@ export async function listClientsHandler(
             phone: true,
             whatsAppStatus: true,
             telegramStatus: true,
+          },
+        },
+        _count: {
+          select: {
+            campaignMessages: true,
           },
         },
       },

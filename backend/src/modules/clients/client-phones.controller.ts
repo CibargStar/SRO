@@ -21,6 +21,7 @@ import { AuthenticatedRequest } from '../../middleware/auth';
 import { CreateClientPhoneInput, UpdateClientPhoneInput } from './client-phone.schemas';
 import { prisma } from '../../config';
 import logger from '../../config/logger';
+import { z } from 'zod';
 
 /**
  * Проверка принадлежности клиента пользователю
@@ -179,6 +180,65 @@ export async function listClientPhonesHandler(
       userId: req.user?.id,
     });
 
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+/**
+ * Массовое обновление статусов телефонов
+ * 
+ * PATCH /api/clients/:id/phones/bulk-status
+ */
+const bulkStatusSchema = z.object({
+  phones: z.array(
+    z.object({
+      phoneId: z.string(),
+      whatsAppStatus: z.string().optional(),
+      telegramStatus: z.string().optional(),
+    })
+  ),
+});
+
+export async function bulkUpdatePhoneStatusesHandler(
+  req: AuthenticatedRequest & { params: { id: string } },
+  res: Response
+): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ message: 'Unauthorized' });
+      return;
+    }
+
+    const { id: clientId } = req.params;
+    const { phones } = bulkStatusSchema.parse(req.body);
+
+    const isOwner = await checkClientOwnership(clientId, userId);
+    if (!isOwner) {
+      logger.warn('Attempt to bulk update phones for client from another user', { clientId, userId });
+      res.status(403).json({ message: 'Access denied' });
+      return;
+    }
+
+    await prisma.$transaction(
+      phones.map((p) =>
+        prisma.clientPhone.update({
+          where: { id: p.phoneId, clientId },
+          data: {
+            ...(p.whatsAppStatus ? { whatsAppStatus: p.whatsAppStatus as any } : {}),
+            ...(p.telegramStatus ? { telegramStatus: p.telegramStatus as any } : {}),
+          },
+        })
+      )
+    );
+
+    res.status(200).json({ success: true, updated: phones.length });
+  } catch (error) {
+    logger.error('Bulk update phone statuses failed', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      clientId: req.params.id,
+      userId: req.user?.id,
+    });
     res.status(500).json({ message: 'Internal server error' });
   }
 }

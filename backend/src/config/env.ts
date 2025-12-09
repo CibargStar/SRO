@@ -114,6 +114,9 @@ const baseEnvSchema = z.object({
   JWT_REFRESH_SECRET: jwtSecretSchema,
   JWT_ACCESS_EXPIRES_IN: jwtExpiresInSchema,
   JWT_REFRESH_EXPIRES_IN: jwtExpiresInSchema,
+
+  // Интеграции
+  TELEGRAM_BOT_TOKEN: z.string().optional(),
 });
 
 /**

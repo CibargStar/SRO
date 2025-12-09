@@ -325,8 +325,9 @@ const swaggerOptions: swaggerJsdoc.Options = {
     ],
   },
   apis: [
-    './src/routes/*.ts', // Путь к файлам с роутами
-    './src/modules/**/*.controller.ts', // Путь к контроллерам
+    './src/routes/*.ts', // Общие роуты
+    './src/modules/templates/*.ts', // Документация templates (контроллер/роуты)
+    './src/modules/campaigns/*.ts', // Документация campaigns (контроллер/роуты)
   ],
 };
 

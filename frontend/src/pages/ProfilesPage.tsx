@@ -35,6 +35,7 @@ import {
   Collapse,
   Divider,
   Grid,
+  Switch,
 } from '@mui/material';
 import { StyledSelect, MenuProps, selectInputLabelStyles } from '@/components/common/SelectStyles';
 import { StyledButton, StyledTextField, CancelButton } from '@/components/common/FormStyles';
@@ -74,6 +75,7 @@ import {
   useMarkAllAlertsAsRead,
   profilesKeys,
 } from '@/hooks/useProfiles';
+import { useProfilesWebSocket } from '@/hooks/useProfilesWebSocket';
 import { CreateProfileDialog } from '@/components/CreateProfileDialog';
 import { EditProfileDialog } from '@/components/EditProfileDialog';
 import { ProfileDetailsDialog } from '@/components/ProfileDetailsDialog';
@@ -424,6 +426,14 @@ function ProfileCard({
                 {profile.name}
               </Typography>
               <ProfileStatusChip status={profile.status} size="small" />
+              {profile.isInCampaign && (
+                <Chip
+                  label={`В кампаниях: ${profile.campaignUsageCount ?? ''}`}
+                  size="small"
+                  color="warning"
+                  sx={{ height: 24 }}
+                />
+              )}
               {profile.headless ? (
                 <Tooltip title="Headless режим">
                   <VisibilityOffIcon sx={{ fontSize: 18, color: 'rgba(255,255,255,0.5)' }} />
@@ -540,6 +550,7 @@ export function ProfilesPage() {
   const [status, setStatus] = useState<ProfileStatus | undefined>(undefined);
   const [sortBy, setSortBy] = useState<'createdAt' | 'updatedAt' | 'name' | 'status' | 'lastActiveAt'>('createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [onlyInCampaigns, setOnlyInCampaigns] = useState<boolean | undefined>(undefined);
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -558,9 +569,30 @@ export function ProfilesPage() {
     status,
     sortBy,
     sortOrder,
+    isInCampaign: onlyInCampaigns,
   });
 
   const queryClient = useQueryClient();
+  // WebSocket события профилей: статус, ресурсы, здоровье, алерты
+  useProfilesWebSocket({
+    onStatus: (payload) => {
+      queryClient.setQueryData(profilesKeys.detail(payload.profileId), (prev: any) =>
+        prev ? { ...prev, status: payload.status, lastActiveAt: payload.lastActiveAt } : prev
+      );
+      queryClient.invalidateQueries({ queryKey: profilesKeys.lists() });
+    },
+    onResources: (payload) => {
+      queryClient.setQueryData(profilesKeys.resources(payload.profileId), payload);
+    },
+    onHealth: (payload) => {
+      queryClient.setQueryData(profilesKeys.health(payload.profileId), payload);
+    },
+    onAlert: (payload) => {
+      queryClient.invalidateQueries({ queryKey: profilesKeys.alerts(payload.profileId) });
+      queryClient.invalidateQueries({ queryKey: profilesKeys.unreadAlertsCount(payload.profileId) });
+    },
+  });
+
   const deleteMutation = useDeleteProfile();
   const startMutation = useStartProfile();
   const stopMutation = useStopProfile();
@@ -783,6 +815,25 @@ export function ProfilesPage() {
             >
               <MenuItem value="asc">По возрастанию</MenuItem>
               <MenuItem value="desc">По убыванию</MenuItem>
+            </StyledSelect>
+          </FormControl>
+
+          <FormControl sx={{ minWidth: 180 }}>
+            <InputLabel sx={selectInputLabelStyles}>Кампании</InputLabel>
+            <StyledSelect
+              value={onlyInCampaigns === undefined ? '' : onlyInCampaigns ? 'in' : 'out'}
+              onChange={(e) => {
+                const val = e.target.value as string;
+                if (val === '') setOnlyInCampaigns(undefined);
+                else setOnlyInCampaigns(val === 'in');
+                setPage(1);
+              }}
+              label="Кампании"
+              MenuProps={MenuProps}
+            >
+              <MenuItem value="">Все</MenuItem>
+              <MenuItem value="in">Используются</MenuItem>
+              <MenuItem value="out">Не используются</MenuItem>
             </StyledSelect>
           </FormControl>
         </Box>

@@ -145,6 +145,8 @@ export interface Client {
   regionId: string | null;
   groupId: string | null;
   status: ClientStatus;
+  lastCampaignAt?: string | null;
+  campaignCount?: number | null;
   createdAt: string;
   region?: {
     id: string;
@@ -287,3 +289,18 @@ export * from './profile';
  * Экспорт типов для модуля мессенджеров
  */
 export * from './messenger';
+
+/**
+ * Экспорт типов для модуля шаблонов
+ */
+export * from './template';
+
+/**
+ * Экспорт типов для модуля кампаний
+ */
+export * from './campaign';
+
+/**
+ * Экспорт типов для модуля Telegram бота
+ */
+export * from './telegram-bot';

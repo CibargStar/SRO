@@ -192,6 +192,23 @@ export const refreshRateLimiter = rateLimit({
 });
 
 /**
+ * Лимитер для чувствительных действий с кампаниями (создание/старт/управление)
+ * Более строгий, чем глобальный, чтобы избежать flood операций.
+ */
+export const campaignActionRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 минута
+  max: 30, // максимум 30 действий в минуту с одного IP
+  message: {
+    error: 'Too many campaign actions, please slow down.',
+    retryAfter: '1 minute',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: false,
+  skipFailedRequests: false,
+});
+
+/**
  * Типичные ошибки безопасности при настройке middleware:
  * 
  * 1. ❌ CORS с origin: '*' и credentials: true

@@ -17,8 +17,14 @@ import { swaggerSpec } from './config/swagger';
 import { ensureRootUser } from './modules/auth';
 import { cleanupExpiredTokens } from './modules/auth/token.service';
 import { ensureMessengerServices } from './modules/profiles/messenger-accounts/init-messenger-services';
+import { ensureCampaignGlobalSettings } from './modules/campaign-settings';
+import { WebSocketServer } from './modules/websocket';
+import { ProfilesService } from './modules/profiles';
 import { NotificationService } from './modules/profiles/notifications/notification.service';
 import { LaunchCheckService } from './modules/profiles/messenger-accounts/launch-check/launch-check.service';
+import { getCampaignExecutorService, getCampaignRecovery } from './modules/campaigns';
+import { CampaignSchedulerService } from './modules/campaigns';
+import { UserBotManagerService, NotificationDispatcherService } from './modules/telegram-bot';
 import {
   securityMiddleware,
   corsMiddleware,
@@ -57,7 +63,6 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 }));
 
 // Инициализация сервисов
-import { ProfilesService } from './modules/profiles';
 import { ProfilesRepository } from './modules/profiles';
 import profilesRoutes from './routes/profiles.routes';
 
@@ -145,6 +150,9 @@ import clientGroupsRoutes from './routes/client-groups.routes';
 import regionsRoutes from './routes/regions.routes';
 import importRoutes from './routes/import.routes';
 import exportRoutes from './routes/export.routes';
+import { createTemplatesRouter } from './modules/templates';
+import { campaignsRoutes, campaignAdminRoutes } from './modules/campaigns';
+import path from 'path';
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/clients', clientsRoutes);
@@ -156,6 +164,18 @@ app.use('/api/profiles', profilesRoutes);
 // Маршруты для аккаунтов мессенджеров (используют префикс /api, не /api/profiles, так как есть отдельные endpoints)
 import messengerAccountsRoutes from './modules/profiles/messenger-accounts/messenger-accounts.routes';
 app.use('/api', messengerAccountsRoutes);
+// Маршруты для шаблонов рассылки
+app.use('/api/templates', createTemplatesRouter(prisma));
+// Маршруты для кампаний рассылки
+app.use('/api/campaigns', campaignsRoutes);
+// Админ-маршруты для кампаний (ROOT только)
+app.use('/api/admin/campaigns', campaignAdminRoutes);
+// Маршруты для Telegram ботов
+import telegramBotRoutes from './modules/telegram-bot/telegram-bot.routes';
+app.use('/api/telegram-bot', telegramBotRoutes);
+// Static file serving для файлов шаблонов (защита через токены в URL не реализована - файлы доступны по прямой ссылке)
+// TODO: В будущем добавить защиту доступа к файлам через проверку владельца
+app.use('/uploads/templates', express.static(path.join(process.cwd(), 'uploads', 'templates')));
 
 // Обработчики ошибок должны быть последними
 app.use(notFoundHandler); // 404 для несуществующих маршрутов
@@ -210,6 +230,11 @@ async function bootstrap(): Promise<void> {
     await ensureMessengerServices(prisma);
     logger.info('Messenger services initialization completed');
 
+    // Инициализация глобальных настроек кампаний
+    logger.info('Initializing campaign global settings...');
+    await ensureCampaignGlobalSettings(prisma);
+    logger.info('Campaign global settings initialization completed');
+
     // Восстановление профилей со статусом RUNNING при старте сервиса
     logger.info('Restoring running profiles...');
     await profilesService.restoreRunningProfiles();
@@ -229,15 +254,77 @@ async function bootstrap(): Promise<void> {
       logger.info(`Server is running on port ${env.PORT}`);
     });
 
+    // Инициализация WebSocket сервера
+    logger.info('Initializing WebSocket server...');
+    const wsServer = new WebSocketServer();
+    wsServer.initialize(server);
+    app.set('wsServer', wsServer);
+
+    // Прокидываем WS сервер в профили и мониторинг мессенджеров для real-time событий
+    profilesService.setWebSocketServer(wsServer);
+    messengerAccountsService.setWebSocketServer(wsServer);
+
+    logger.info('WebSocket server initialized');
+
+    // Инициализация User Bot Manager
+    logger.info('Initializing User Bot Manager...');
+    const userBotManager = new UserBotManagerService(prisma);
+    await userBotManager.startAllBots();
+    app.set('userBotManager', userBotManager);
+    logger.info('User Bot Manager initialized');
+
+    // Инициализация Notification Dispatcher
+    logger.info('Initializing Notification Dispatcher...');
+    const notificationDispatcher = new NotificationDispatcherService(prisma, userBotManager, wsServer);
+    app.set('notificationDispatcher', notificationDispatcher);
+    profilesService.setNotificationDispatcher(notificationDispatcher);
+    notificationServiceForMessengers.setNotificationDispatcher(notificationDispatcher);
+    logger.info('Notification Dispatcher initialized');
+
+    // Инициализация Campaign Executor
+    logger.info('Initializing Campaign Executor...');
+    const campaignExecutor = getCampaignExecutorService(prisma, wsServer);
+    campaignExecutor.setNotificationDispatcher(notificationDispatcher);
+    app.set('campaignExecutor', campaignExecutor);
+    logger.info('Campaign Executor initialized');
+
+    // Инициализация Campaign Recovery Service
+    logger.info('Initializing Campaign Recovery Service...');
+    const campaignRecovery = getCampaignRecovery(prisma, wsServer);
+    app.set('campaignRecovery', campaignRecovery);
+    logger.info('Campaign Recovery Service initialized');
+
+    // Инициализация Campaign Scheduler
+    logger.info('Initializing Campaign Scheduler...');
+    const campaignScheduler = new CampaignSchedulerService(prisma);
+    campaignScheduler.setCallbacks({
+      onCampaignReady: async (campaignId: string) => {
+        await campaignExecutor.startCampaign(campaignId);
+      },
+      onCampaignPause: async (campaignId: string) => {
+        await campaignExecutor.pauseCampaign(campaignId);
+      },
+      onCampaignResume: async (campaignId: string) => {
+        await campaignExecutor.resumeCampaign(campaignId);
+      },
+    });
+    campaignScheduler.start();
+    app.set('campaignScheduler', campaignScheduler);
+    logger.info('Campaign Scheduler initialized and started');
+
+    // Восстановление кампаний после рестарта
+    logger.info('Restoring campaigns after restart...');
+    await campaignRecovery.restoreRunningCampaigns();
+    logger.info('Campaigns restoration completed');
+
     // Настройка graceful shutdown
-    setupGracefulShutdown(server, profilesService, messengerAccountsService);
+    setupGracefulShutdown(server, profilesService, messengerAccountsService, wsServer, campaignScheduler, campaignExecutor, userBotManager);
   } catch (error) {
     // Критическая ошибка - приложение не должно стартовать
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to bootstrap application', { error: errorMessage });
     
     // Закрываем соединение с БД перед выходом
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     await prisma.$disconnect();
     
     // Выходим с ошибкой
@@ -253,8 +340,12 @@ async function bootstrap(): Promise<void> {
  */
 function setupGracefulShutdown(
   server: ReturnType<typeof app.listen>,
-  profilesService: any,
-  messengerAccountsService: any
+  profilesService: ProfilesService,
+  messengerAccountsService: MessengerAccountsService,
+  wsServer?: WebSocketServer,
+  campaignScheduler?: CampaignSchedulerService,
+  campaignExecutor?: ReturnType<typeof getCampaignExecutorService>,
+  userBotManager?: UserBotManagerService
 ): void {
   /**
    * Graceful shutdown - корректное завершение работы сервера
@@ -267,11 +358,9 @@ function setupGracefulShutdown(
     
     // Остановка фоновых сервисов мониторинга профилей
     try {
-      if (profilesService) {
-        logger.info('Stopping background services for profiles...');
-        profilesService.stopBackgroundServices();
-        logger.info('Background services stopped');
-      }
+      logger.info('Stopping background services for profiles...');
+      profilesService.stopBackgroundServices();
+      logger.info('Background services stopped');
     } catch (error) {
       logger.error('Error stopping background services during shutdown', {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -280,20 +369,71 @@ function setupGracefulShutdown(
     
     // Остановка мониторинга статусов аккаунтов мессенджеров
     try {
-      if (messengerAccountsService) {
-        logger.info('Stopping messenger accounts monitoring...');
-        messengerAccountsService.stopMonitoring();
-        logger.info('Messenger accounts monitoring stopped');
-      }
+      logger.info('Stopping messenger accounts monitoring...');
+      messengerAccountsService.stopMonitoring();
+      logger.info('Messenger accounts monitoring stopped');
     } catch (error) {
       logger.error('Error stopping messenger accounts monitoring during shutdown', {
         error: error instanceof Error ? error.message : 'Unknown error',
       });
     }
 
+    // Остановка User Bot Manager
+    try {
+      if (userBotManager) {
+        logger.info('Stopping User Bot Manager...');
+        await userBotManager.stopAllBots();
+        logger.info('User Bot Manager stopped');
+      }
+    } catch (error) {
+      logger.error('Error stopping User Bot Manager during shutdown', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+
+    // Остановка Campaign Scheduler
+    try {
+      if (campaignScheduler) {
+        logger.info('Stopping Campaign Scheduler...');
+        campaignScheduler.stop();
+        logger.info('Campaign Scheduler stopped');
+      }
+    } catch (error) {
+      logger.error('Error stopping Campaign Scheduler during shutdown', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+
+    // Остановка всех активных кампаний через Executor
+    try {
+      if (campaignExecutor) {
+        logger.info('Stopping all active campaigns...');
+        // Executor сам остановит все воркеры при shutdown
+        // Здесь можно добавить явную остановку если нужно
+        logger.info('Active campaigns stopped');
+      }
+    } catch (error) {
+      logger.error('Error stopping campaigns during shutdown', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+
+    // Остановка WebSocket сервера
+    try {
+      if (wsServer) {
+        logger.info('Stopping WebSocket server...');
+        wsServer.close();
+        logger.info('WebSocket server stopped');
+      }
+    } catch (error) {
+      logger.error('Error stopping WebSocket server during shutdown', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+
     // Остановка всех Chrome процессов перед завершением
     try {
-      if (profilesService && profilesService.chromeProcessService) {
+      if (profilesService?.chromeProcessService) {
         logger.info('Stopping all Chrome processes...');
         await profilesService.chromeProcessService.stopAllProcesses(true);
         logger.info('All Chrome processes stopped');
@@ -304,19 +444,24 @@ function setupGracefulShutdown(
       });
     }
 
-    server.close(() => {
-      logger.info('HTTP server closed');
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-      prisma.$disconnect().then(() => {
-        logger.info('Database disconnected');
-        process.exit(0);
+    await new Promise<void>((resolve) => {
+      server.close(() => {
+        logger.info('HTTP server closed');
+        resolve();
       });
     });
+    await prisma.$disconnect();
+    logger.info('Database disconnected');
+    process.exit(0);
   };
 
   // Обработка сигналов завершения
-  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+  process.on('SIGTERM', () => {
+    void gracefulShutdown('SIGTERM');
+  });
+  process.on('SIGINT', () => {
+    void gracefulShutdown('SIGINT');
+  });
 }
 
 // Запуск приложения

@@ -9,6 +9,7 @@ import { useEffect } from 'react';
 import { Box, CircularProgress } from '@mui/material';
 import { useAuthStore } from '@/store';
 import { useCurrentUser } from '@/hooks/useAuth';
+import { useWebSocket } from '@/hooks/useWebSocket';
 
 /**
  * Auth Provider
@@ -30,6 +31,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   
   // Загружаем данные пользователя, если есть access token
   const { data: loadedUser, isLoading, error, isFetching } = useCurrentUser();
+  // Инициализируем WebSocket соединение при наличии токена
+  useWebSocket();
 
   useEffect(() => {
     // Автоматический refresh реализован в api.ts через fetchWithAutoRefresh
