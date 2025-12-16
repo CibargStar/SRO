@@ -1301,6 +1301,8 @@ export async function listProfiles(query?: ListProfilesQuery): Promise<ProfilesL
   if (query?.status) queryParams.append('status', query.status);
   if (query?.sortBy) queryParams.append('sortBy', query.sortBy);
   if (query?.sortOrder) queryParams.append('sortOrder', query.sortOrder);
+  if (query?.isInCampaign !== undefined) queryParams.append('isInCampaign', query.isInCampaign.toString());
+  // Примечание: search не поддерживается backend, используется только для frontend фильтрации
 
   const queryString = queryParams.toString();
   const url = `${API_BASE_URL}/profiles${queryString ? `?${queryString}` : ''}`;

@@ -10,13 +10,13 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Button,
-  TextField,
   CircularProgress,
   Alert,
   Box,
+  Divider,
 } from '@mui/material';
 import { useDuplicateCampaign } from '@/hooks/useCampaigns';
+import { dialogPaperProps, dialogTitleStyles, dialogContentStyles, dialogActionsStyles, CancelButton, StyledButton, StyledTextField, LOADING_ICON_SIZE } from '@/components/common';
 import type { Campaign } from '@/types/campaign';
 
 interface DuplicateCampaignDialogProps {
@@ -63,11 +63,13 @@ export function DuplicateCampaignDialog({
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Дублировать кампанию</DialogTitle>
-      <DialogContent>
+    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth PaperProps={dialogPaperProps}>
+      <Box sx={{ ...dialogTitleStyles, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+        <DialogTitle sx={{ color: '#f5f5f5', p: 0, fontWeight: 500 }}>Дублировать кампанию</DialogTitle>
+      </Box>
+      <DialogContent sx={dialogContentStyles}>
         <Box sx={{ mt: 1 }}>
-          <TextField
+          <StyledTextField
             autoFocus
             label="Название новой кампании"
             fullWidth
@@ -78,26 +80,35 @@ export function DuplicateCampaignDialog({
           />
         </Box>
         {duplicateMutation.error && (
-          <Alert severity="error" sx={{ mt: 2 }}>
+          <Alert 
+            severity="error" 
+            sx={{ 
+              mt: 2,
+              borderRadius: '12px',
+              backgroundColor: 'rgba(244, 67, 54, 0.1)',
+              color: '#f44336',
+              border: '1px solid rgba(244, 67, 54, 0.2)',
+            }}
+          >
             {(duplicateMutation.error as Error).message}
           </Alert>
         )}
       </DialogContent>
-      <DialogActions>
-        <Button onClick={handleClose} disabled={duplicateMutation.isPending}>
+      <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.08)' }} />
+      <DialogActions sx={dialogActionsStyles}>
+        <CancelButton onClick={handleClose} disabled={duplicateMutation.isPending}>
           Отмена
-        </Button>
-        <Button
+        </CancelButton>
+        <StyledButton
           onClick={handleDuplicate}
-          color="primary"
-          variant="contained"
           disabled={duplicateMutation.isPending}
         >
-          {duplicateMutation.isPending ? <CircularProgress size={20} /> : 'Дублировать'}
-        </Button>
+          {duplicateMutation.isPending ? <CircularProgress size={LOADING_ICON_SIZE} color="inherit" /> : 'Дублировать'}
+        </StyledButton>
       </DialogActions>
     </Dialog>
   );
 }
+
 
 

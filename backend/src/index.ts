@@ -283,14 +283,15 @@ async function bootstrap(): Promise<void> {
 
     // Инициализация Campaign Executor
     logger.info('Initializing Campaign Executor...');
-    const campaignExecutor = getCampaignExecutorService(prisma, wsServer);
+    const campaignExecutor = getCampaignExecutorService(prisma, wsServer, chromeProcessService);
     campaignExecutor.setNotificationDispatcher(notificationDispatcher);
+    campaignExecutor.setProfilesService(profilesService);
     app.set('campaignExecutor', campaignExecutor);
     logger.info('Campaign Executor initialized');
 
     // Инициализация Campaign Recovery Service
     logger.info('Initializing Campaign Recovery Service...');
-    const campaignRecovery = getCampaignRecovery(prisma, wsServer);
+    const campaignRecovery = getCampaignRecovery(prisma, wsServer, chromeProcessService);
     app.set('campaignRecovery', campaignRecovery);
     logger.info('Campaign Recovery Service initialized');
 

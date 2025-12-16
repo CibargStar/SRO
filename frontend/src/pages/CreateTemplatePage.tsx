@@ -6,16 +6,17 @@ import {
   Paper,
   Typography,
   Stack,
-  TextField,
   MenuItem,
-  Button,
   CircularProgress,
   Alert,
+  FormControl,
+  InputLabel,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { createTemplateSchema, type CreateTemplateFormData } from '@/schemas/template.schema';
 import { useCreateTemplate, useTemplateCategories } from '@/hooks/useTemplates';
 import { messengerTargetEnum, templateTypeEnum } from '@/schemas/template.schema';
+import { StyledTextField, StyledButton, StyledSelect, MenuProps, selectInputLabelStyles } from '@/components/common';
 
 export function CreateTemplatePage() {
   const navigate = useNavigate();
@@ -27,6 +28,7 @@ export function CreateTemplatePage() {
     handleSubmit,
     formState: { errors },
     reset,
+    setValue,
   } = useForm<CreateTemplateFormData>({
     resolver: zodResolver(createTemplateSchema),
     defaultValues: {
@@ -34,9 +36,19 @@ export function CreateTemplatePage() {
       description: '',
       messengerTarget: 'UNIVERSAL',
       type: 'SINGLE',
-      categoryId: null,
+      categoryId: '',
     },
   });
+
+  // Устанавливаем первую категорию после загрузки
+  React.useEffect(() => {
+    if (categories && categories.length > 0) {
+      setValue('categoryId', categories[0].id);
+    }
+  }, [categories, setValue]);
+
+  // Проверка наличия категорий
+  const hasCategories = categories && categories.length > 0;
 
   const onSubmit = async (data: CreateTemplateFormData) => {
     const tpl = await createTemplate.mutateAsync(data);
@@ -45,15 +57,45 @@ export function CreateTemplatePage() {
   };
 
   return (
-    <Box sx={{ maxWidth: 900, mx: 'auto' }}>
-      <Typography variant="h4" sx={{ color: '#fff', mb: 2, fontWeight: 600 }}>
-        Создать шаблон
-      </Typography>
-      <Paper sx={{ p: 3, backgroundColor: 'rgba(24,24,27,0.9)', borderRadius: 2, border: '1px solid rgba(255,255,255,0.05)' }}>
+    <Box
+      sx={{
+        width: '100%',
+        overflowY: 'auto',
+        '&::-webkit-scrollbar': {
+          display: 'none',
+          width: 0,
+          height: 0,
+        },
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none',
+        '& *': {
+          '&::-webkit-scrollbar': {
+            display: 'none',
+            width: 0,
+            height: 0,
+          },
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        },
+      }}
+    >
+      <Box sx={{ maxWidth: 900, mx: 'auto' }}>
+        <Typography variant="h4" component="h1" sx={{ color: '#f5f5f5', mb: 4, fontWeight: 500 }}>
+          Создать шаблон
+        </Typography>
+        <Paper sx={{ p: 3, backgroundColor: 'rgba(24,24,27,0.9)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
         <form onSubmit={handleSubmit(onSubmit)}>
           <Stack spacing={2}>
             {createTemplate.isError && (
-              <Alert severity="error">
+              <Alert 
+                severity="error"
+                sx={{
+                  borderRadius: '12px',
+                  backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                  color: '#ffffff',
+                  border: 'none',
+                }}
+              >
                 {(createTemplate.error as Error)?.message || 'Не удалось создать шаблон'}
               </Alert>
             )}
@@ -62,7 +104,7 @@ export function CreateTemplatePage() {
               name="name"
               control={control}
               render={({ field }) => (
-                <TextField
+                <StyledTextField
                   label="Название"
                   {...field}
                   error={!!errors.name}
@@ -76,7 +118,7 @@ export function CreateTemplatePage() {
               name="description"
               control={control}
               render={({ field }) => (
-                <TextField
+                <StyledTextField
                   label="Описание"
                   {...field}
                   error={!!errors.description}
@@ -89,83 +131,114 @@ export function CreateTemplatePage() {
             />
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <Controller
-                name="type"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    select
-                    label="Тип"
-                    {...field}
-                    error={!!errors.type}
-                    helperText={errors.type?.message}
-                    fullWidth
-                  >
-                    {templateTypeEnum.options.map((opt) => (
-                      <MenuItem key={opt} value={opt}>
-                        {opt === 'SINGLE' ? 'Одиночный' : 'Составной'}
-                      </MenuItem>
-                    ))}
-                  </TextField>
+              <FormControl fullWidth>
+                <InputLabel sx={selectInputLabelStyles}>Тип</InputLabel>
+                <Controller
+                  name="type"
+                  control={control}
+                  render={({ field }) => (
+                    <StyledSelect
+                      {...field}
+                      label="Тип"
+                      error={!!errors.type}
+                      MenuProps={MenuProps}
+                    >
+                      {templateTypeEnum.options.map((opt) => (
+                        <MenuItem key={opt} value={opt}>
+                          {opt === 'SINGLE' ? 'Одиночный' : 'Составной'}
+                        </MenuItem>
+                      ))}
+                    </StyledSelect>
+                  )}
+                />
+                {errors.type && (
+                  <Typography sx={{ color: '#f44336', mt: 0.5, fontSize: '0.75rem' }}>
+                    {errors.type.message}
+                  </Typography>
                 )}
-              />
+              </FormControl>
 
-              <Controller
-                name="messengerTarget"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    select
-                    label="Мессенджер"
-                    {...field}
-                    error={!!errors.messengerTarget}
-                    helperText={errors.messengerTarget?.message}
-                    fullWidth
-                  >
-                    {messengerTargetEnum.options.map((opt) => (
-                      <MenuItem key={opt} value={opt}>
-                        {opt === 'UNIVERSAL' ? 'Универсальный' : opt === 'WHATSAPP_ONLY' ? 'WhatsApp' : 'Telegram'}
-                      </MenuItem>
-                    ))}
-                  </TextField>
+              <FormControl fullWidth>
+                <InputLabel sx={selectInputLabelStyles}>Мессенджер</InputLabel>
+                <Controller
+                  name="messengerTarget"
+                  control={control}
+                  render={({ field }) => (
+                    <StyledSelect
+                      {...field}
+                      label="Мессенджер"
+                      error={!!errors.messengerTarget}
+                      MenuProps={MenuProps}
+                    >
+                      {messengerTargetEnum.options.map((opt) => (
+                        <MenuItem key={opt} value={opt}>
+                          {opt === 'UNIVERSAL' ? 'Универсальный' : opt === 'WHATSAPP_ONLY' ? 'WhatsApp' : 'Telegram'}
+                        </MenuItem>
+                      ))}
+                    </StyledSelect>
+                  )}
+                />
+                {errors.messengerTarget && (
+                  <Typography sx={{ color: '#f44336', mt: 0.5, fontSize: '0.75rem' }}>
+                    {errors.messengerTarget.message}
+                  </Typography>
                 )}
-              />
+              </FormControl>
             </Stack>
 
-            <Controller
-              name="categoryId"
-              control={control}
-              render={({ field }) => (
-                <TextField
-                  select
-                  label="Категория"
-                  value={field.value || ''}
-                  onChange={(e) => field.onChange(e.target.value || null)}
-                  fullWidth
-                >
-                  <MenuItem value="">
-                    <em>Без категории</em>
-                  </MenuItem>
-                  {categories?.map((cat) => (
-                    <MenuItem key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </MenuItem>
-                  ))}
-                </TextField>
+            <FormControl fullWidth required>
+              <InputLabel sx={selectInputLabelStyles}>Категория</InputLabel>
+              <Controller
+                name="categoryId"
+                control={control}
+                render={({ field }) => (
+                  <StyledSelect
+                    value={field.value || ''}
+                    onChange={(e) => field.onChange(e.target.value)}
+                    label="Категория"
+                    error={!!errors.categoryId}
+                    disabled={!hasCategories}
+                    MenuProps={MenuProps}
+                  >
+                    {hasCategories ? (
+                      categories!.map((cat) => (
+                        <MenuItem key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </MenuItem>
+                      ))
+                    ) : (
+                      <MenuItem value="" disabled>
+                        <em>Сначала создайте категорию</em>
+                      </MenuItem>
+                    )}
+                  </StyledSelect>
+                )}
+              />
+              {errors.categoryId && (
+                <Typography sx={{ color: '#f44336', mt: 0.5, fontSize: '0.75rem' }}>
+                  {errors.categoryId.message}
+                </Typography>
               )}
-            />
+              {!hasCategories && (
+                <Typography sx={{ color: 'rgba(255, 255, 255, 0.6)', mt: 0.5, fontSize: '0.75rem' }}>
+                  Для создания шаблона необходимо сначала создать категорию
+                </Typography>
+              )}
+            </FormControl>
 
-            <Button type="submit" variant="contained" disabled={createTemplate.isPending} sx={{ alignSelf: 'flex-start' }}>
+            <StyledButton type="submit" disabled={createTemplate.isPending || !hasCategories} sx={{ alignSelf: 'flex-start' }}>
               {createTemplate.isPending ? <CircularProgress size={18} color="inherit" /> : 'Создать и перейти к редактированию'}
-            </Button>
+            </StyledButton>
           </Stack>
         </form>
       </Paper>
+      </Box>
     </Box>
   );
 }
 
 export default CreateTemplatePage;
+
 
 
 

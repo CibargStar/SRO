@@ -50,6 +50,33 @@ export class TemplatesController {
   };
 
   /**
+   * Получение категории по ID
+   * GET /api/templates/categories/:id
+   */
+  getCategory = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user!.id;
+      const categoryId = req.params.id;
+      const category = await this.templatesService.getCategory(categoryId);
+      
+      if (!category) {
+        res.status(404).json({ error: 'Category not found' });
+        return;
+      }
+
+      // Проверка владельца
+      if (category.userId !== userId) {
+        res.status(403).json({ error: 'Access denied' });
+        return;
+      }
+
+      res.json({ data: category });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
    * Создание категории
    * POST /api/templates/categories
    */
@@ -106,9 +133,10 @@ export class TemplatesController {
   listTemplates = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user!.id;
+      const queryParams = req.query as Record<string, string | undefined>;
       const query = listTemplatesQuerySchema.parse({
         ...req.query,
-        messengerTarget: (req.query as any).messengerTarget ?? (req.query as any).messengerType,
+        messengerTarget: queryParams.messengerTarget ?? queryParams.messengerType,
       });
       const result = await this.templatesService.listTemplates(userId, query);
       res.json(result);
@@ -151,9 +179,10 @@ export class TemplatesController {
   createTemplate = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user!.id;
+      const body = req.body as Record<string, unknown>;
       const input = createTemplateSchema.parse({
         ...req.body,
-        messengerTarget: (req.body as any).messengerTarget ?? (req.body as any).messengerType,
+        messengerTarget: body.messengerTarget ?? body.messengerType,
       });
       const template = await this.templatesService.createTemplate(userId, input);
       res.status(201).json({ data: template });
@@ -170,9 +199,10 @@ export class TemplatesController {
     try {
       const userId = req.user!.id;
       const templateId = req.params.id;
+      const body = req.body as Record<string, unknown>;
       const input = updateTemplateSchema.parse({
         ...req.body,
-        messengerTarget: (req.body as any).messengerTarget ?? (req.body as any).messengerType,
+        messengerTarget: body.messengerTarget ?? body.messengerType,
       });
       const template = await this.templatesService.updateTemplate(templateId, userId, input);
       res.json({ data: template });
@@ -355,7 +385,7 @@ export class TemplatesController {
       );
 
       // Добавляем предупреждение для больших файлов
-      const response: any = { data: result };
+      const response: { data: typeof result; warning?: string } = { data: result };
       if (result.isLargeFile) {
         response.warning = 'File size exceeds 20 MB. This may affect upload/download speed.';
       }

@@ -11,11 +11,13 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
-  Button,
   CircularProgress,
   Alert,
+  Box,
+  Divider,
 } from '@mui/material';
 import { useArchiveCampaign } from '@/hooks/useCampaigns';
+import { dialogPaperProps, dialogTitleStyles, dialogContentStyles, dialogActionsStyles, CancelButton, StyledButton, LOADING_ICON_SIZE } from '@/components/common';
 import type { Campaign } from '@/types/campaign';
 
 interface ArchiveCampaignDialogProps {
@@ -49,41 +51,61 @@ export function ArchiveCampaignDialog({
                      campaign?.status === 'ERROR';
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Архивировать кампанию?</DialogTitle>
-      <DialogContent>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth PaperProps={dialogPaperProps}>
+      <Box sx={{ ...dialogTitleStyles, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+        <DialogTitle sx={{ color: '#f5f5f5', p: 0, fontWeight: 500 }}>Архивировать кампанию?</DialogTitle>
+      </Box>
+      <DialogContent sx={dialogContentStyles}>
         {!canArchive ? (
-          <Alert severity="warning" sx={{ mb: 2 }}>
+          <Alert 
+            severity="warning" 
+            sx={{ 
+              mb: 2,
+              borderRadius: '12px',
+              backgroundColor: 'rgba(255, 152, 0, 0.1)',
+              color: '#ff9800',
+              border: '1px solid rgba(255, 152, 0, 0.2)',
+            }}
+          >
             Можно архивировать только завершённые, отменённые или ошибочные кампании.
           </Alert>
         ) : (
-          <DialogContentText>
+          <DialogContentText sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
             Вы уверены, что хотите архивировать кампанию "{campaign?.name}"?
             Архивированные кампании скрыты из основного списка, но их можно просмотреть
             включив фильтр "Показать архивные".
           </DialogContentText>
         )}
         {archiveMutation.error && (
-          <Alert severity="error" sx={{ mt: 2 }}>
+          <Alert 
+            severity="error" 
+            sx={{ 
+              mt: 2,
+              borderRadius: '12px',
+              backgroundColor: 'rgba(244, 67, 54, 0.1)',
+              color: '#f44336',
+              border: '1px solid rgba(244, 67, 54, 0.2)',
+            }}
+          >
             {(archiveMutation.error as Error).message}
           </Alert>
         )}
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={archiveMutation.isPending}>
+      <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.08)' }} />
+      <DialogActions sx={dialogActionsStyles}>
+        <CancelButton onClick={onClose} disabled={archiveMutation.isPending}>
           Отмена
-        </Button>
-        <Button
+        </CancelButton>
+        <StyledButton
           onClick={handleArchive}
-          color="primary"
-          variant="contained"
           disabled={!canArchive || archiveMutation.isPending}
         >
-          {archiveMutation.isPending ? <CircularProgress size={20} /> : 'Архивировать'}
-        </Button>
+          {archiveMutation.isPending ? <CircularProgress size={LOADING_ICON_SIZE} color="inherit" /> : 'Архивировать'}
+        </StyledButton>
       </DialogActions>
     </Dialog>
   );
 }
+
 
 

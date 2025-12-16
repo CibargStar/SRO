@@ -1,12 +1,19 @@
 import { useEffect } from 'react';
 import { wsService } from '@/utils/websocket';
+import type { ProfileStatus, ProfileHealthStatus, AlertType, AlertSeverity } from '@/types';
 
+/**
+ * Payload для события статуса профиля
+ */
 type ProfileStatusPayload = {
   profileId: string;
-  status: string;
+  status: ProfileStatus;
   lastActiveAt: string | null;
 };
 
+/**
+ * Payload для события ресурсов профиля
+ */
 type ProfileResourcesPayload = {
   profileId: string;
   pid: number;
@@ -16,19 +23,31 @@ type ProfileResourcesPayload = {
   timestamp: string;
 };
 
+/**
+ * Payload для события здоровья профиля
+ */
 type ProfileHealthPayload = {
   profileId: string;
-  status: string;
-  details: Record<string, unknown>;
+  status: ProfileHealthStatus;
+  details: {
+    processRunning: boolean;
+    browserConnected: boolean;
+    cpuUsage?: number;
+    memoryUsage?: number;
+    resourceLimitsExceeded?: boolean;
+  };
   timestamp: string;
 };
 
+/**
+ * Payload для алерта профиля
+ */
 type ProfileAlertPayload = {
   id: string;
   profileId: string;
   userId: string;
-  type: string;
-  severity: string;
+  type: AlertType;
+  severity: AlertSeverity;
   title: string;
   message: string;
   metadata?: Record<string, unknown>;
@@ -62,5 +81,7 @@ export function useProfilesWebSocket(handlers: Handlers = {}) {
 }
 
 export default useProfilesWebSocket;
+
+
 
 

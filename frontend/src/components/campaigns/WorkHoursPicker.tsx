@@ -1,5 +1,6 @@
 import React from 'react';
-import { FormControlLabel, Switch, Stack, TextField } from '@mui/material';
+import { FormControlLabel, Switch, Stack, Typography } from '@mui/material';
+import { StyledTextField } from '@/components/common';
 import type { ScheduleConfig } from '@/types/campaign';
 
 interface WorkHoursPickerProps {
@@ -17,13 +18,21 @@ export function WorkHoursPicker({ value, onChange }: WorkHoursPickerProps) {
           <Switch
             checked={value.workHoursEnabled ?? false}
             onChange={(e) => update({ workHoursEnabled: e.target.checked })}
+            sx={{
+              '& .MuiSwitch-switchBase.Mui-checked': {
+                color: '#6366f1',
+              },
+              '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                backgroundColor: '#6366f1',
+              },
+            }}
           />
         }
-        label="Ограничить отправку рабочими часами"
+        label={<Typography sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Ограничить отправку рабочими часами</Typography>}
       />
 
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-        <TextField
+        <StyledTextField
           label="Начало"
           type="time"
           InputLabelProps={{ shrink: true }}
@@ -32,7 +41,7 @@ export function WorkHoursPicker({ value, onChange }: WorkHoursPickerProps) {
           disabled={!value.workHoursEnabled}
           fullWidth
         />
-        <TextField
+        <StyledTextField
           label="Окончание"
           type="time"
           InputLabelProps={{ shrink: true }}
@@ -47,6 +56,7 @@ export function WorkHoursPicker({ value, onChange }: WorkHoursPickerProps) {
 }
 
 export default WorkHoursPicker;
+
 
 
 

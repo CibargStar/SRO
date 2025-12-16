@@ -22,17 +22,15 @@ import {
   Tooltip,
   FormControl,
   InputLabel,
-  Select,
   MenuItem,
   Stack,
-  TextField,
-  InputAdornment,
+  Divider,
 } from '@mui/material';
 import {
-  Search as SearchIcon,
   Refresh as RefreshIcon,
   FilterList as FilterIcon,
 } from '@mui/icons-material';
+import { StyledSelect, MenuProps, selectInputLabelStyles } from '@/components/common';
 import type {
   CampaignMessage,
   ListMessagesQuery,
@@ -105,30 +103,49 @@ export function CampaignMessages({
 
   if (isLoading && messages.length === 0) {
     return (
-      <Paper sx={{ p: 3 }}>
+      <Paper sx={{ p: 3.5, backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '16px', border: 'none' }}>
         <Skeleton variant="text" width={200} height={32} sx={{ mb: 2 }} />
-        <Skeleton variant="rectangular" height={400} />
+        <Skeleton variant="rectangular" height={400} sx={{ borderRadius: '12px' }} />
       </Paper>
     );
   }
 
   return (
-    <Paper sx={{ overflow: 'hidden' }}>
+    <Paper sx={{ overflow: 'hidden', backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '16px', border: 'none' }}>
       {/* Header */}
-      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+      <Box sx={{ p: 2.5 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: showFilters ? 2 : 0 }}>
-          <Typography variant="h6">
+          <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
             Сообщения ({totalCount})
           </Typography>
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', gap: 0.5 }}>
             <Tooltip title="Фильтры">
-              <IconButton onClick={() => setShowFilters(!showFilters)} color={showFilters ? 'primary' : 'default'}>
+              <IconButton 
+                onClick={() => setShowFilters(!showFilters)}
+                sx={{
+                  color: showFilters ? '#6366f1' : 'rgba(255, 255, 255, 0.7)',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                    color: showFilters ? '#818cf8' : '#f5f5f5',
+                  },
+                }}
+              >
                 <FilterIcon />
               </IconButton>
             </Tooltip>
             {onRefresh && (
               <Tooltip title="Обновить">
-                <IconButton onClick={onRefresh} disabled={isLoading}>
+                <IconButton 
+                  onClick={onRefresh} 
+                  disabled={isLoading}
+                  sx={{
+                    color: 'rgba(255, 255, 255, 0.7)',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                      color: '#f5f5f5',
+                    },
+                  }}
+                >
                   <RefreshIcon />
                 </IconButton>
               </Tooltip>
@@ -140,11 +157,12 @@ export function CampaignMessages({
         {showFilters && (
           <Stack direction="row" spacing={2}>
             <FormControl size="small" sx={{ minWidth: 150 }}>
-              <InputLabel>Статус</InputLabel>
-              <Select
+              <InputLabel sx={selectInputLabelStyles}>Статус</InputLabel>
+              <StyledSelect
                 value={query.status || ''}
                 onChange={handleStatusChange}
                 label="Статус"
+                MenuProps={MenuProps}
               >
                 <MenuItem value="">Все</MenuItem>
                 {Object.entries(MESSAGE_STATUS_LABELS).map(([value, label]) => (
@@ -152,56 +170,82 @@ export function CampaignMessages({
                     {label}
                   </MenuItem>
                 ))}
-              </Select>
+              </StyledSelect>
             </FormControl>
 
             <FormControl size="small" sx={{ minWidth: 150 }}>
-              <InputLabel>Мессенджер</InputLabel>
-              <Select
+              <InputLabel sx={selectInputLabelStyles}>Мессенджер</InputLabel>
+              <StyledSelect
                 value={query.messenger || ''}
                 onChange={handleMessengerChange}
                 label="Мессенджер"
+                MenuProps={MenuProps}
               >
                 <MenuItem value="">Все</MenuItem>
                 <MenuItem value="WHATSAPP">WhatsApp</MenuItem>
                 <MenuItem value="TELEGRAM">Telegram</MenuItem>
-              </Select>
+              </StyledSelect>
             </FormControl>
           </Stack>
         )}
       </Box>
+
+      {showFilters && <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.08)' }} />}
 
       {/* Table */}
       <TableContainer>
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>Клиент / Телефон</TableCell>
-              <TableCell>Мессенджер</TableCell>
-              <TableCell>Профиль</TableCell>
-              <TableCell>Статус</TableCell>
-              <TableCell>Отправлено</TableCell>
-              <TableCell>Ошибка</TableCell>
+              <TableCell sx={{ color: 'rgba(255, 255, 255, 0.7)', fontWeight: 500, borderColor: 'rgba(255, 255, 255, 0.08)' }}>
+                Клиент / Телефон
+              </TableCell>
+              <TableCell sx={{ color: 'rgba(255, 255, 255, 0.7)', fontWeight: 500, borderColor: 'rgba(255, 255, 255, 0.08)' }}>
+                Мессенджер
+              </TableCell>
+              <TableCell sx={{ color: 'rgba(255, 255, 255, 0.7)', fontWeight: 500, borderColor: 'rgba(255, 255, 255, 0.08)' }}>
+                Профиль
+              </TableCell>
+              <TableCell sx={{ color: 'rgba(255, 255, 255, 0.7)', fontWeight: 500, borderColor: 'rgba(255, 255, 255, 0.08)' }}>
+                Статус
+              </TableCell>
+              <TableCell sx={{ color: 'rgba(255, 255, 255, 0.7)', fontWeight: 500, borderColor: 'rgba(255, 255, 255, 0.08)' }}>
+                Отправлено
+              </TableCell>
+              <TableCell sx={{ color: 'rgba(255, 255, 255, 0.7)', fontWeight: 500, borderColor: 'rgba(255, 255, 255, 0.08)' }}>
+                Ошибка
+              </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {messages.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} align="center">
-                  <Typography color="text.secondary" sx={{ py: 4 }}>
+                <TableCell colSpan={6} align="center" sx={{ borderColor: 'rgba(255, 255, 255, 0.08)' }}>
+                  <Typography sx={{ py: 4, color: 'rgba(255, 255, 255, 0.5)' }}>
                     {isLoading ? 'Загрузка...' : 'Нет сообщений'}
                   </Typography>
                 </TableCell>
               </TableRow>
             ) : (
               messages.map((message) => (
-                <TableRow key={message.id} hover>
+                <TableRow 
+                  key={message.id} 
+                  hover
+                  sx={{
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    },
+                    '& td': {
+                      borderColor: 'rgba(255, 255, 255, 0.08)',
+                    },
+                  }}
+                >
                   <TableCell>
                     <Box>
-                      <Typography variant="body2" fontWeight={500}>
+                      <Typography variant="body2" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
                         {message.clientName || 'Клиент'}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>
                         {message.phoneNumber || message.clientPhoneId}
                       </Typography>
                     </Box>
@@ -211,15 +255,23 @@ export function CampaignMessages({
                       <Chip
                         size="small"
                         label={message.messenger === 'WHATSAPP' ? 'WhatsApp' : 'Telegram'}
-                        color={message.messenger === 'WHATSAPP' ? 'success' : 'info'}
-                        variant="outlined"
+                        sx={{
+                          backgroundColor: message.messenger === 'WHATSAPP' 
+                            ? 'rgba(37, 211, 102, 0.2)' 
+                            : 'rgba(0, 136, 204, 0.2)',
+                          color: message.messenger === 'WHATSAPP' ? '#25D366' : '#0088cc',
+                          border: '1px solid',
+                          borderColor: message.messenger === 'WHATSAPP' 
+                            ? 'rgba(37, 211, 102, 0.4)' 
+                            : 'rgba(0, 136, 204, 0.4)',
+                        }}
                       />
                     ) : (
-                      <Typography variant="caption" color="text.secondary">—</Typography>
+                      <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>—</Typography>
                     )}
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2">
+                    <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
                       {message.profileName || message.profileId || '—'}
                     </Typography>
                   </TableCell>
@@ -227,7 +279,7 @@ export function CampaignMessages({
                     <MessageStatusBadge status={message.status} size="small" />
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2">
+                    <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
                       {formatDateTime(message.sentAt)}
                     </Typography>
                   </TableCell>
@@ -236,8 +288,8 @@ export function CampaignMessages({
                       <Tooltip title={message.errorMessage}>
                         <Typography
                           variant="caption"
-                          color="error"
                           sx={{
+                            color: '#f44336',
                             display: 'block',
                             maxWidth: 200,
                             overflow: 'hidden',
@@ -249,7 +301,7 @@ export function CampaignMessages({
                         </Typography>
                       </Tooltip>
                     ) : (
-                      <Typography variant="caption" color="text.secondary">—</Typography>
+                      <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>—</Typography>
                     )}
                   </TableCell>
                 </TableRow>
@@ -260,6 +312,7 @@ export function CampaignMessages({
       </TableContainer>
 
       {/* Pagination */}
+      <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.08)' }} />
       <TablePagination
         component="div"
         count={totalCount}
@@ -270,9 +323,28 @@ export function CampaignMessages({
         rowsPerPageOptions={[10, 20, 50, 100]}
         labelRowsPerPage="Строк:"
         labelDisplayedRows={({ from, to, count }) => `${from}-${to} из ${count}`}
+        sx={{
+          color: 'rgba(255, 255, 255, 0.7)',
+          '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+            color: 'rgba(255, 255, 255, 0.7)',
+          },
+          '& .MuiIconButton-root': {
+            color: 'rgba(255, 255, 255, 0.7)',
+            '&.Mui-disabled': {
+              color: 'rgba(255, 255, 255, 0.3)',
+            },
+            '&:hover': {
+              backgroundColor: 'rgba(255, 255, 255, 0.08)',
+            },
+          },
+          '& .MuiSelect-select': {
+            color: 'rgba(255, 255, 255, 0.7)',
+          },
+        }}
       />
     </Paper>
   );
 }
+
 
 

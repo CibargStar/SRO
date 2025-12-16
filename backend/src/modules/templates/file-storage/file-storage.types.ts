@@ -98,13 +98,17 @@ export class FileValidationError extends Error {
  * Получение FileType по MIME-типу
  */
 export function getFileTypeByMimeType(mimeType: string): FileType | null {
-  if (ALLOWED_MIME_TYPES.IMAGE.includes(mimeType as any)) {
+  const imageTypes: readonly string[] = ALLOWED_MIME_TYPES.IMAGE;
+  const videoTypes: readonly string[] = ALLOWED_MIME_TYPES.VIDEO;
+  const documentTypes: readonly string[] = ALLOWED_MIME_TYPES.DOCUMENT;
+  
+  if (imageTypes.includes(mimeType)) {
     return 'IMAGE';
   }
-  if (ALLOWED_MIME_TYPES.VIDEO.includes(mimeType as any)) {
+  if (videoTypes.includes(mimeType)) {
     return 'VIDEO';
   }
-  if (ALLOWED_MIME_TYPES.DOCUMENT.includes(mimeType as any)) {
+  if (documentTypes.includes(mimeType)) {
     return 'DOCUMENT';
   }
   return null;
@@ -115,13 +119,17 @@ export function getFileTypeByMimeType(mimeType: string): FileType | null {
  */
 export function getFileTypeByExtension(extension: string): FileType | null {
   const ext = extension.toLowerCase();
-  if (ALLOWED_EXTENSIONS.IMAGE.includes(ext as any)) {
+  const imageExts: readonly string[] = ALLOWED_EXTENSIONS.IMAGE;
+  const videoExts: readonly string[] = ALLOWED_EXTENSIONS.VIDEO;
+  const documentExts: readonly string[] = ALLOWED_EXTENSIONS.DOCUMENT;
+  
+  if (imageExts.includes(ext)) {
     return 'IMAGE';
   }
-  if (ALLOWED_EXTENSIONS.VIDEO.includes(ext as any)) {
+  if (videoExts.includes(ext)) {
     return 'VIDEO';
   }
-  if (ALLOWED_EXTENSIONS.DOCUMENT.includes(ext as any)) {
+  if (documentExts.includes(ext)) {
     return 'DOCUMENT';
   }
   return null;
@@ -162,5 +170,7 @@ export function getAllowedMimeTypes(): string[] {
     ...ALLOWED_MIME_TYPES.DOCUMENT,
   ];
 }
+
+
 
 

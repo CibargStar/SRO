@@ -170,14 +170,6 @@ export const navigationConfig: SidebarNavigationItem[] = [
       roles: [], // Доступно всем авторизованным
     },
   },
-  {
-    id: 'templates-create',
-    label: 'Создать шаблон',
-    path: '/templates/create',
-    visibility: {
-      roles: [], // Доступно всем авторизованным
-    },
-  },
   
   /**
    * Кампании рассылок (доступно всем авторизованным)

@@ -93,10 +93,16 @@ async function authorizedRequest(input: RequestInfo, init: RequestInit = {}): Pr
   return response;
 }
 
-export async function getTelegramBotSettings(): Promise<TelegramBotSettings> {
+export async function getTelegramBotSettings(): Promise<TelegramBotSettings | null> {
   const response = await authorizedRequest(`${API_BASE_URL}/telegram-bot`, {
     method: 'GET',
   });
+
+  if (response.status === 404) {
+    // Бот еще не настроен — возвращаем null для UI
+    return null;
+  }
+
   return handleResponse<TelegramBotSettings>(response);
 }
 
@@ -133,6 +139,12 @@ export async function updateTelegramNotifications(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
+
+  if (response.status === 404) {
+    // Бот ещё не настроен или не найден
+    throw { message: 'Telegram bot is not configured', statusCode: 404 } as ApiError;
+  }
+
   return handleResponse<{ message: string }>(response);
 }
 
@@ -140,6 +152,9 @@ export async function sendTestTelegramNotification(): Promise<TestTelegramBotRes
   const response = await authorizedRequest(`${API_BASE_URL}/telegram-bot/test`, {
     method: 'POST',
   });
+  if (response.status === 404) {
+    throw { message: 'Telegram bot is not configured', statusCode: 404 } as ApiError;
+  }
   return handleResponse<TestTelegramBotResponse>(response);
 }
 

@@ -10,7 +10,6 @@ import {
   Box,
   Paper,
   Typography,
-  Button,
   Alert,
   CircularProgress,
   Stepper,
@@ -24,6 +23,7 @@ import {
   ArrowForward as NextIcon,
   Check as CheckIcon,
 } from '@mui/icons-material';
+import { StyledButton, LOADING_ICON_SIZE } from '@/components/common';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTemplates } from '@/hooks/useTemplates';
@@ -273,82 +273,139 @@ export function CreateCampaignPage() {
   );
 
   return (
-    <Box>
-      {/* Header */}
-      <Box sx={{ mb: 3 }}>
-        <Breadcrumbs sx={{ mb: 2 }}>
-          <Link
-            color="inherit"
-            href="/campaigns"
-            onClick={(e) => { e.preventDefault(); navigate('/campaigns'); }}
-            sx={{ cursor: 'pointer' }}
-          >
-            Кампании
-          </Link>
-          <Typography color="text.primary">Создание</Typography>
-        </Breadcrumbs>
-
-        <Typography variant="h4" component="h1">
-          Создание кампании
-        </Typography>
-      </Box>
-
-      {/* Stepper */}
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Stepper activeStep={activeStep} alternativeLabel>
-          {WIZARD_STEPS.map((step, index) => (
-            <Step key={step.label}>
-              <StepLabel
-                optional={
-                  <Typography variant="caption" color="text.secondary">
-                    {step.description}
-                  </Typography>
-                }
+    <FormProvider {...formMethods}>
+      <Box
+        sx={{
+          width: '100%',
+          overflowY: 'auto',
+          '&::-webkit-scrollbar': {
+            display: 'none',
+            width: 0,
+            height: 0,
+          },
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+          '& *': {
+            '&::-webkit-scrollbar': {
+              display: 'none',
+              width: 0,
+              height: 0,
+            },
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+          },
+        }}
+      >
+        <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
+          {/* Header */}
+          <Box sx={{ mb: 3 }}>
+            <Breadcrumbs sx={{ mb: 2 }}>
+              <Link
+                href="/campaigns"
+                onClick={(e) => { e.preventDefault(); navigate('/campaigns'); }}
+                sx={{ cursor: 'pointer', color: 'rgba(255, 255, 255, 0.7)', '&:hover': { color: '#6366f1' } }}
               >
-                {step.label}
-              </StepLabel>
-            </Step>
-          ))}
-        </Stepper>
-      </Paper>
+                Кампании
+              </Link>
+              <Typography sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>Создание</Typography>
+            </Breadcrumbs>
 
-      {/* Content */}
-      <Paper sx={{ p: 3, mb: 3 }}>
-        {(createMutation.error || stepError) && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            {stepError || (createMutation.error as Error).message}
-          </Alert>
-        )}
+            <Typography variant="h4" component="h1" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
+              Создание кампании
+            </Typography>
+          </Box>
 
-        {renderStepContent()}
-      </Paper>
+          {/* Stepper */}
+          <Paper sx={{ p: 3.5, mb: 3, backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '16px', border: 'none' }}>
+            <Stepper 
+              activeStep={activeStep} 
+              alternativeLabel
+              sx={{
+                '& .MuiStepLabel-root .Mui-completed': {
+                  color: '#6366f1',
+                },
+                '& .MuiStepLabel-label.Mui-completed.MuiStepLabel-alternativeLabel': {
+                  color: '#818cf8',
+                },
+                '& .MuiStepLabel-root .Mui-active': {
+                  color: '#6366f1',
+                },
+                '& .MuiStepLabel-label.Mui-active.MuiStepLabel-alternativeLabel': {
+                  color: '#f5f5f5',
+                  fontWeight: 500,
+                },
+                '& .MuiStepLabel-root .Mui-active .MuiStepIcon-text': {
+                  fill: '#fff',
+                },
+                '& .MuiStepLabel-label': {
+                  color: 'rgba(255, 255, 255, 0.5)',
+                },
+              }}
+            >
+              {WIZARD_STEPS.map((step, index) => (
+                <Step key={step.label}>
+                  <StepLabel
+                    optional={
+                      <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>
+                        {step.description}
+                      </Typography>
+                    }
+                  >
+                    {step.label}
+                  </StepLabel>
+                </Step>
+              ))}
+            </Stepper>
+          </Paper>
 
-      {/* Navigation */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-        <Button
-          onClick={handleBack}
-          startIcon={<BackIcon />}
-          disabled={createMutation.isPending}
-        >
-          {activeStep === 0 ? 'Отмена' : 'Назад'}
-        </Button>
+          {/* Content */}
+          <Paper sx={{ p: 3.5, mb: 3, backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '16px', border: 'none' }}>
+            {(createMutation.error || stepError) && (
+              <Alert 
+                severity="error" 
+                sx={{ 
+                  mb: 3,
+                  borderRadius: '12px',
+                  backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                  color: '#f44336',
+                  border: '1px solid rgba(244, 67, 54, 0.2)',
+                }}
+              >
+                {stepError || (createMutation.error as Error).message}
+              </Alert>
+            )}
 
-        <Button
-          variant="contained"
-          onClick={handleNext}
-          endIcon={activeStep === WIZARD_STEPS.length - 1 ? <CheckIcon /> : <NextIcon />}
-          disabled={createMutation.isPending}
-        >
-          {createMutation.isPending ? (
-            <CircularProgress size={20} />
-          ) : activeStep === WIZARD_STEPS.length - 1 ? (
-            'Создать кампанию'
-          ) : (
-            'Далее'
-          )}
-        </Button>
+            {renderStepContent()}
+          </Paper>
+
+          {/* Navigation */}
+          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+            <StyledButton
+              onClick={handleBack}
+              startIcon={<BackIcon />}
+              disabled={createMutation.isPending}
+              variant="outlined"
+            >
+              {activeStep === 0 ? 'Отмена' : 'Назад'}
+            </StyledButton>
+
+            <StyledButton
+              onClick={handleNext}
+              endIcon={activeStep === WIZARD_STEPS.length - 1 ? <CheckIcon /> : <NextIcon />}
+              disabled={createMutation.isPending}
+            >
+              {createMutation.isPending ? (
+                <CircularProgress size={LOADING_ICON_SIZE} color="inherit" />
+              ) : activeStep === WIZARD_STEPS.length - 1 ? (
+                'Создать кампанию'
+              ) : (
+                'Далее'
+              )}
+            </StyledButton>
+          </Box>
+        </Box>
       </Box>
-    </Box>
+    </FormProvider>
   );
 }
 

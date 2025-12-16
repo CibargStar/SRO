@@ -21,7 +21,7 @@ import {
   handleResponse,
 } from './campaigns-api';
 
-const ADMIN_BASE = `${API_BASE_URL}/api/admin/campaigns`;
+const ADMIN_BASE = `${API_BASE_URL}/admin/campaigns`;
 
 /**
  * Получить глобальные настройки кампаний

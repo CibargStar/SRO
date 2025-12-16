@@ -12,15 +12,12 @@ import React, { useState, useMemo, useCallback } from 'react';
 import {
   Box,
   Typography,
-  Button,
   Grid,
   Alert,
   CircularProgress,
-  TextField,
   InputAdornment,
   FormControl,
   InputLabel,
-  Select,
   MenuItem,
   Pagination,
   Stack,
@@ -33,13 +30,15 @@ import {
   Tab,
   Paper,
   Chip,
+  Tooltip,
+  IconButton,
 } from '@mui/material';
 import {
   Add as AddIcon,
   Search as SearchIcon,
-  FilterList as FilterIcon,
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
+import { StyledButton, StyledTextField, StyledSelect, MenuProps, selectInputLabelStyles, CancelButton, LOADING_ICON_SIZE } from '@/components/common';
 import { useNavigate } from 'react-router-dom';
 import {
   useCampaigns,
@@ -51,7 +50,7 @@ import {
   useResumeCampaign,
   useCancelCampaign,
 } from '@/hooks';
-import { CampaignCard } from '@/components/campaigns';
+import { CampaignCard, DeleteCampaignDialog, CancelCampaignDialog } from '@/components/campaigns';
 import type {
   Campaign,
   CampaignStatus,
@@ -233,281 +232,317 @@ export function CampaignsPage() {
   ).length || 0;
 
   return (
-    <Box>
-      {/* Заголовок */}
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          mb: 3,
-        }}
-      >
-        <Typography variant="h4" component="h1">
-          Кампании рассылок
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleCreate}
-          size="large"
+    <Box
+      sx={{
+        width: '100%',
+        overflowY: 'auto',
+        '&::-webkit-scrollbar': {
+          display: 'none',
+          width: 0,
+          height: 0,
+        },
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none',
+        '& *': {
+          '&::-webkit-scrollbar': {
+            display: 'none',
+            width: 0,
+            height: 0,
+          },
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        },
+      }}
+    >
+      <Box sx={{ maxWidth: 1600, mx: 'auto', p: 3 }}>
+        {/* Заголовок */}
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            mb: 3,
+          }}
         >
-          Создать кампанию
-        </Button>
-      </Box>
-
-      {/* Табы */}
-      <Paper sx={{ mb: 3 }}>
-        <Tabs
-          value={tabValue}
-          onChange={handleTabChange}
-          indicatorColor="primary"
-          textColor="primary"
-        >
-          <Tab label="Все" value="all" />
-          <Tab
-            label={
-              <Stack direction="row" spacing={1} alignItems="center">
-                <span>Активные</span>
-                {activeCampaigns > 0 && (
-                  <Chip label={activeCampaigns} size="small" color="primary" />
-                )}
-              </Stack>
-            }
-            value="active"
-          />
-          <Tab label="Завершённые" value="completed" />
-          <Tab label="Архив" value="archived" />
-        </Tabs>
-      </Paper>
-
-      {/* Фильтры */}
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Grid container spacing={2} alignItems="center">
-          {/* Поиск */}
-          <Grid item xs={12} md={4}>
-            <TextField
-              fullWidth
-              size="small"
-              placeholder="Поиск по названию..."
-              value={search}
-              onChange={handleSearchChange}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon color="action" />
-                  </InputAdornment>
-                ),
-              }}
-            />
-          </Grid>
-
-          {/* Фильтр по статусу */}
-          <Grid item xs={12} sm={6} md={2}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Статус</InputLabel>
-              <Select
-                value={statusFilter}
-                label="Статус"
-                onChange={(e) => {
-                  setStatusFilter(e.target.value as CampaignStatus | 'ALL');
-                  setPage(1);
-                }}
-              >
-                {STATUS_OPTIONS.map((option) => (
-                  <MenuItem key={option.value} value={option.value}>
-                    {option.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-
-          {/* Фильтр по типу */}
-          <Grid item xs={12} sm={6} md={2}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Тип</InputLabel>
-              <Select
-                value={typeFilter}
-                label="Тип"
-                onChange={(e) => {
-                  setTypeFilter(e.target.value as CampaignType | 'ALL');
-                  setPage(1);
-                }}
-              >
-                {TYPE_OPTIONS.map((option) => (
-                  <MenuItem key={option.value} value={option.value}>
-                    {option.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-
-          {/* Фильтр по мессенджеру */}
-          <Grid item xs={12} sm={6} md={2}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Мессенджер</InputLabel>
-              <Select
-                value={messengerFilter}
-                label="Мессенджер"
-                onChange={(e) => {
-                  setMessengerFilter(e.target.value as MessengerTarget | 'ALL');
-                  setPage(1);
-                }}
-              >
-                {MESSENGER_OPTIONS.map((option) => (
-                  <MenuItem key={option.value} value={option.value}>
-                    {option.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-
-          {/* Кнопка обновления */}
-          <Grid item xs={12} sm={6} md={2}>
-            <Button
-              fullWidth
-              variant="outlined"
-              startIcon={<RefreshIcon />}
-              onClick={() => refetch()}
-            >
-              Обновить
-            </Button>
-          </Grid>
-        </Grid>
-      </Paper>
-
-      {/* Ошибка */}
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          Ошибка загрузки кампаний: {(error as Error).message}
-        </Alert>
-      )}
-
-      {/* Загрузка */}
-      {isLoading && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-          <CircularProgress />
+          <Typography variant="h4" component="h1" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
+            Кампании рассылок
+          </Typography>
+          <StyledButton
+            startIcon={<AddIcon />}
+            onClick={handleCreate}
+            size="large"
+          >
+            Создать кампанию
+          </StyledButton>
         </Box>
-      )}
 
-      {/* Список кампаний */}
-      {!isLoading && data && (
-        <>
-          {data.data.length === 0 ? (
-            <Paper sx={{ p: 4, textAlign: 'center' }}>
-              <Typography variant="h6" color="text.secondary" gutterBottom>
-                Кампании не найдены
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                {search || statusFilter !== 'ALL' || typeFilter !== 'ALL' || messengerFilter !== 'ALL'
-                  ? 'Попробуйте изменить фильтры поиска'
-                  : 'Создайте вашу первую кампанию рассылок'}
-              </Typography>
-              {!search && statusFilter === 'ALL' && typeFilter === 'ALL' && messengerFilter === 'ALL' && (
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={handleCreate}
-                >
-                  Создать кампанию
-                </Button>
-              )}
-            </Paper>
-          ) : (
-            <>
-              <Grid container spacing={3}>
-                {data.data.map((campaign) => (
-                  <Grid item xs={12} sm={6} md={4} key={campaign.id}>
-                    <CampaignCard
-                      campaign={campaign}
-                      onView={handleView}
-                      onEdit={handleEdit}
-                      onStart={handleStart}
-                      onPause={handlePause}
-                      onResume={handleResume}
-                      onCancel={handleCancel}
-                      onDuplicate={handleDuplicate}
-                      onArchive={handleArchive}
-                      onDelete={handleDelete}
+        {/* Табы */}
+        <Paper sx={{ mb: 3, backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '16px', border: 'none' }}>
+          <Tabs
+            value={tabValue}
+            onChange={handleTabChange}
+            sx={{
+              '& .MuiTab-root': {
+                color: 'rgba(255, 255, 255, 0.7)',
+                '&.Mui-selected': {
+                  color: '#6366f1',
+                },
+              },
+              '& .MuiTabs-indicator': {
+                backgroundColor: '#6366f1',
+              },
+            }}
+          >
+            <Tab label="Все" value="all" />
+            <Tab
+              label={
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <span>Активные</span>
+                  {activeCampaigns > 0 && (
+                    <Chip 
+                      label={activeCampaigns} 
+                      size="small" 
+                      sx={{
+                        backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                        color: '#818cf8',
+                        height: 20,
+                        fontSize: '0.7rem',
+                      }}
                     />
-                  </Grid>
-                ))}
-              </Grid>
+                  )}
+                </Stack>
+              }
+              value="active"
+            />
+            <Tab label="Завершённые" value="completed" />
+            <Tab label="Архив" value="archived" />
+          </Tabs>
+        </Paper>
 
-              {/* Пагинация */}
-              {data.pagination.totalPages > 1 && (
-                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-                  <Pagination
-                    count={data.pagination.totalPages}
-                    page={data.pagination.page}
-                    onChange={handlePageChange}
-                    color="primary"
-                    showFirstButton
-                    showLastButton
-                  />
-                </Box>
-              )}
-            </>
-          )}
-        </>
-      )}
+        {/* Фильтры */}
+        <Paper sx={{ p: 2.5, mb: 3, backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '16px', border: 'none' }}>
+          <Grid container spacing={2} alignItems="center">
+            {/* Поиск */}
+            <Grid item xs={12} md={4}>
+              <StyledTextField
+                fullWidth
+                size="small"
+                placeholder="Поиск по названию..."
+                value={search}
+                onChange={handleSearchChange}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon sx={{ color: 'rgba(255, 255, 255, 0.5)' }} />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Grid>
 
-      {/* Диалог удаления */}
-      <Dialog
-        open={!!deleteDialogCampaign}
-        onClose={() => setDeleteDialogCampaign(null)}
-      >
-        <DialogTitle>Удалить кампанию?</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Вы уверены, что хотите удалить кампанию &quot;{deleteDialogCampaign?.name}&quot;?
-            Это действие нельзя отменить.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogCampaign(null)}>
-            Отмена
-          </Button>
-          <Button
-            onClick={handleConfirmDelete}
-            color="error"
-            disabled={deleteMutation.isPending}
+            {/* Фильтр по статусу */}
+            <Grid item xs={12} sm={6} md={2}>
+              <FormControl fullWidth size="small">
+                <InputLabel sx={selectInputLabelStyles}>Статус</InputLabel>
+                <StyledSelect
+                  value={statusFilter}
+                  label="Статус"
+                  onChange={(e) => {
+                    setStatusFilter(e.target.value as CampaignStatus | 'ALL');
+                    setPage(1);
+                  }}
+                  MenuProps={MenuProps}
+                >
+                  {STATUS_OPTIONS.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </StyledSelect>
+              </FormControl>
+            </Grid>
+
+            {/* Фильтр по типу */}
+            <Grid item xs={12} sm={6} md={2}>
+              <FormControl fullWidth size="small">
+                <InputLabel sx={selectInputLabelStyles}>Тип</InputLabel>
+                <StyledSelect
+                  value={typeFilter}
+                  label="Тип"
+                  onChange={(e) => {
+                    setTypeFilter(e.target.value as CampaignType | 'ALL');
+                    setPage(1);
+                  }}
+                  MenuProps={MenuProps}
+                >
+                  {TYPE_OPTIONS.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </StyledSelect>
+              </FormControl>
+            </Grid>
+
+            {/* Фильтр по мессенджеру */}
+            <Grid item xs={12} sm={6} md={2}>
+              <FormControl fullWidth size="small">
+                <InputLabel sx={selectInputLabelStyles}>Мессенджер</InputLabel>
+                <StyledSelect
+                  value={messengerFilter}
+                  label="Мессенджер"
+                  onChange={(e) => {
+                    setMessengerFilter(e.target.value as MessengerTarget | 'ALL');
+                    setPage(1);
+                  }}
+                  MenuProps={MenuProps}
+                >
+                  {MESSENGER_OPTIONS.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </StyledSelect>
+              </FormControl>
+            </Grid>
+
+            {/* Кнопка обновления */}
+            <Grid item xs={12} sm={6} md={2}>
+              <Tooltip title="Обновить список">
+                <IconButton
+                  onClick={() => refetch()}
+                  sx={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                    color: '#f5f5f5',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.12)',
+                    },
+                  }}
+                >
+                  <RefreshIcon />
+                </IconButton>
+              </Tooltip>
+            </Grid>
+          </Grid>
+        </Paper>
+
+        {/* Ошибка */}
+        {error && (
+          <Alert 
+            severity="error" 
+            sx={{ 
+              mb: 3,
+              borderRadius: '12px',
+              backgroundColor: 'rgba(244, 67, 54, 0.1)',
+              color: '#f44336',
+              border: '1px solid rgba(244, 67, 54, 0.2)',
+            }}
           >
-            {deleteMutation.isPending ? 'Удаление...' : 'Удалить'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+            Ошибка загрузки кампаний: {(error as Error).message}
+          </Alert>
+        )}
 
-      {/* Диалог отмены */}
-      <Dialog
-        open={!!cancelDialogCampaign}
-        onClose={() => setCancelDialogCampaign(null)}
-      >
-        <DialogTitle>Отменить кампанию?</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Вы уверены, что хотите отменить кампанию &quot;{cancelDialogCampaign?.name}&quot;?
-            Все необработанные сообщения будут отменены.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCancelDialogCampaign(null)}>
-            Нет
-          </Button>
-          <Button
-            onClick={handleConfirmCancel}
-            color="error"
-            disabled={cancelMutation.isPending}
-          >
-            {cancelMutation.isPending ? 'Отмена...' : 'Да, отменить'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        {/* Загрузка */}
+        {isLoading && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+            <CircularProgress />
+          </Box>
+        )}
+
+        {/* Список кампаний */}
+        {!isLoading && data && (
+          <>
+            {data.data.length === 0 ? (
+              <Paper sx={{ p: 4, textAlign: 'center', backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '16px', border: 'none' }}>
+                <Typography variant="h6" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1, fontWeight: 500 }}>
+                  Кампании не найдены
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.5)', mb: 2 }}>
+                  {search || statusFilter !== 'ALL' || typeFilter !== 'ALL' || messengerFilter !== 'ALL'
+                    ? 'Попробуйте изменить фильтры поиска'
+                    : 'Создайте вашу первую кампанию рассылок'}
+                </Typography>
+                {!search && statusFilter === 'ALL' && typeFilter === 'ALL' && messengerFilter === 'ALL' && (
+                  <StyledButton
+                    startIcon={<AddIcon />}
+                    onClick={handleCreate}
+                  >
+                    Создать кампанию
+                  </StyledButton>
+                )}
+              </Paper>
+            ) : (
+              <>
+                <Grid container spacing={3}>
+                  {data.data.map((campaign) => (
+                    <Grid item xs={12} sm={6} md={4} key={campaign.id}>
+                      <CampaignCard
+                        campaign={campaign}
+                        onView={handleView}
+                        onEdit={handleEdit}
+                        onStart={handleStart}
+                        onPause={handlePause}
+                        onResume={handleResume}
+                        onCancel={handleCancel}
+                        onDuplicate={handleDuplicate}
+                        onArchive={handleArchive}
+                        onDelete={handleDelete}
+                      />
+                    </Grid>
+                  ))}
+                </Grid>
+
+                {/* Пагинация */}
+                {data.pagination.totalPages > 1 && (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+                    <Pagination
+                      count={data.pagination.totalPages}
+                      page={data.pagination.page}
+                      onChange={handlePageChange}
+                      sx={{
+                        '& .MuiPaginationItem-root': {
+                          color: 'rgba(255, 255, 255, 0.7)',
+                          '&.Mui-selected': {
+                            backgroundColor: '#6366f1',
+                            color: '#fff',
+                            '&:hover': {
+                              backgroundColor: '#818cf8',
+                            },
+                          },
+                          '&:hover': {
+                            backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                          },
+                        },
+                      }}
+                      showFirstButton
+                      showLastButton
+                    />
+                  </Box>
+                )}
+              </>
+            )}
+          </>
+        )}
+
+        {/* Диалог удаления */}
+        <DeleteCampaignDialog
+          open={!!deleteDialogCampaign}
+          onClose={() => setDeleteDialogCampaign(null)}
+          campaign={deleteDialogCampaign}
+          onSuccess={() => refetch()}
+        />
+
+        {/* Диалог отмены */}
+        <CancelCampaignDialog
+          open={!!cancelDialogCampaign}
+          onClose={() => setCancelDialogCampaign(null)}
+          campaign={cancelDialogCampaign}
+          onSuccess={() => refetch()}
+        />
+      </Box>
     </Box>
   );
 }
+
 
 

@@ -1,10 +1,11 @@
 import React from 'react';
-import { Grid, TextField, ToggleButtonGroup, ToggleButton, Typography, FormHelperText } from '@mui/material';
+import { Grid, ToggleButtonGroup, ToggleButton, Typography, FormHelperText } from '@mui/material';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import TelegramIcon from '@mui/icons-material/Telegram';
 import PublicIcon from '@mui/icons-material/Public';
 import { Controller, useFormContext } from 'react-hook-form';
 import { CAMPAIGN_TYPE_LABELS, MESSENGER_TARGET_LABELS, UNIVERSAL_TARGET_LABELS } from '@/types/campaign';
+import { StyledTextField } from '@/components/common';
 import type { CampaignType, MessengerTarget, UniversalTarget } from '@/types/campaign';
 import { UniversalTargetSelector } from '../UniversalTargetSelector';
 
@@ -27,7 +28,7 @@ export function WizardStep1_BasicInfo() {
           name="name"
           control={control}
           render={({ field }) => (
-            <TextField
+            <StyledTextField
               {...field}
               label="Название кампании"
               fullWidth
@@ -45,7 +46,7 @@ export function WizardStep1_BasicInfo() {
           name="description"
           control={control}
           render={({ field }) => (
-            <TextField
+            <StyledTextField
               {...field}
               label="Описание"
               fullWidth
@@ -58,7 +59,7 @@ export function WizardStep1_BasicInfo() {
       </Grid>
 
       <Grid item xs={12} md={6}>
-        <Typography variant="subtitle2" gutterBottom>
+        <Typography variant="subtitle2" gutterBottom sx={{ color: '#f5f5f5', fontWeight: 500 }}>
           Тип кампании
         </Typography>
         <Controller
@@ -69,7 +70,23 @@ export function WizardStep1_BasicInfo() {
               {...field}
               exclusive
               fullWidth
-              color="primary"
+              sx={{
+                '& .MuiToggleButton-root': {
+                  color: 'rgba(255, 255, 255, 0.7)',
+                  borderColor: 'rgba(255, 255, 255, 0.12)',
+                  '&.Mui-selected': {
+                    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                    color: '#818cf8',
+                    borderColor: 'rgba(99, 102, 241, 0.4)',
+                    '&:hover': {
+                      backgroundColor: 'rgba(99, 102, 241, 0.3)',
+                    },
+                  },
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                  },
+                },
+              }}
             >
               <ToggleButton value="ONE_TIME">
                 {CAMPAIGN_TYPE_LABELS.ONE_TIME}
@@ -80,7 +97,7 @@ export function WizardStep1_BasicInfo() {
             </ToggleButtonGroup>
           )}
         />
-        <FormHelperText>
+        <FormHelperText sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>
           {watchedValues.campaignType === 'ONE_TIME' 
             ? 'Запуск вручную, выполняется один раз'
             : 'Запуск по расписанию, можно настроить повтор'}
@@ -88,7 +105,7 @@ export function WizardStep1_BasicInfo() {
       </Grid>
 
       <Grid item xs={12} md={6}>
-        <Typography variant="subtitle2" gutterBottom>
+        <Typography variant="subtitle2" gutterBottom sx={{ color: '#f5f5f5', fontWeight: 500 }}>
           Целевой мессенджер
         </Typography>
         <Controller
@@ -99,7 +116,23 @@ export function WizardStep1_BasicInfo() {
               {...field}
               exclusive
               fullWidth
-              color="primary"
+              sx={{
+                '& .MuiToggleButton-root': {
+                  color: 'rgba(255, 255, 255, 0.7)',
+                  borderColor: 'rgba(255, 255, 255, 0.12)',
+                  '&.Mui-selected': {
+                    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                    color: '#818cf8',
+                    borderColor: 'rgba(99, 102, 241, 0.4)',
+                    '&:hover': {
+                      backgroundColor: 'rgba(99, 102, 241, 0.3)',
+                    },
+                  },
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                  },
+                },
+              }}
             >
               <ToggleButton value="WHATSAPP_ONLY">
                 <WhatsAppIcon sx={{ mr: 1, color: '#25D366' }} />
@@ -120,7 +153,7 @@ export function WizardStep1_BasicInfo() {
 
       {watchedValues.messengerType === 'UNIVERSAL' && (
         <Grid item xs={12}>
-          <Typography variant="subtitle2" gutterBottom>
+          <Typography variant="subtitle2" gutterBottom sx={{ color: '#f5f5f5', fontWeight: 500 }}>
             Порядок отправки
           </Typography>
           <Controller
@@ -140,6 +173,7 @@ export function WizardStep1_BasicInfo() {
 }
 
 export default WizardStep1_BasicInfo;
+
 
 
 

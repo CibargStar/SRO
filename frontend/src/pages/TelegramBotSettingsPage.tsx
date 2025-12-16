@@ -19,52 +19,88 @@ export function TelegramBotSettingsPage() {
       );
     }
     if (error) {
-      return <Alert severity="error">Ошибка загрузки настроек: {error.message}</Alert>;
+      return (
+        <Alert 
+          severity="error"
+          sx={{
+            borderRadius: '12px',
+            backgroundColor: 'rgba(244, 67, 54, 0.1)',
+            color: '#f44336',
+            border: '1px solid rgba(244, 67, 54, 0.2)',
+          }}
+        >
+          Ошибка загрузки настроек: {error.message}
+        </Alert>
+      );
     }
     return null;
   }, [isLoading, error]);
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom>
-        Telegram уведомления
-      </Typography>
-      <Typography variant="body1" color="text.secondary" gutterBottom>
-        Подключите личного Telegram бота, подтвердите его и настройте события, которые нужно получать.
-      </Typography>
+    <Box
+      sx={{
+        width: '100%',
+        overflowY: 'auto',
+        '&::-webkit-scrollbar': {
+          display: 'none',
+          width: 0,
+          height: 0,
+        },
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none',
+        '& *': {
+          '&::-webkit-scrollbar': {
+            display: 'none',
+            width: 0,
+            height: 0,
+          },
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        },
+      }}
+    >
+      <Box sx={{ maxWidth: 1400, mx: 'auto', p: 3 }}>
+        <Typography variant="h4" component="h1" sx={{ color: '#f5f5f5', fontWeight: 500, mb: 1.5 }}>
+          Telegram уведомления
+        </Typography>
+        <Typography variant="body1" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 4 }}>
+          Подключите личного Telegram бота, подтвердите его и настройте события, которые нужно получать.
+        </Typography>
 
-      {statusBlock}
+        {statusBlock}
 
-      {!isLoading && !error && (
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
-            <TelegramBotSetup
-              isVerified={data?.isVerified ?? false}
-              chatId={data?.chatId ?? null}
-              onVerifyCodeReceived={setLastVerifyCode}
-            />
+        {!isLoading && !error && (
+          <Grid container spacing={3} alignItems="flex-start">
+            <Grid item xs={12} md={6}>
+              <TelegramBotSetup
+                isVerified={data?.isVerified ?? false}
+                chatId={data?.chatId ?? null}
+                onVerifyCodeReceived={setLastVerifyCode}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TelegramVerifySection lastVerifyCode={lastVerifyCode} />
+            </Grid>
+            <Grid item xs={12} md={8}>
+              <NotificationSettingsForm settings={data} />
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Box sx={{ p: 3.5, borderRadius: '16px', backgroundColor: 'rgba(255, 255, 255, 0.06)', border: 'none', height: '100%' }}>
+                <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500, mb: 1.5 }}>
+                  Тест уведомлений
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 3 }}>
+                  Отправьте тестовое сообщение, чтобы убедиться, что бот настроен корректно.
+                </Typography>
+                <TelegramTestButton />
+              </Box>
+            </Grid>
           </Grid>
-          <Grid item xs={12} md={6}>
-            <TelegramVerifySection lastVerifyCode={lastVerifyCode} />
-          </Grid>
-          <Grid item xs={12} md={8}>
-            <NotificationSettingsForm settings={data} />
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <Box sx={{ p: 3, borderRadius: 1, border: '1px solid', borderColor: 'divider', height: '100%' }}>
-              <Typography variant="h6" gutterBottom>
-                Тест уведомлений
-              </Typography>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                Отправьте тестовое сообщение, чтобы убедиться, что бот настроен корректно.
-              </Typography>
-              <TelegramTestButton />
-            </Box>
-          </Grid>
-        </Grid>
-      )}
+        )}
+      </Box>
     </Box>
   );
 }
+
 
 

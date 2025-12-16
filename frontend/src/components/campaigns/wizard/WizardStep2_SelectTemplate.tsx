@@ -22,7 +22,15 @@ export function WizardStep2_SelectTemplate({ templatesLoading, filteredTemplates
           <CircularProgress />
         </Box>
       ) : filteredTemplates.length === 0 ? (
-        <Alert severity="warning">
+        <Alert 
+          severity="warning"
+          sx={{
+            borderRadius: '12px',
+            backgroundColor: 'rgba(255, 152, 0, 0.1)',
+            color: '#ff9800',
+            border: '1px solid rgba(255, 152, 0, 0.2)',
+          }}
+        >
           Нет доступных шаблонов для выбранного типа мессенджера.
         </Alert>
       ) : (
@@ -30,21 +38,32 @@ export function WizardStep2_SelectTemplate({ templatesLoading, filteredTemplates
           {filteredTemplates.map((template) => (
             <Grid item xs={12} sm={6} md={4} key={template.id}>
               <Card
-                variant={selectedTemplate?.id === template.id ? 'elevation' : 'outlined'}
                 sx={{
-                  border: selectedTemplate?.id === template.id ? 2 : 1,
-                  borderColor: selectedTemplate?.id === template.id ? 'primary.main' : 'divider',
+                  backgroundColor: selectedTemplate?.id === template.id 
+                    ? 'rgba(99, 102, 241, 0.15)' 
+                    : 'rgba(255, 255, 255, 0.08)',
+                  border: selectedTemplate?.id === template.id 
+                    ? '2px solid rgba(99, 102, 241, 0.4)' 
+                    : 'none',
+                  borderRadius: '16px',
                   transition: 'all 0.2s',
+                  '&:hover': {
+                    backgroundColor: selectedTemplate?.id === template.id 
+                      ? 'rgba(99, 102, 241, 0.2)' 
+                      : 'rgba(255, 255, 255, 0.1)',
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
+                  },
                 }}
               >
                 <CardActionArea onClick={() => onSelectTemplate(template)}>
                   <CardContent>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="subtitle1" fontWeight={500}>
+                      <Typography variant="subtitle1" fontWeight={500} sx={{ color: '#f5f5f5' }}>
                         {template.name}
                       </Typography>
                       {selectedTemplate?.id === template.id && (
-                        <CheckIcon color="primary" />
+                        <CheckIcon sx={{ color: '#6366f1' }} />
                       )}
                     </Box>
                     
@@ -54,7 +73,7 @@ export function WizardStep2_SelectTemplate({ templatesLoading, filteredTemplates
                     </Stack>
                     
                     {template.description && (
-                      <Typography variant="body2" color="text.secondary" noWrap>
+                      <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.6)' }} noWrap>
                         {template.description}
                       </Typography>
                     )}
@@ -66,7 +85,16 @@ export function WizardStep2_SelectTemplate({ templatesLoading, filteredTemplates
         </Grid>
       )}
       {(errors as any)?.templateId && (
-        <Alert severity="error" sx={{ mt: 2 }}>
+        <Alert 
+          severity="error" 
+          sx={{ 
+            mt: 2,
+            borderRadius: '12px',
+            backgroundColor: 'rgba(244, 67, 54, 0.1)',
+            color: '#f44336',
+            border: '1px solid rgba(244, 67, 54, 0.2)',
+          }}
+        >
           {(errors as any)?.templateId?.message}
         </Alert>
       )}
@@ -75,6 +103,7 @@ export function WizardStep2_SelectTemplate({ templatesLoading, filteredTemplates
 }
 
 export default WizardStep2_SelectTemplate;
+
 
 
 

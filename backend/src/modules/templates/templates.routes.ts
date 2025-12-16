@@ -13,6 +13,7 @@ import { TemplatesService } from './templates.service';
 import { PrismaClient } from '@prisma/client';
 import { authMiddleware } from '../../middleware/auth';
 import { FILE_SIZE_LIMITS } from './file-storage';
+import logger from '../../config/logger';
 
 /**
  * Конфигурация multer для загрузки файлов
@@ -40,7 +41,7 @@ export function createTemplatesRouter(prisma: PrismaClient): Router {
 
   // Инициализация сервиса (создание директорий)
   templatesService.initialize().catch((error) => {
-    console.error('Failed to initialize templates service:', error);
+    logger.error('Failed to initialize templates service', { error });
   });
 
   // Все маршруты защищены аутентификацией
@@ -71,6 +72,12 @@ export function createTemplatesRouter(prisma: PrismaClient): Router {
    * Получение списка категорий
    */
   router.get('/categories', controller.listCategories);
+
+  /**
+   * GET /api/templates/categories/:id
+   * Получение категории по ID
+   */
+  router.get('/categories/:id', controller.getCategory);
 
   /**
    * POST /api/templates/categories

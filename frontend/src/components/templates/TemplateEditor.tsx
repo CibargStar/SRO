@@ -15,15 +15,25 @@ interface TemplateEditorProps {
 export function TemplateEditor({ template }: TemplateEditorProps) {
   return (
     <Box>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-        <Typography variant="h5" sx={{ color: '#fff', fontWeight: 600 }}>
+      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+        <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500, fontSize: '1.1rem' }}>
           Редактор шаблона
         </Typography>
-        <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.6)' }}>
-          Тип: {template.type === 'SINGLE' ? 'Одиночный' : 'Составной'}
-        </Typography>
+        <Box
+          sx={{
+            px: 1.5,
+            py: 0.5,
+            borderRadius: '8px',
+            backgroundColor: 'rgba(99, 102, 241, 0.15)',
+            border: '1px solid rgba(99, 102, 241, 0.3)',
+          }}
+        >
+          <Typography variant="body2" sx={{ color: '#818cf8', fontSize: '0.8rem', fontWeight: 500 }}>
+            {template.type === 'SINGLE' ? 'Одиночный' : 'Составной'}
+          </Typography>
+        </Box>
       </Stack>
-      <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)', mb: 2 }} />
+      <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.08)', mb: 3 }} />
       {template.type === 'SINGLE' ? (
         <SingleTemplateEditor template={template} />
       ) : (
@@ -34,6 +44,7 @@ export function TemplateEditor({ template }: TemplateEditorProps) {
 }
 
 export default TemplateEditor;
+
 
 
 

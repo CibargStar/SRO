@@ -58,6 +58,7 @@ export interface TemplateItem {
   fileSize: number | null;
   mimeType: string | null;
   fileType: FileType | null;
+  delayAfterMs: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -73,6 +74,7 @@ export interface Template {
   description: string | null;
   type: TemplateType;
   messengerTarget: MessengerTarget;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
   category?: TemplateCategory | null;
@@ -140,8 +142,8 @@ export interface CreateTemplateInput {
   description?: string | null;
   type: TemplateType;
   messengerTarget: MessengerTarget;
-  // Начальные элементы (опционально)
-  items?: CreateTemplateItemInput[];
+  // items не используется - элементы добавляются отдельно после создания шаблона
+  // Для SINGLE шаблона можно использовать content для создания первого элемента (не реализовано в текущей версии)
 }
 
 /**
@@ -152,6 +154,7 @@ export interface UpdateTemplateInput {
   name?: string;
   description?: string | null;
   messengerTarget?: MessengerTarget;
+  isActive?: boolean;
 }
 
 /**
@@ -160,7 +163,8 @@ export interface UpdateTemplateInput {
 export interface CreateTemplateItemInput {
   type: TemplateItemType;
   content?: string | null;
-  orderIndex?: number;
+  // orderIndex не передается - backend вычисляет автоматически на основе maxIndex + 1
+  delayAfterMs?: number;
 }
 
 /**
@@ -168,7 +172,8 @@ export interface CreateTemplateItemInput {
  */
 export interface UpdateTemplateItemInput {
   content?: string | null;
-  orderIndex?: number;
+  // orderIndex не используется - порядок изменяется через reorderItems
+  delayAfterMs?: number;
 }
 
 /**

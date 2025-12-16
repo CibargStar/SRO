@@ -8,7 +8,6 @@
  * - Локальный EventEmitter по incoming event
  */
 
-import mitt from 'mitt';
 import { API_URL } from '@/config';
 
 type WsEvents = {
@@ -29,12 +28,41 @@ function buildWsUrl(token: string): string {
   return url.toString();
 }
 
+type Handler<T = any> = (event: T) => void;
+
+class SimpleEmitter<Events extends Record<string, any>> {
+  private handlers = new Map<keyof Events, Set<Handler>>();
+
+  on<EventName extends keyof Events>(event: EventName, handler: Handler<Events[EventName]>) {
+    const set = this.handlers.get(event) ?? new Set();
+    set.add(handler as Handler);
+    this.handlers.set(event, set);
+  }
+
+  off<EventName extends keyof Events>(event: EventName, handler: Handler<Events[EventName]>) {
+    const set = this.handlers.get(event);
+    if (set) {
+      set.delete(handler as Handler);
+      if (set.size === 0) {
+        this.handlers.delete(event);
+      }
+    }
+  }
+
+  emit<EventName extends keyof Events>(event: EventName, payload: Events[EventName]) {
+    const set = this.handlers.get(event);
+    if (set) {
+      set.forEach((handler) => handler(payload));
+    }
+  }
+}
+
 class WebSocketService {
   private socket: WebSocket | null = null;
   private token: string | null = null;
   private reconnectAttempts = 0;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
-  private emitter = mitt<WsEvents>();
+  private emitter = new SimpleEmitter<WsEvents>();
   private subscribedChannels = new Set<string>();
   private manualClose = false;
 

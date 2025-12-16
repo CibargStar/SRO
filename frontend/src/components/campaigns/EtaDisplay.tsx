@@ -24,21 +24,33 @@ function formatTime(iso: string | null) {
 export function EtaDisplay({ estimatedSecondsRemaining, estimatedCompletionTime, startedAt }: EtaDisplayProps) {
   return (
     <Stack spacing={0.5}>
-      <Typography variant="subtitle2" sx={{ color: '#fff' }}>
+      <Typography variant="subtitle2" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
         ETA
       </Typography>
       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
         <Chip
           label={`Осталось: ${estimatedSecondsRemaining != null ? formatDuration(estimatedSecondsRemaining) : '—'}`}
-          sx={{ backgroundColor: 'rgba(255,255,255,0.08)', color: '#fff' }}
+          sx={{ 
+            backgroundColor: 'rgba(255,255,255,0.05)', 
+            color: '#f5f5f5',
+            border: '1px solid rgba(255,255,255,0.1)',
+          }}
         />
         <Chip
           label={`Окончание: ${formatTime(estimatedCompletionTime)}`}
-          sx={{ backgroundColor: 'rgba(255,255,255,0.08)', color: '#fff' }}
+          sx={{ 
+            backgroundColor: 'rgba(255,255,255,0.05)', 
+            color: '#f5f5f5',
+            border: '1px solid rgba(255,255,255,0.1)',
+          }}
         />
         <Chip
           label={`Старт: ${formatTime(startedAt)}`}
-          sx={{ backgroundColor: 'rgba(255,255,255,0.08)', color: '#fff' }}
+          sx={{ 
+            backgroundColor: 'rgba(255,255,255,0.05)', 
+            color: '#f5f5f5',
+            border: '1px solid rgba(255,255,255,0.1)',
+          }}
         />
       </Box>
     </Stack>
@@ -46,6 +58,7 @@ export function EtaDisplay({ estimatedSecondsRemaining, estimatedCompletionTime,
 }
 
 export default EtaDisplay;
+
 
 
 

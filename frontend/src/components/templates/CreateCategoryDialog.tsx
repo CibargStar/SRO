@@ -84,12 +84,25 @@ export function CreateCategoryDialog({ open, onClose }: CreateCategoryDialogProp
       fullWidth
       PaperProps={dialogPaperProps}
     >
-      <Typography sx={dialogTitleStyles}>Создание категории</Typography>
+      <Box sx={dialogTitleStyles}>
+        <Typography sx={{ color: '#fff', fontSize: '1.25rem', fontWeight: 500 }}>
+          Создание категории
+        </Typography>
+      </Box>
 
       <form onSubmit={handleSubmit(onSubmit)}>
         <DialogContent sx={dialogContentStyles}>
           {createMutation.isError && (
-            <Alert severity="error" sx={{ mb: 2 }}>
+            <Alert 
+              severity="error" 
+              sx={{ 
+                mb: 2,
+                borderRadius: '12px',
+                backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                color: '#ffffff',
+                border: 'none',
+              }}
+            >
               {(createMutation.error as Error)?.message || 'Ошибка при создании категории'}
             </Alert>
           )}
@@ -152,5 +165,6 @@ export function CreateCategoryDialog({ open, onClose }: CreateCategoryDialogProp
 }
 
 export default CreateCategoryDialog;
+
 
 

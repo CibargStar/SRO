@@ -1,5 +1,6 @@
 import React from 'react';
-import { Grid, TextField, FormControlLabel, Switch } from '@mui/material';
+import { Grid, FormControlLabel, Switch, Typography } from '@mui/material';
+import { StyledTextField } from '@/components/common';
 import type { UpdateGlobalSettingsInput } from '@/types/campaign';
 
 type OnChange = <K extends keyof UpdateGlobalSettingsInput>(key: K, value: UpdateGlobalSettingsInput[K]) => void;
@@ -13,7 +14,7 @@ export function ErrorHandlingForm({ form, onChange }: Props) {
   return (
     <Grid container spacing={2}>
       <Grid item xs={12} md={4}>
-        <TextField
+        <StyledTextField
           label="Макс. ретраев при ошибке"
           type="number"
           fullWidth
@@ -22,7 +23,7 @@ export function ErrorHandlingForm({ form, onChange }: Props) {
         />
       </Grid>
       <Grid item xs={12} md={4}>
-        <TextField
+        <StyledTextField
           label="Пауза между ретраями (мс)"
           type="number"
           fullWidth
@@ -36,9 +37,17 @@ export function ErrorHandlingForm({ form, onChange }: Props) {
             <Switch
               checked={form.pauseOnCriticalError ?? false}
               onChange={(_, checked) => onChange('pauseOnCriticalError', checked)}
+              sx={{
+                '& .MuiSwitch-switchBase.Mui-checked': {
+                  color: '#6366f1',
+                },
+                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                  backgroundColor: '#6366f1',
+                },
+              }}
             />
           }
-          label="Останавливать при критической ошибке"
+          label={<Typography sx={{ color: '#f5f5f5' }}>Останавливать при критической ошибке</Typography>}
         />
       </Grid>
     </Grid>
@@ -46,5 +55,6 @@ export function ErrorHandlingForm({ form, onChange }: Props) {
 }
 
 export default ErrorHandlingForm;
+
 
 

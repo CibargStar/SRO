@@ -3,10 +3,12 @@ import {
   Box,
   Typography,
   Paper,
-  Button,
   Alert,
   CircularProgress,
+  Divider,
 } from '@mui/material';
+import { StyledButton } from '@/components/common';
+import { LOADING_ICON_SIZE } from '@/components/common/Constants';
 import {
   useCampaignSettings,
   useUpdateCampaignSettings,
@@ -75,39 +77,180 @@ export function CampaignSettingsAdminPage() {
   }
 
   if (error) {
-    return <Alert severity="error">Ошибка загрузки настроек: {error.message}</Alert>;
+    return (
+      <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
+        <Alert 
+          severity="error"
+          sx={{
+            borderRadius: '12px',
+            backgroundColor: 'rgba(244, 67, 54, 0.1)',
+            color: '#f44336',
+            border: '1px solid rgba(244, 67, 54, 0.2)',
+          }}
+        >
+          Ошибка загрузки настроек: {error.message}
+        </Alert>
+      </Box>
+    );
   }
 
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom>
-        Настройки рассылок (ROOT)
-      </Typography>
+    <Box
+      sx={{
+        width: '100%',
+        overflowY: 'auto',
+        '&::-webkit-scrollbar': {
+          display: 'none',
+          width: 0,
+          height: 0,
+        },
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none',
+        '& *': {
+          '&::-webkit-scrollbar': {
+            display: 'none',
+            width: 0,
+            height: 0,
+          },
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        },
+      }}
+    >
+      <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
+        <Typography variant="h4" component="h1" sx={{ color: '#f5f5f5', fontWeight: 500, mb: 3 }}>
+          Настройки рассылок (ROOT)
+        </Typography>
 
-      <Paper sx={{ p: 3 }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          <PauseModeSelector value={form.pauseMode as 1 | 2 | undefined} onChange={handleFieldChange} />
-          <TimingsForm form={form} onChange={handleFieldChange} />
-          <LimitsForm form={form} onChange={handleFieldChange} />
-          <WorkHoursForm form={form} onChange={handleFieldChange} />
-          <TypingSimulationForm form={form} onChange={handleFieldChange} />
-          <ErrorHandlingForm form={form} onChange={handleFieldChange} />
-          <MonitoringForm form={form} onChange={handleFieldChange} />
-          <StorageForm form={form} onChange={handleFieldChange} />
-          <WarmupForm form={form} onChange={handleFieldChange} />
-        </Box>
+        <Paper sx={{ p: 3.5, backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '16px', border: 'none' }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <Box>
+              <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500, mb: 2, fontSize: '1.1rem' }}>
+                Режим паузы
+              </Typography>
+              <PauseModeSelector value={form.pauseMode as 1 | 2 | undefined} onChange={handleFieldChange} />
+            </Box>
 
-        <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handleSave}
-            disabled={isSaving}
-          >
-            {isSaving ? <CircularProgress size={20} /> : 'Сохранить'}
-          </Button>
-        </Box>
-      </Paper>
+            <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.08)' }} />
+
+            <Box>
+              <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500, mb: 2, fontSize: '1.1rem' }}>
+                Задержки
+              </Typography>
+              <TimingsForm form={form} onChange={handleFieldChange} />
+            </Box>
+
+            <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.08)' }} />
+
+            <Box>
+              <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500, mb: 2, fontSize: '1.1rem' }}>
+                Лимиты
+              </Typography>
+              <LimitsForm form={form} onChange={handleFieldChange} />
+            </Box>
+
+            <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.08)' }} />
+
+            <Box>
+              <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500, mb: 2, fontSize: '1.1rem' }}>
+                Рабочие часы
+              </Typography>
+              <WorkHoursForm form={form} onChange={handleFieldChange} />
+            </Box>
+
+            <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.08)' }} />
+
+            <Box>
+              <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500, mb: 2, fontSize: '1.1rem' }}>
+                Симуляция печати
+              </Typography>
+              <TypingSimulationForm form={form} onChange={handleFieldChange} />
+            </Box>
+
+            <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.08)' }} />
+
+            <Box>
+              <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500, mb: 2, fontSize: '1.1rem' }}>
+                Обработка ошибок
+              </Typography>
+              <ErrorHandlingForm form={form} onChange={handleFieldChange} />
+            </Box>
+
+            <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.08)' }} />
+
+            <Box>
+              <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500, mb: 2, fontSize: '1.1rem' }}>
+                Мониторинг
+              </Typography>
+              <MonitoringForm form={form} onChange={handleFieldChange} />
+            </Box>
+
+            <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.08)' }} />
+
+            <Box>
+              <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500, mb: 2, fontSize: '1.1rem' }}>
+                Хранилище
+              </Typography>
+              <StorageForm form={form} onChange={handleFieldChange} />
+            </Box>
+
+            <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.08)' }} />
+
+            <Box>
+              <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500, mb: 2, fontSize: '1.1rem' }}>
+                Прогрев профилей
+              </Typography>
+              <WarmupForm form={form} onChange={handleFieldChange} />
+            </Box>
+          </Box>
+
+          {updateMutation.isError && (
+            <Alert 
+              severity="error"
+              sx={{
+                mt: 3,
+                borderRadius: '12px',
+                backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                color: '#f44336',
+                border: '1px solid rgba(244, 67, 54, 0.2)',
+              }}
+            >
+              {updateMutation.error instanceof Error
+                ? updateMutation.error.message
+                : 'Ошибка при сохранении настроек'}
+            </Alert>
+          )}
+
+          {updateMutation.isSuccess && (
+            <Alert 
+              severity="success"
+              sx={{
+                mt: 3,
+                borderRadius: '12px',
+                backgroundColor: 'rgba(76, 175, 80, 0.15)',
+                color: '#4caf50',
+                border: '1px solid rgba(76, 175, 80, 0.3)',
+              }}
+            >
+              Настройки успешно сохранены
+            </Alert>
+          )}
+
+          <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
+            <StyledButton
+              onClick={handleSave}
+              disabled={isSaving}
+              sx={{ minWidth: 140 }}
+            >
+              {isSaving ? (
+                <CircularProgress size={LOADING_ICON_SIZE} color="inherit" />
+              ) : (
+                'Сохранить'
+              )}
+            </StyledButton>
+          </Box>
+        </Paper>
+      </Box>
     </Box>
   );
 }

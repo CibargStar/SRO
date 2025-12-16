@@ -22,7 +22,6 @@ import {
   MenuItem,
   Pagination,
   Dialog,
-  DialogTitle,
   DialogContent,
   DialogActions,
   Card,
@@ -39,7 +38,8 @@ import {
 } from '@mui/material';
 import { StyledSelect, MenuProps, selectInputLabelStyles } from '@/components/common/SelectStyles';
 import { StyledButton, StyledTextField, CancelButton } from '@/components/common/FormStyles';
-import { dialogPaperProps } from '@/components/common/DialogStyles';
+import { dialogPaperProps, dialogTitleStyles, dialogContentStyles, dialogActionsStyles } from '@/components/common/DialogStyles';
+import { LOADING_ICON_SIZE } from '@/components/common/Constants';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -260,31 +260,54 @@ function ProfileAlertsDialog({
   const unreadCount = alertsData?.alerts.filter((a) => !a.read).length || 0;
 
   return (
-    <Dialog open={open} onClose={onClose} PaperProps={dialogPaperProps} maxWidth="md" fullWidth>
-      <DialogTitle sx={{ color: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <span>Алерты профиля</span>
+    <Dialog 
+      open={open} 
+      onClose={onClose} 
+      PaperProps={{
+        ...dialogPaperProps,
+        sx: {
+          ...dialogPaperProps.sx,
+          borderRadius: '16px',
+        },
+      }} 
+      maxWidth="md" 
+      fullWidth
+    >
+      <Box sx={{ ...dialogTitleStyles, borderBottom: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
+            Алерты профиля
+          </Typography>
           {unreadCount > 0 && (
             <Chip
               label={`${unreadCount} новых`}
               size="small"
-              color="error"
-              sx={{ fontSize: '0.7rem', height: '20px' }}
+              sx={{ 
+                backgroundColor: 'rgba(244, 67, 54, 0.2)', 
+                color: '#f44336',
+                fontSize: '0.75rem', 
+                height: '22px',
+                fontWeight: 500,
+              }}
             />
           )}
         </Box>
         {alertsData && alertsData.alerts.length > 0 && unreadCount > 0 && (
-          <Button
+          <StyledButton
             size="small"
             onClick={handleMarkAllAsRead}
             disabled={markAllAsReadMutation.isPending}
-            sx={{ color: 'rgba(255,255,255,0.7)' }}
+            sx={{ minWidth: 140 }}
           >
-            Прочитать все
-          </Button>
+            {markAllAsReadMutation.isPending ? (
+              <CircularProgress size={LOADING_ICON_SIZE} color="inherit" />
+            ) : (
+              'Прочитать все'
+            )}
+          </StyledButton>
         )}
-      </DialogTitle>
-      <DialogContent>
+      </Box>
+      <DialogContent sx={{ ...dialogContentStyles, pt: 3 }}>
         {isLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
             <CircularProgress />
@@ -295,9 +318,14 @@ function ProfileAlertsDialog({
               <Card
                 key={alert.id}
                 sx={{
-                  backgroundColor: alert.read ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.08)',
+                  backgroundColor: alert.read ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.08)',
                   borderLeft: `4px solid ${severityColors[alert.severity] || '#888'}`,
-                  transition: 'background-color 0.2s',
+                  borderRadius: '12px',
+                  border: 'none',
+                  transition: 'all 0.2s',
+                  '&:hover': {
+                    backgroundColor: alert.read ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.12)',
+                  },
                 }}
               >
                 <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
@@ -309,7 +337,17 @@ function ProfileAlertsDialog({
                           {alert.title}
                         </Typography>
                         {!alert.read && (
-                          <Chip label="Новый" size="small" color="primary" sx={{ fontSize: '0.65rem', height: '18px' }} />
+                          <Chip 
+                            label="Новый" 
+                            size="small" 
+                            sx={{ 
+                              backgroundColor: 'rgba(99, 102, 241, 0.2)', 
+                              color: '#818cf8',
+                              fontSize: '0.7rem', 
+                              height: '20px',
+                              fontWeight: 500,
+                            }} 
+                          />
                         )}
                       </Box>
                       <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', mt: 0.5 }}>
@@ -318,27 +356,27 @@ function ProfileAlertsDialog({
                       
                       {/* Специальная обработка для MESSENGER_LOGIN_REQUIRED */}
                       {alert.type === 'MESSENGER_LOGIN_REQUIRED' && onOpenMessengers && (
-                        <Button
+                        <StyledButton
                           size="small"
-                          variant="outlined"
                           onClick={() => {
                             handleMarkAsRead(alert.id);
                             onOpenMessengers();
                             onClose();
                           }}
                           sx={{
-                            mt: 1,
+                            mt: 1.5,
+                            backgroundColor: 'rgba(76, 175, 80, 0.15)',
                             color: '#4caf50',
-                            borderColor: '#4caf50',
-                            fontSize: '0.75rem',
+                            border: '1px solid rgba(76, 175, 80, 0.3)',
+                            fontSize: '0.8rem',
                             '&:hover': {
-                              borderColor: '#66bb6a',
-                              backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                              backgroundColor: 'rgba(76, 175, 80, 0.25)',
+                              borderColor: '#4caf50',
                             },
                           }}
                         >
                           Войти в мессенджер
-                        </Button>
+                        </StyledButton>
                       )}
                     </Box>
                     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
@@ -362,12 +400,14 @@ function ProfileAlertsDialog({
             ))}
           </Box>
         ) : (
-          <Typography sx={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center', py: 4 }}>
-            Нет алертов
-          </Typography>
+          <Box sx={{ textAlign: 'center', py: 6 }}>
+            <Typography sx={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.95rem' }}>
+              Нет алертов
+            </Typography>
+          </Box>
         )}
       </DialogContent>
-      <DialogActions>
+      <DialogActions sx={dialogActionsStyles}>
         <CancelButton onClick={onClose}>Закрыть</CancelButton>
       </DialogActions>
     </Dialog>
@@ -407,13 +447,14 @@ function ProfileCard({
   return (
     <Card
       sx={{
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
-        borderRadius: 2,
-        border: '1px solid rgba(255, 255, 255, 0.1)',
+        backgroundColor: 'rgba(255, 255, 255, 0.06)',
+        borderRadius: '16px',
+        border: 'none',
         transition: 'all 0.2s',
         '&:hover': {
-          backgroundColor: 'rgba(255, 255, 255, 0.08)',
-          borderColor: 'rgba(255, 255, 255, 0.2)',
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+          transform: 'translateY(-2px)',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
         },
       }}
     >
@@ -706,23 +747,43 @@ export function ProfilesPage() {
             <Chip
               label={`Всего: ${stats.total}`}
               size="small"
-              sx={{ backgroundColor: 'rgba(255,255,255,0.1)', color: '#ffffff' }}
+              sx={{ 
+                backgroundColor: 'rgba(255, 255, 255, 0.12)', 
+                color: '#f5f5f5',
+                height: '28px',
+                fontSize: '0.8rem',
+              }}
             />
             <Chip
               label={`Запущено: ${stats.running}`}
               size="small"
-              sx={{ backgroundColor: 'rgba(76,175,80,0.2)', color: '#4caf50' }}
+              sx={{ 
+                backgroundColor: 'rgba(76, 175, 80, 0.2)', 
+                color: '#4caf50',
+                height: '28px',
+                fontSize: '0.8rem',
+              }}
             />
             <Chip
               label={`Остановлено: ${stats.stopped}`}
               size="small"
-              sx={{ backgroundColor: 'rgba(158,158,158,0.2)', color: '#9e9e9e' }}
+              sx={{ 
+                backgroundColor: 'rgba(158, 158, 158, 0.2)', 
+                color: '#9e9e9e',
+                height: '28px',
+                fontSize: '0.8rem',
+              }}
             />
             {stats.error > 0 && (
               <Chip
                 label={`Ошибок: ${stats.error}`}
                 size="small"
-                sx={{ backgroundColor: 'rgba(244,67,54,0.2)', color: '#f44336' }}
+                sx={{ 
+                  backgroundColor: 'rgba(244, 67, 54, 0.2)', 
+                  color: '#f44336',
+                  height: '28px',
+                  fontSize: '0.8rem',
+                }}
               />
             )}
           </Box>
@@ -842,7 +903,13 @@ export function ProfilesPage() {
       {errorMessage && (
         <Alert
           severity="error"
-          sx={{ mb: 3, borderRadius: '12px', backgroundColor: 'rgba(244, 67, 54, 0.1)', color: '#ffffff' }}
+          sx={{ 
+            mb: 3, 
+            borderRadius: '12px', 
+            backgroundColor: 'rgba(244, 67, 54, 0.1)', 
+            color: '#f44336',
+            border: '1px solid rgba(244, 67, 54, 0.2)',
+          }}
         >
           {errorMessage}
         </Alert>
@@ -888,7 +955,7 @@ export function ProfilesPage() {
           {/* Пагинация */}
           {profilesData.pagination.totalPages > 1 && (
             <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-              <Pagination
+                <Pagination
                 count={profilesData.pagination.totalPages}
                 page={page}
                 onChange={(_, newPage) => setPage(newPage)}
@@ -897,11 +964,14 @@ export function ProfilesPage() {
                   '& .MuiPaginationItem-root': {
                     color: 'rgba(255, 255, 255, 0.7)',
                     '&.Mui-selected': {
-                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      backgroundColor: '#6366f1',
                       color: '#ffffff',
+                      '&:hover': {
+                        backgroundColor: '#5856eb',
+                      },
                     },
                     '&:hover': {
-                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
                     },
                   },
                 }}
@@ -930,25 +1000,44 @@ export function ProfilesPage() {
           setDeleteDialogOpen(false);
           setSelectedProfile(null);
         }}
-        PaperProps={dialogPaperProps}
+        PaperProps={{
+          ...dialogPaperProps,
+          sx: {
+            ...dialogPaperProps.sx,
+            borderRadius: '16px',
+          },
+        }}
       >
-        <DialogTitle sx={{ color: '#ffffff' }}>Удаление профиля</DialogTitle>
-        <DialogContent>
-          <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+        <Box sx={{ ...dialogTitleStyles, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
+            Удаление профиля
+          </Typography>
+        </Box>
+        <DialogContent sx={{ ...dialogContentStyles, pt: 3 }}>
+          <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 2 }}>
             Вы уверены, что хотите удалить профиль &quot;{selectedProfile?.name}&quot;?
-            <br />
-            <br />
+          </Typography>
+          <Typography sx={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.875rem' }}>
             Это действие нельзя отменить. Профиль и все связанные данные будут удалены.
           </Typography>
           {deleteMutation.isError && (
-            <Alert severity="error" sx={{ mt: 2 }}>
+            <Alert 
+              severity="error" 
+              sx={{ 
+                mt: 2,
+                borderRadius: '12px',
+                backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                color: '#f44336',
+                border: '1px solid rgba(244, 67, 54, 0.2)',
+              }}
+            >
               {deleteMutation.error instanceof Error
                 ? deleteMutation.error.message
                 : 'Произошла ошибка при удалении профиля'}
             </Alert>
           )}
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={dialogActionsStyles}>
           <CancelButton
             onClick={() => {
               setDeleteDialogOpen(false);
@@ -961,10 +1050,15 @@ export function ProfilesPage() {
           <StyledButton
             onClick={handleConfirmDelete}
             disabled={deleteMutation.isPending}
-            color="error"
-            variant="contained"
+            sx={{
+              backgroundColor: '#f44336',
+              color: '#fff',
+              '&:hover': {
+                backgroundColor: '#d32f2f',
+              },
+            }}
           >
-            {deleteMutation.isPending ? <CircularProgress size={20} /> : 'Удалить'}
+            {deleteMutation.isPending ? <CircularProgress size={LOADING_ICON_SIZE} color="inherit" /> : 'Удалить'}
           </StyledButton>
         </DialogActions>
       </Dialog>

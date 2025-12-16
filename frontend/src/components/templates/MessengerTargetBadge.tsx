@@ -12,29 +12,44 @@ interface MessengerTargetBadgeProps extends Omit<ChipProps, 'label'> {
 }
 
 const WhatsAppChip = styled(Chip)({
-  backgroundColor: 'rgba(37, 211, 102, 0.15)',
-  color: '#25D366',
-  borderColor: '#25D366',
+  backgroundColor: 'rgba(37, 211, 102, 0.18)',
+  color: '#4ade80',
+  borderColor: 'rgba(37, 211, 102, 0.4)',
+  fontSize: '0.75rem',
+  height: '24px',
   '& .MuiChip-icon': {
-    color: '#25D366',
+    color: '#4ade80',
+  },
+  '& .MuiChip-label': {
+    padding: '0 8px',
   },
 });
 
 const TelegramChip = styled(Chip)({
-  backgroundColor: 'rgba(36, 161, 222, 0.15)',
-  color: '#24A1DE',
-  borderColor: '#24A1DE',
+  backgroundColor: 'rgba(36, 161, 222, 0.18)',
+  color: '#60a5fa',
+  borderColor: 'rgba(36, 161, 222, 0.4)',
+  fontSize: '0.75rem',
+  height: '24px',
   '& .MuiChip-icon': {
-    color: '#24A1DE',
+    color: '#60a5fa',
+  },
+  '& .MuiChip-label': {
+    padding: '0 8px',
   },
 });
 
 const UniversalChip = styled(Chip)({
-  backgroundColor: 'rgba(156, 39, 176, 0.15)',
-  color: '#9C27B0',
-  borderColor: '#9C27B0',
+  backgroundColor: 'rgba(156, 39, 176, 0.18)',
+  color: '#c084fc',
+  borderColor: 'rgba(156, 39, 176, 0.4)',
+  fontSize: '0.75rem',
+  height: '24px',
   '& .MuiChip-icon': {
-    color: '#9C27B0',
+    color: '#c084fc',
+  },
+  '& .MuiChip-label': {
+    padding: '0 8px',
   },
 });
 
@@ -68,5 +83,6 @@ export function MessengerTargetBadge({ target, size = 'small', ...props }: Messe
 }
 
 export default MessengerTargetBadge;
+
 
 

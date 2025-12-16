@@ -1,5 +1,6 @@
 import React from 'react';
-import { Grid, TextField, FormControlLabel, Switch } from '@mui/material';
+import { Grid, FormControlLabel, Switch, Typography } from '@mui/material';
+import { StyledTextField } from '@/components/common';
 import type { UpdateGlobalSettingsInput } from '@/types/campaign';
 
 type OnChange = <K extends keyof UpdateGlobalSettingsInput>(key: K, value: UpdateGlobalSettingsInput[K]) => void;
@@ -18,13 +19,21 @@ export function WarmupForm({ form, onChange }: Props) {
             <Switch
               checked={form.warmupEnabled ?? false}
               onChange={(_, checked) => onChange('warmupEnabled', checked)}
+              sx={{
+                '& .MuiSwitch-switchBase.Mui-checked': {
+                  color: '#6366f1',
+                },
+                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                  backgroundColor: '#6366f1',
+                },
+              }}
             />
           }
-          label="Прогрев профилей"
+          label={<Typography sx={{ color: '#f5f5f5' }}>Прогрев профилей</Typography>}
         />
       </Grid>
       <Grid item xs={12} md={4}>
-        <TextField
+        <StyledTextField
           label="Лимит прогрева день 1-3"
           type="number"
           fullWidth
@@ -33,7 +42,7 @@ export function WarmupForm({ form, onChange }: Props) {
         />
       </Grid>
       <Grid item xs={12} md={4}>
-        <TextField
+        <StyledTextField
           label="Лимит прогрева день 4-7"
           type="number"
           fullWidth
@@ -46,5 +55,6 @@ export function WarmupForm({ form, onChange }: Props) {
 }
 
 export default WarmupForm;
+
 
 

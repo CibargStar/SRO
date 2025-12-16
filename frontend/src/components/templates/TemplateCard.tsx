@@ -6,7 +6,6 @@ import React from 'react';
 import {
   Card,
   CardContent,
-  CardActions,
   Typography,
   Box,
   IconButton,
@@ -20,7 +19,6 @@ import {
   ContentCopy as DuplicateIcon,
   Visibility as PreviewIcon,
   DriveFileMove as MoveIcon,
-  AttachFile as FileIcon,
 } from '@mui/icons-material';
 import { TemplateTypeBadge } from './TemplateTypeBadge';
 import { MessengerTargetBadge } from './MessengerTargetBadge';
@@ -36,29 +34,34 @@ interface TemplateCardProps {
 }
 
 const StyledCard = styled(Card)(({ theme }) => ({
-  backgroundColor: 'rgba(30, 30, 30, 0.9)',
-  border: '1px solid rgba(255, 255, 255, 0.1)',
-  borderRadius: 12,
-  transition: 'all 0.2s ease-in-out',
+  backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  border: 'none',
+  borderRadius: '16px',
+  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+  height: '100%',
+  display: 'flex',
+  flexDirection: 'column',
   '&:hover': {
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    transform: 'translateY(-2px)',
-    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    transform: 'translateY(-4px)',
+    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)',
   },
 }));
 
 const StyledCardContent = styled(CardContent)({
-  paddingBottom: 8,
-});
-
-const StyledCardActions = styled(CardActions)({
-  padding: '8px 16px',
-  borderTop: '1px solid rgba(255, 255, 255, 0.05)',
-  justifyContent: 'space-between',
+  padding: '20px',
+  flex: 1,
+  display: 'flex',
+  flexDirection: 'column',
+  '&:last-child': {
+    paddingBottom: '20px',
+  },
 });
 
 const ActionButton = styled(IconButton)(({ theme }) => ({
-  color: 'rgba(255, 255, 255, 0.6)',
+  color: 'rgba(255, 255, 255, 0.7)',
+  padding: '8px',
+  transition: 'all 0.2s ease',
   '&:hover': {
     color: '#fff',
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
@@ -73,22 +76,20 @@ export function TemplateCard({
   onPreview,
   onMove,
 }: TemplateCardProps) {
-  const itemsCount = template._count?.items ?? template.items?.length ?? 0;
-
   return (
     <StyledCard>
       <StyledCardContent>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
+        {/* Header with title and badge */}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
           <Typography
             variant="h6"
             sx={{
-              color: '#fff',
+              color: '#f5f5f5',
               fontWeight: 500,
-              fontSize: '1rem',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              maxWidth: '70%',
+              fontSize: '1.1rem',
+              lineHeight: 1.3,
+              flex: 1,
+              pr: 1,
             }}
           >
             {template.name}
@@ -96,100 +97,104 @@ export function TemplateCard({
           <TemplateTypeBadge type={template.type} />
         </Box>
 
+        {/* Description */}
         {template.description && (
           <Typography
             variant="body2"
             sx={{
-              color: 'rgba(255, 255, 255, 0.6)',
-              mb: 1.5,
+              color: 'rgba(255, 255, 255, 0.7)',
+              mb: 2,
               display: '-webkit-box',
               WebkitLineClamp: 2,
               WebkitBoxOrient: 'vertical',
               overflow: 'hidden',
-              minHeight: 40,
+              lineHeight: 1.5,
+              fontSize: '0.875rem',
             }}
           >
             {template.description}
           </Typography>
         )}
 
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1.5 }}>
-          <MessengerTargetBadge target={template.messengerTarget} />
-          
-          {itemsCount > 0 && (
-            <Tooltip title={`${itemsCount} элемент${itemsCount === 1 ? '' : itemsCount < 5 ? 'а' : 'ов'}`}>
-              <Box sx={{ display: 'flex', alignItems: 'center', color: 'rgba(255, 255, 255, 0.5)' }}>
-                <FileIcon sx={{ fontSize: 16, mr: 0.5 }} />
-                <Typography variant="caption">{itemsCount}</Typography>
-              </Box>
-            </Tooltip>
-          )}
+        {/* Footer with badges and actions */}
+        <Box sx={{ mt: 'auto', pt: 2 }}>
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ mb: 1.5 }}>
+            <MessengerTargetBadge target={template.messengerTarget} />
+            {template.category && (
+              <Typography
+                variant="caption"
+                sx={{
+                  color: 'rgba(255, 255, 255, 0.6)',
+                  fontSize: '0.75rem',
+                }}
+              >
+                {template.category.name}
+              </Typography>
+            )}
+          </Stack>
 
-          {template.category && (
-            <Typography
-              variant="caption"
-              sx={{
-                color: 'rgba(255, 255, 255, 0.4)',
-                backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                px: 1,
-                py: 0.25,
-                borderRadius: 1,
-              }}
-            >
-              {template.category.name}
-            </Typography>
-          )}
-        </Stack>
-      </StyledCardContent>
-
-      <StyledCardActions>
-        <Box>
-          {onPreview && (
-            <Tooltip title="Предпросмотр">
-              <ActionButton size="small" onClick={() => onPreview(template)}>
-                <PreviewIcon fontSize="small" />
-              </ActionButton>
-            </Tooltip>
-          )}
-          {onEdit && (
-            <Tooltip title="Редактировать">
-              <ActionButton size="small" onClick={() => onEdit(template)}>
-                <EditIcon fontSize="small" />
-              </ActionButton>
-            </Tooltip>
-          )}
-          {onDuplicate && (
-            <Tooltip title="Дублировать">
-              <ActionButton size="small" onClick={() => onDuplicate(template)}>
-                <DuplicateIcon fontSize="small" />
-              </ActionButton>
-            </Tooltip>
-          )}
-          {onMove && (
-            <Tooltip title="Переместить">
-              <ActionButton size="small" onClick={() => onMove(template)}>
-                <MoveIcon fontSize="small" />
-              </ActionButton>
-            </Tooltip>
-          )}
+          {/* Actions row */}
+          <Box
+            sx={{
+              display: 'flex',
+              gap: 0.5,
+              pt: 1.5,
+              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+            }}
+          >
+            {onPreview && (
+              <Tooltip title="Предпросмотр">
+                <ActionButton size="small" onClick={() => onPreview(template)}>
+                  <PreviewIcon fontSize="small" />
+                </ActionButton>
+              </Tooltip>
+            )}
+            {onEdit && (
+              <Tooltip title="Редактировать">
+                <ActionButton size="small" onClick={() => onEdit(template)}>
+                  <EditIcon fontSize="small" />
+                </ActionButton>
+              </Tooltip>
+            )}
+            {onDuplicate && (
+              <Tooltip title="Дублировать">
+                <ActionButton size="small" onClick={() => onDuplicate(template)}>
+                  <DuplicateIcon fontSize="small" />
+                </ActionButton>
+              </Tooltip>
+            )}
+            {onMove && (
+              <Tooltip title="Переместить">
+                <ActionButton size="small" onClick={() => onMove(template)}>
+                  <MoveIcon fontSize="small" />
+                </ActionButton>
+              </Tooltip>
+            )}
+            {onDelete && (
+              <Tooltip title="Удалить">
+                <ActionButton
+                  size="small"
+                  onClick={() => onDelete(template)}
+                  sx={{
+                    ml: 'auto',
+                    '&:hover': {
+                      color: '#f44336',
+                      backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                    },
+                  }}
+                >
+                  <DeleteIcon fontSize="small" />
+                </ActionButton>
+              </Tooltip>
+            )}
+          </Box>
         </Box>
-        
-        {onDelete && (
-          <Tooltip title="Удалить">
-            <ActionButton
-              size="small"
-              onClick={() => onDelete(template)}
-              sx={{ '&:hover': { color: '#f44336' } }}
-            >
-              <DeleteIcon fontSize="small" />
-            </ActionButton>
-          </Tooltip>
-        )}
-      </StyledCardActions>
+      </StyledCardContent>
     </StyledCard>
   );
 }
 
 export default TemplateCard;
+
 
 

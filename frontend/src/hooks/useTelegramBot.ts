@@ -21,7 +21,7 @@ const telegramKeys = {
 };
 
 export function useTelegramBotSettings() {
-  return useQuery<TelegramBotSettings, ApiError>({
+  return useQuery<TelegramBotSettings | null, ApiError>({
     queryKey: telegramKeys.settings,
     queryFn: getTelegramBotSettings,
   });

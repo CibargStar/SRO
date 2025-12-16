@@ -1,5 +1,6 @@
 import React from 'react';
-import { Grid, TextField } from '@mui/material';
+import { Grid } from '@mui/material';
+import { StyledTextField } from '@/components/common';
 import type { UpdateGlobalSettingsInput } from '@/types/campaign';
 
 type OnChange = <K extends keyof UpdateGlobalSettingsInput>(key: K, value: UpdateGlobalSettingsInput[K]) => void;
@@ -13,7 +14,7 @@ export function TimingsForm({ form, onChange }: Props) {
   return (
     <Grid container spacing={2}>
       <Grid item xs={12} md={6}>
-        <TextField
+        <StyledTextField
           label="Мин. задержка между контактами (мс)"
           type="number"
           fullWidth
@@ -22,7 +23,7 @@ export function TimingsForm({ form, onChange }: Props) {
         />
       </Grid>
       <Grid item xs={12} md={6}>
-        <TextField
+        <StyledTextField
           label="Макс. задержка между контактами (мс)"
           type="number"
           fullWidth
@@ -31,7 +32,7 @@ export function TimingsForm({ form, onChange }: Props) {
         />
       </Grid>
       <Grid item xs={12} md={6}>
-        <TextField
+        <StyledTextField
           label="Мин. задержка между сообщениями (мс)"
           type="number"
           fullWidth
@@ -40,7 +41,7 @@ export function TimingsForm({ form, onChange }: Props) {
         />
       </Grid>
       <Grid item xs={12} md={6}>
-        <TextField
+        <StyledTextField
           label="Макс. задержка между сообщениями (мс)"
           type="number"
           fullWidth
@@ -53,5 +54,6 @@ export function TimingsForm({ form, onChange }: Props) {
 }
 
 export default TimingsForm;
+
 
 

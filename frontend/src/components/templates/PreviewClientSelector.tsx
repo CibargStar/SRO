@@ -1,5 +1,6 @@
 import React from 'react';
-import { Box, Stack, TextField, Typography } from '@mui/material';
+import { Box, Stack } from '@mui/material';
+import { StyledTextField } from '@/components/common/FormStyles';
 
 export interface PreviewClientData {
   firstName?: string;
@@ -18,35 +19,34 @@ export function PreviewClientSelector({ value, onChange }: PreviewClientSelector
   };
 
   return (
-    <Box>
-      <Typography variant="subtitle2" sx={{ color: '#fff', mb: 1 }}>
-        Данные клиента для подстановки переменных
-      </Typography>
-      <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
-        <TextField
-          size="small"
-          label="Имя"
-          value={value.firstName || ''}
-          onChange={handleChange('firstName')}
-        />
-        <TextField
-          size="small"
-          label="Фамилия"
-          value={value.lastName || ''}
-          onChange={handleChange('lastName')}
-        />
-        <TextField
-          size="small"
-          label="Телефон"
-          value={value.phone || ''}
-          onChange={handleChange('phone')}
-        />
-      </Stack>
-    </Box>
+    <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
+      <StyledTextField
+        size="small"
+        label="Имя"
+        value={value.firstName || ''}
+        onChange={handleChange('firstName')}
+        sx={{ flex: '1 1 200px', minWidth: 150 }}
+      />
+      <StyledTextField
+        size="small"
+        label="Фамилия"
+        value={value.lastName || ''}
+        onChange={handleChange('lastName')}
+        sx={{ flex: '1 1 200px', minWidth: 150 }}
+      />
+      <StyledTextField
+        size="small"
+        label="Телефон"
+        value={value.phone || ''}
+        onChange={handleChange('phone')}
+        sx={{ flex: '1 1 200px', minWidth: 150 }}
+      />
+    </Stack>
   );
 }
 
 export default PreviewClientSelector;
+
 
 
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Dialog, DialogTitle, DialogContent, DialogActions, Typography, TextField, Button, CircularProgress, Alert } from '@mui/material';
-import { CancelButton } from '@/components/common';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Typography, CircularProgress, Alert, Box } from '@mui/material';
+import { CancelButton, StyledButton, StyledTextField } from '@/components/common';
+import { dialogPaperProps, dialogTitleStyles, dialogContentStyles, dialogActionsStyles } from '@/components/common/DialogStyles';
 import { useDuplicateTemplate } from '@/hooks/useTemplates';
 
 interface DuplicateTemplateDialogProps {
@@ -33,18 +34,31 @@ export function DuplicateTemplateDialog({ open, templateId, defaultName, onClose
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} PaperProps={{ sx: { backgroundColor: 'rgba(24,24,27,0.95)', borderRadius: 2 } }}>
-      <DialogTitle sx={{ color: '#fff' }}>Дублировать шаблон</DialogTitle>
-      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <Typography sx={{ color: 'rgba(255,255,255,0.7)' }}>
+    <Dialog open={open} onClose={handleClose} PaperProps={dialogPaperProps}>
+      <Box sx={dialogTitleStyles}>
+        <Typography sx={{ color: '#fff', fontSize: '1.25rem', fontWeight: 500 }}>
+          Дублировать шаблон
+        </Typography>
+      </Box>
+      <DialogContent sx={dialogContentStyles}>
+        <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 2 }}>
           Укажите имя для копии. Файлы и элементы будут перенесены.
         </Typography>
         {duplicate.isError && (
-          <Alert severity="error">
+          <Alert 
+            severity="error" 
+            sx={{ 
+              mb: 2,
+              borderRadius: '12px',
+              backgroundColor: 'rgba(244, 67, 54, 0.1)',
+              color: '#ffffff',
+              border: 'none',
+            }}
+          >
             {(duplicate.error as Error)?.message || 'Не удалось создать копию'}
           </Alert>
         )}
-        <TextField
+        <StyledTextField
           autoFocus
           label="Название"
           value={name}
@@ -52,17 +66,18 @@ export function DuplicateTemplateDialog({ open, templateId, defaultName, onClose
           fullWidth
         />
       </DialogContent>
-      <DialogActions sx={{ p: 2 }}>
-        <CancelButton onClick={handleClose}>Отмена</CancelButton>
-        <Button variant="contained" onClick={handleDuplicate} disabled={duplicate.isPending}>
+      <DialogActions sx={dialogActionsStyles}>
+        <CancelButton onClick={handleClose} disabled={duplicate.isPending}>Отмена</CancelButton>
+        <StyledButton onClick={handleDuplicate} disabled={duplicate.isPending}>
           {duplicate.isPending ? <CircularProgress size={18} color="inherit" /> : 'Создать копию'}
-        </Button>
+        </StyledButton>
       </DialogActions>
     </Dialog>
   );
 }
 
 export default DuplicateTemplateDialog;
+
 
 
 

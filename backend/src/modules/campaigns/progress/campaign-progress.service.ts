@@ -229,27 +229,42 @@ export class CampaignProgressService {
 
       // Обновляем счётчики профиля
       if (update.profileId) {
-        const campaignProfile = await this.prisma.campaignProfile.findUnique({
-          where: {
-            campaignId_profileId: { campaignId, profileId: update.profileId },
-          },
-        });
+        try {
+          const campaignProfile = await this.prisma.campaignProfile.findUnique({
+            where: {
+              campaignId_profileId: { campaignId, profileId: update.profileId },
+            },
+          });
 
-        if (campaignProfile) {
-          const profileUpdate: Record<string, { increment: number }> = {
-            processedCount: { increment: 1 },
-          };
+          if (campaignProfile) {
+            const profileUpdate: Record<string, { increment: number }> = {
+              processedCount: { increment: 1 },
+            };
 
-          if (update.successful) {
-            profileUpdate.successCount = { increment: 1 };
+            if (update.successful) {
+              profileUpdate.successCount = { increment: 1 };
+            }
+            if (update.failed) {
+              profileUpdate.failedCount = { increment: 1 };
+            }
+
+            await this.prisma.campaignProfile.update({
+              where: { id: campaignProfile.id },
+              data: profileUpdate,
+            });
+          } else {
+            // Логируем предупреждение, но не прерываем обновление прогресса кампании
+            logger.warn('Campaign profile not found for progress update', {
+              campaignId,
+              profileId: update.profileId,
+            });
           }
-          if (update.failed) {
-            profileUpdate.failedCount = { increment: 1 };
-          }
-
-          await this.prisma.campaignProfile.update({
-            where: { id: campaignProfile.id },
-            data: profileUpdate,
+        } catch (profileError) {
+          // Ошибка обновления профиля не должна прерывать обновление прогресса кампании
+          logger.error('Failed to update profile progress', {
+            error: profileError,
+            campaignId,
+            profileId: update.profileId,
           });
         }
       }
@@ -504,6 +519,7 @@ export class CampaignProgressService {
 
   /**
    * Проверка завершения кампании
+   * Проверяет не только количество обработанных контактов, но и что все сообщения действительно отправлены
    */
   async checkCompletion(campaignId: string): Promise<boolean> {
     try {
@@ -516,7 +532,76 @@ export class CampaignProgressService {
       const totalContacts = campaign.totalContacts ?? 0;
       const processedContacts = campaign.processedContacts ?? 0;
 
-      return processedContacts >= totalContacts;
+      // Базовая проверка по количеству обработанных контактов
+      if (processedContacts < totalContacts) {
+        return false;
+      }
+
+      // Дополнительная проверка: убеждаемся, что нет pending или processing сообщений
+      const pendingCount = await this.prisma.campaignMessage.count({
+        where: {
+          campaignId,
+          status: { in: ['PENDING', 'PROCESSING'] },
+        },
+      });
+
+      if (pendingCount > 0) {
+        logger.debug('Campaign not completed - pending messages exist', {
+          campaignId,
+          pendingCount,
+          processedContacts,
+          totalContacts,
+        });
+        return false;
+      }
+
+      // Проверяем, что количество отправленных сообщений соответствует ожидаемому
+      const sentCount = await this.prisma.campaignMessage.count({
+        where: {
+          campaignId,
+          status: 'SENT',
+        },
+      });
+
+      const failedCount = await this.prisma.campaignMessage.count({
+        where: {
+          campaignId,
+          status: 'FAILED',
+        },
+      });
+
+      const skippedCount = await this.prisma.campaignMessage.count({
+        where: {
+          campaignId,
+          status: 'SKIPPED',
+        },
+      });
+
+      const totalMessages = sentCount + failedCount + skippedCount;
+
+      // Если общее количество сообщений меньше ожидаемого, кампания еще не завершена
+      if (totalMessages < totalContacts) {
+        logger.debug('Campaign not completed - message count mismatch', {
+          campaignId,
+          totalMessages,
+          totalContacts,
+          sentCount,
+          failedCount,
+          skippedCount,
+        });
+        return false;
+      }
+
+      logger.info('Campaign completion verified', {
+        campaignId,
+        processedContacts,
+        totalContacts,
+        sentCount,
+        failedCount,
+        skippedCount,
+      });
+
+      return true;
     } catch (error) {
       logger.error('Failed to check campaign completion', { error, campaignId });
       return false;

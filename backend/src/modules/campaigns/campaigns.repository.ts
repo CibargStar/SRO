@@ -705,7 +705,7 @@ export class CampaignProfileRepository {
    */
   async findByCampaignId(campaignId: string): Promise<
     (CampaignProfile & {
-      profile: { id: string; name: string; status: string };
+      profile: { id: string; name: string; status: string; userId: string };
     })[]
   > {
     try {
@@ -713,7 +713,7 @@ export class CampaignProfileRepository {
         where: { campaignId },
         include: {
           profile: {
-            select: { id: true, name: true, status: true },
+            select: { id: true, name: true, status: true, userId: true },
           },
         },
       });
@@ -1020,7 +1020,16 @@ export class CampaignMessageRepository {
         take: limit,
         orderBy: { createdAt: 'asc' },
         include: {
-          client: true,
+          client: {
+            include: {
+              group: {
+                select: { name: true },
+              },
+              region: {
+                select: { name: true },
+              },
+            },
+          },
           clientPhone: true,
         },
       });

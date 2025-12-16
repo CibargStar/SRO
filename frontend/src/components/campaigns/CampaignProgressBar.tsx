@@ -15,7 +15,7 @@ import {
 import type { CampaignProgress } from '@/types/campaign';
 
 interface CampaignProgressBarProps {
-  progress: CampaignProgress;
+  progress?: CampaignProgress | null;
   showDetails?: boolean;
 }
 
@@ -40,16 +40,17 @@ export function CampaignProgressBar({
   progress,
   showDetails = true,
 }: CampaignProgressBarProps) {
+  // Значения по умолчанию, если progress не передан
   const {
-    totalContacts,
-    processedContacts,
-    successfulContacts,
-    failedContacts,
-    skippedContacts,
-    progressPercent,
-    contactsPerMinute,
-    estimatedSecondsRemaining,
-  } = progress;
+    totalContacts = 0,
+    processedContacts = 0,
+    successfulContacts = 0,
+    failedContacts = 0,
+    skippedContacts = 0,
+    progressPercent = 0,
+    contactsPerMinute = 0,
+    estimatedSecondsRemaining = null,
+  } = progress || {};
 
   return (
     <Box>
@@ -175,5 +176,6 @@ export function CampaignProgressBar({
     </Box>
   );
 }
+
 
 

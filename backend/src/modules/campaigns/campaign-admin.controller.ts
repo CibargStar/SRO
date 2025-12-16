@@ -14,7 +14,7 @@ import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../../middleware/auth';
 import { CampaignSettingsService, CampaignSettingsRepository } from '../campaign-settings';
 import { UserCampaignLimitsService } from '../user-campaign-limits';
-import { getCampaignExecutorService } from './executor';
+import { getCampaignExecutorService, CampaignExecutorService } from './executor';
 import prisma from '../../config/database';
 import logger from '../../config/logger';
 import { z } from 'zod';
@@ -282,7 +282,10 @@ export class CampaignAdminController {
   ): Promise<void> => {
     try {
       const { campaignId } = campaignIdParamSchema.parse(req.params);
-      const executorService = getCampaignExecutorService(prisma);
+      const executorServiceUnknown: unknown = req.app.get('campaignExecutor');
+      const executorService = (executorServiceUnknown instanceof CampaignExecutorService 
+        ? executorServiceUnknown 
+        : getCampaignExecutorService(prisma));
 
       await executorService.cancelCampaign(campaignId);
 

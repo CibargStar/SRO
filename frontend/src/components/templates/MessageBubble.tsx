@@ -17,18 +17,33 @@ export function MessageBubble({ type, content, fileUrl, fileName, fileType }: Me
   return (
     <Box
       sx={{
-        maxWidth: '80%',
+        maxWidth: '85%',
         alignSelf: 'flex-start',
-        backgroundColor: isText ? 'rgba(99, 102, 241, 0.12)' : 'rgba(255, 255, 255, 0.05)',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
-        borderRadius: 2,
-        p: 1.5,
-        color: '#fff',
+        backgroundColor: isText ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255, 255, 255, 0.06)',
+        borderRadius: '12px',
+        p: 2,
+        color: '#f5f5f5',
+        transition: 'all 0.2s ease',
+        '&:hover': {
+          backgroundColor: isText ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+        },
       }}
     >
       {isText ? (
-        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-          {content || 'Пустое сообщение'}
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            whiteSpace: 'pre-wrap',
+            color: '#f5f5f5',
+            lineHeight: 1.6,
+            fontSize: '0.875rem',
+          }}
+        >
+          {content || (
+            <Box component="span" sx={{ color: 'rgba(255, 255, 255, 0.5)', fontStyle: 'italic' }}>
+              Пустое сообщение
+            </Box>
+          )}
         </Typography>
       ) : fileUrl ? (
         <FileThumbnail
@@ -40,7 +55,13 @@ export function MessageBubble({ type, content, fileUrl, fileName, fileType }: Me
           compact
         />
       ) : (
-        <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            color: 'rgba(255, 255, 255, 0.6)',
+            fontStyle: 'italic',
+          }}
+        >
           Файл не загружен
         </Typography>
       )}
@@ -49,6 +70,7 @@ export function MessageBubble({ type, content, fileUrl, fileName, fileType }: Me
 }
 
 export default MessageBubble;
+
 
 
 

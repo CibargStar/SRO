@@ -152,7 +152,10 @@ export function useUpdateProfile() {
     mutationFn: ({ profileId, profileData }: { profileId: string; profileData: UpdateProfileInput }) =>
       updateProfile(profileId, profileData),
     onSuccess: (updatedProfile: Profile) => {
-      console.log('[useUpdateProfile] Profile updated, updating cache:', updatedProfile);
+      // Логирование для отладки (можно удалить в продакшене)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[useUpdateProfile] Profile updated, updating cache:', updatedProfile);
+      }
       
       // Обновляем кэш конкретного профиля
       queryClient.setQueryData(profilesKeys.detail(updatedProfile.id), updatedProfile);
@@ -173,11 +176,14 @@ export function useUpdateProfile() {
             ),
           };
           
-          console.log('[useUpdateProfile] Updated list cache:', {
-            oldHeadless: oldData.data.find(p => p.id === updatedProfile.id)?.headless,
-            newHeadless: updatedProfile.headless,
-            updatedData,
-          });
+          // Логирование для отладки (можно удалить в продакшене)
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[useUpdateProfile] Updated list cache:', {
+              oldHeadless: oldData.data.find(p => p.id === updatedProfile.id)?.headless,
+              newHeadless: updatedProfile.headless,
+              updatedData,
+            });
+          }
           
           return updatedData;
         }

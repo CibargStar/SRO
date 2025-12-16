@@ -1,5 +1,6 @@
 import React from 'react';
-import { Grid, TextField, FormControlLabel, Switch } from '@mui/material';
+import { Grid, FormControlLabel, Switch, Typography } from '@mui/material';
+import { StyledTextField } from '@/components/common';
 import type { UpdateGlobalSettingsInput } from '@/types/campaign';
 
 type OnChange = <K extends keyof UpdateGlobalSettingsInput>(key: K, value: UpdateGlobalSettingsInput[K]) => void;
@@ -18,13 +19,21 @@ export function TypingSimulationForm({ form, onChange }: Props) {
             <Switch
               checked={form.typingSimulationEnabled ?? false}
               onChange={(_, checked) => onChange('typingSimulationEnabled', checked)}
+              sx={{
+                '& .MuiSwitch-switchBase.Mui-checked': {
+                  color: '#6366f1',
+                },
+                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                  backgroundColor: '#6366f1',
+                },
+              }}
             />
           }
-          label="Имитация набора"
+          label={<Typography sx={{ color: '#f5f5f5' }}>Имитация набора</Typography>}
         />
       </Grid>
       <Grid item xs={12} md={6}>
-        <TextField
+        <StyledTextField
           label="Скорость набора (симв/сек)"
           type="number"
           fullWidth
@@ -37,5 +46,6 @@ export function TypingSimulationForm({ form, onChange }: Props) {
 }
 
 export default TypingSimulationForm;
+
 
 

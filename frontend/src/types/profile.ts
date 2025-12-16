@@ -25,6 +25,7 @@ export interface Profile {
   lastActiveAt: string | null;
   campaignUsageCount?: number;
   isInCampaign?: boolean;
+  isAvailable?: boolean; // Доступность профиля для использования (вычисляется на frontend или в campaigns модуле)
 }
 
 /**
@@ -36,6 +37,8 @@ export interface ListProfilesQuery {
   status?: ProfileStatus;
   sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'status' | 'lastActiveAt';
   sortOrder?: 'asc' | 'desc';
+  isInCampaign?: boolean; // Фильтр по использованию в кампаниях
+  search?: string; // Поиск по названию/описанию (не поддерживается backend, используется только на frontend)
 }
 
 /**

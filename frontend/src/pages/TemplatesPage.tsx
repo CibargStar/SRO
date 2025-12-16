@@ -38,7 +38,7 @@ import {
 } from '@mui/material';
 import { StyledSelect, MenuProps, selectInputLabelStyles } from '@/components/common/SelectStyles';
 import { StyledButton, StyledTextField, CancelButton } from '@/components/common/FormStyles';
-import { dialogPaperProps } from '@/components/common/DialogStyles';
+import { dialogPaperProps, dialogTitleStyles, dialogContentStyles, dialogActionsStyles } from '@/components/common/DialogStyles';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import EditIcon from '@mui/icons-material/Edit';
@@ -57,7 +57,6 @@ import {
 import {
   TemplateCard,
   CreateCategoryDialog,
-  CreateTemplateDialog,
   EditCategoryDialog,
   DeleteTemplateDialog,
   DuplicateTemplateDialog,
@@ -80,7 +79,6 @@ export function TemplatesPage() {
   
   // Dialogs
   const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
-  const [createTemplateOpen, setCreateTemplateOpen] = useState(false);
   const [editCategory, setEditCategory] = useState<TemplateCategory | null>(null);
   const [deleteTemplateId, setDeleteTemplateId] = useState<string | null>(null);
   const [deleteCategoryId, setDeleteCategoryId] = useState<string | null>(null);
@@ -120,13 +118,19 @@ export function TemplatesPage() {
   };
 
   const handleTypeFilter = (e: React.ChangeEvent<{ value: unknown }>) => {
-    setTypeFilter(e.target.value as TemplateType | '');
-    setPage(1);
+    const value = e.target.value;
+    if (value === '' || value === 'SINGLE' || value === 'MULTI') {
+      setTypeFilter(value as TemplateType | '');
+      setPage(1);
+    }
   };
 
   const handleMessengerFilter = (e: React.ChangeEvent<{ value: unknown }>) => {
-    setMessengerFilter(e.target.value as MessengerTarget | '');
-    setPage(1);
+    const value = e.target.value;
+    if (value === '' || value === 'WHATSAPP_ONLY' || value === 'TELEGRAM_ONLY' || value === 'UNIVERSAL') {
+      setMessengerFilter(value as MessengerTarget | '');
+      setPage(1);
+    }
   };
 
   const handleEditTemplate = (template: Template) => {
@@ -151,7 +155,8 @@ export function TemplatesPage() {
       await deleteTemplateMutation.mutateAsync(deleteTemplateId);
       setDeleteTemplateId(null);
     } catch (error) {
-      // Error handled by mutation
+      // Error will be shown via mutation error state
+      console.error('Failed to delete template:', error);
     }
   };
 
@@ -168,72 +173,109 @@ export function TemplatesPage() {
     }
   };
 
-  const handleTemplateCreated = (templateId: string) => {
-    navigate(`/templates/${templateId}/edit`);
-  };
 
   // Calculate counts
   const allTemplatesCount = templatesData?.pagination.total ?? 0;
-  const uncategorizedCount = categories?.reduce((acc, cat) => acc - (cat._count?.templates ?? 0), allTemplatesCount) ?? 0;
+  const categorizedCount = categories?.reduce((acc, cat) => acc + (cat._count?.templates ?? 0), 0) ?? 0;
+  const uncategorizedCount = Math.max(0, allTemplatesCount - categorizedCount);
 
   return (
-    <Box sx={{ display: 'flex', height: '100%', gap: 3 }}>
-      {/* Sidebar - Categories */}
-      <Paper
-        sx={{
-          width: 280,
-          flexShrink: 0,
-          backgroundColor: 'rgba(30, 30, 30, 0.6)',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          borderRadius: 2,
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
-        <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="subtitle1" sx={{ color: '#fff', fontWeight: 500 }}>
+    <Box
+      sx={{
+        width: '100%',
+        overflowY: 'auto',
+        '&::-webkit-scrollbar': {
+          display: 'none',
+          width: 0,
+          height: 0,
+        },
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none',
+        '& *': {
+          '&::-webkit-scrollbar': {
+            display: 'none',
+            width: 0,
+            height: 0,
+          },
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        },
+      }}
+    >
+      <Box sx={{ display: 'flex', gap: 3, height: '100%' }}>
+        {/* Sidebar - Categories */}
+        <Paper
+          sx={{
+            width: 280,
+            flexShrink: 0,
+            backgroundColor: 'rgba(255, 255, 255, 0.06)',
+            border: 'none',
+            borderRadius: '16px',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+        <Box sx={{ p: 2.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="subtitle1" sx={{ color: '#f5f5f5', fontWeight: 500, fontSize: '0.95rem' }}>
             Категории
           </Typography>
           <Tooltip title="Создать категорию">
             <IconButton
               size="small"
               onClick={() => setCreateCategoryOpen(true)}
-              sx={{ color: 'rgba(255, 255, 255, 0.6)' }}
+              sx={{ 
+                color: 'rgba(255, 255, 255, 0.7)',
+                '&:hover': {
+                  color: '#fff',
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                },
+              }}
             >
               <CreateNewFolderIcon fontSize="small" />
             </IconButton>
           </Tooltip>
         </Box>
         
-        <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.1)' }} />
+        <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.08)' }} />
         
-        <List sx={{ flex: 1, overflow: 'auto', py: 1 }}>
+        <List sx={{ flex: 1, overflow: 'auto', py: 1.5 }}>
           {/* All templates */}
           <ListItem disablePadding>
             <ListItemButton
               selected={selectedCategoryId === null}
               onClick={() => handleCategorySelect(null)}
               sx={{
+                mx: 1,
+                borderRadius: '10px',
                 '&.Mui-selected': {
-                  backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                  backgroundColor: 'rgba(99, 102, 241, 0.2)',
                   '&:hover': {
-                    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                    backgroundColor: 'rgba(99, 102, 241, 0.25)',
                   },
                 },
                 '&:hover': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
                 },
               }}
             >
               <ListItemIcon sx={{ minWidth: 40 }}>
-                <AllInboxIcon sx={{ color: selectedCategoryId === null ? '#6366f1' : 'rgba(255, 255, 255, 0.5)' }} />
+                <AllInboxIcon sx={{ color: selectedCategoryId === null ? '#6366f1' : 'rgba(255, 255, 255, 0.6)' }} />
               </ListItemIcon>
               <ListItemText
                 primary="Все шаблоны"
-                sx={{ '& .MuiListItemText-primary': { color: '#fff' } }}
+                sx={{ '& .MuiListItemText-primary': { color: '#f5f5f5', fontSize: '0.9rem' } }}
               />
-              <Chip label={allTemplatesCount} size="small" sx={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', color: '#fff' }} />
+              <Chip 
+                label={allTemplatesCount} 
+                size="small" 
+                sx={{ 
+                  backgroundColor: 'rgba(255, 255, 255, 0.12)', 
+                  color: '#f5f5f5',
+                  height: '22px',
+                  fontSize: '0.75rem',
+                }} 
+              />
             </ListItemButton>
           </ListItem>
 
@@ -255,7 +297,13 @@ export function TemplatesPage() {
                           e.stopPropagation();
                           setEditCategory(category);
                         }}
-                        sx={{ color: 'rgba(255, 255, 255, 0.5)', '&:hover': { color: '#fff' } }}
+                        sx={{ 
+                          color: 'rgba(255, 255, 255, 0.6)', 
+                          '&:hover': { 
+                            color: '#fff',
+                            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                          } 
+                        }}
                       >
                         <EditIcon fontSize="small" />
                       </IconButton>
@@ -267,7 +315,13 @@ export function TemplatesPage() {
                           e.stopPropagation();
                           setDeleteCategoryId(category.id);
                         }}
-                        sx={{ color: 'rgba(255, 255, 255, 0.3)', '&:hover': { color: '#f44336' } }}
+                        sx={{ 
+                          color: 'rgba(255, 255, 255, 0.5)', 
+                          '&:hover': { 
+                            color: '#f44336',
+                            backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                          } 
+                        }}
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -279,14 +333,16 @@ export function TemplatesPage() {
                   selected={selectedCategoryId === category.id}
                   onClick={() => handleCategorySelect(category.id)}
                   sx={{
+                    mx: 1,
+                    borderRadius: '10px',
                     '&.Mui-selected': {
-                      backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                      backgroundColor: 'rgba(99, 102, 241, 0.2)',
                       '&:hover': {
-                        backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                        backgroundColor: 'rgba(99, 102, 241, 0.25)',
                       },
                     },
                     '&:hover': {
-                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                      backgroundColor: 'rgba(255, 255, 255, 0.08)',
                     },
                   }}
                 >
@@ -294,17 +350,23 @@ export function TemplatesPage() {
                     {selectedCategoryId === category.id ? (
                       <FolderOpenIcon sx={{ color: category.color || '#6366f1' }} />
                     ) : (
-                      <FolderIcon sx={{ color: category.color || 'rgba(255, 255, 255, 0.5)' }} />
+                      <FolderIcon sx={{ color: category.color || 'rgba(255, 255, 255, 0.6)' }} />
                     )}
                   </ListItemIcon>
                   <ListItemText
                     primary={category.name}
-                    sx={{ '& .MuiListItemText-primary': { color: '#fff' } }}
+                    sx={{ '& .MuiListItemText-primary': { color: '#f5f5f5', fontSize: '0.9rem' } }}
                   />
                   <Chip
                     label={category._count?.templates ?? 0}
                     size="small"
-                    sx={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', color: '#fff', mr: 4 }}
+                    sx={{ 
+                      backgroundColor: 'rgba(255, 255, 255, 0.12)', 
+                      color: '#f5f5f5', 
+                      mr: 4,
+                      height: '22px',
+                      fontSize: '0.75rem',
+                    }}
                   />
                 </ListItemButton>
               </ListItem>
@@ -313,21 +375,21 @@ export function TemplatesPage() {
         </List>
       </Paper>
 
-      {/* Main Content */}
-      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        {/* Header */}
-        <Box sx={{ mb: 3 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h4" sx={{ fontWeight: 600, color: '#ffffff' }}>
-              Шаблоны сообщений
-            </Typography>
-            <StyledButton
-              startIcon={<AddIcon />}
-              onClick={() => setCreateTemplateOpen(true)}
-            >
-              Создать шаблон
-            </StyledButton>
-          </Box>
+        {/* Main Content */}
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          {/* Header */}
+          <Box sx={{ mb: 3 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2.5 }}>
+              <Typography variant="h4" component="h1" sx={{ color: '#f5f5f5', fontWeight: 500, fontSize: '1.75rem' }}>
+                Шаблоны
+              </Typography>
+              <StyledButton
+                startIcon={<AddIcon />}
+                onClick={() => navigate('/templates/create')}
+              >
+                Создать шаблон
+              </StyledButton>
+            </Box>
 
           {/* Filters */}
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
@@ -336,11 +398,11 @@ export function TemplatesPage() {
               value={searchQuery}
               onChange={handleSearch}
               size="small"
-              sx={{ width: 300 }}
+              sx={{ width: 320, flexShrink: 0 }}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
-                    <SearchIcon sx={{ color: 'rgba(255, 255, 255, 0.5)' }} />
+                    <SearchIcon sx={{ color: 'rgba(255, 255, 255, 0.6)' }} />
                   </InputAdornment>
                 ),
               }}
@@ -351,7 +413,7 @@ export function TemplatesPage() {
               <StyledSelect
                 value={typeFilter}
                 label="Тип"
-                onChange={handleTypeFilter as any}
+                onChange={handleTypeFilter}
                 MenuProps={MenuProps}
               >
                 <MenuItem value="">Все</MenuItem>
@@ -365,7 +427,7 @@ export function TemplatesPage() {
               <StyledSelect
                 value={messengerFilter}
                 label="Мессенджер"
-                onChange={handleMessengerFilter as any}
+                onChange={handleMessengerFilter}
                 MenuProps={MenuProps}
               >
                 <MenuItem value="">Все</MenuItem>
@@ -383,23 +445,32 @@ export function TemplatesPage() {
             <CircularProgress />
           </Box>
         ) : templatesError ? (
-          <Alert severity="error" sx={{ mb: 2 }}>
+          <Alert 
+            severity="error" 
+            sx={{ 
+              mb: 2,
+              borderRadius: '12px',
+              backgroundColor: 'rgba(244, 67, 54, 0.1)',
+              color: '#f44336',
+              border: '1px solid rgba(244, 67, 54, 0.2)',
+            }}
+          >
             {(templatesError as Error)?.message || 'Ошибка загрузки шаблонов'}
           </Alert>
         ) : templatesData?.data.length === 0 ? (
-          <Box sx={{ textAlign: 'center', py: 8 }}>
-            <Typography variant="h6" sx={{ color: 'rgba(255, 255, 255, 0.5)', mb: 2 }}>
+          <Box sx={{ textAlign: 'center', py: 10 }}>
+            <Typography variant="h6" sx={{ color: 'rgba(255, 255, 255, 0.8)', mb: 1.5, fontWeight: 400 }}>
               Шаблоны не найдены
             </Typography>
-            <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.3)', mb: 3 }}>
+            <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.6)', mb: 3 }}>
               {searchQuery || typeFilter || messengerFilter || selectedCategoryId
                 ? 'Попробуйте изменить параметры поиска'
                 : 'Создайте первый шаблон для начала работы'}
             </Typography>
-            {!searchQuery && !typeFilter && !messengerFilter && (
+            {!searchQuery && !typeFilter && !messengerFilter && !selectedCategoryId && (
               <StyledButton
                 startIcon={<AddIcon />}
-                onClick={() => setCreateTemplateOpen(true)}
+                onClick={() => navigate('/templates/create')}
               >
                 Создать шаблон
               </StyledButton>
@@ -424,7 +495,7 @@ export function TemplatesPage() {
 
             {/* Pagination */}
             {templatesData && templatesData.pagination.totalPages > 1 && (
-              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
                 <Pagination
                   count={templatesData.pagination.totalPages}
                   page={page}
@@ -432,9 +503,16 @@ export function TemplatesPage() {
                   color="primary"
                   sx={{
                     '& .MuiPaginationItem-root': {
-                      color: '#ffffff',
+                      color: 'rgba(255, 255, 255, 0.7)',
                       '&.Mui-selected': {
                         backgroundColor: '#6366f1',
+                        color: '#ffffff',
+                        '&:hover': {
+                          backgroundColor: '#5856eb',
+                        },
+                      },
+                      '&:hover': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
                       },
                     },
                   }}
@@ -451,13 +529,6 @@ export function TemplatesPage() {
         onClose={() => setCreateCategoryOpen(false)}
       />
 
-      <CreateTemplateDialog
-        open={createTemplateOpen}
-        onClose={() => setCreateTemplateOpen(false)}
-        defaultCategoryId={selectedCategoryId}
-        onSuccess={handleTemplateCreated}
-      />
-
       <EditCategoryDialog
         open={!!editCategory}
         category={editCategory}
@@ -468,9 +539,13 @@ export function TemplatesPage() {
       <DeleteTemplateDialog
         open={!!deleteTemplateId}
         templateName={templatesData?.data.find((t) => t.id === deleteTemplateId)?.name}
-        onClose={() => setDeleteTemplateId(null)}
+        onClose={() => {
+          setDeleteTemplateId(null);
+          deleteTemplateMutation.reset();
+        }}
         onConfirm={handleDeleteTemplate}
         isLoading={deleteTemplateMutation.isPending}
+        error={deleteTemplateMutation.error as Error | null}
       />
 
       <DuplicateTemplateDialog
@@ -494,37 +569,39 @@ export function TemplatesPage() {
         onClose={() => setPreviewTemplate(null)}
       />
 
-      {/* Delete Category Confirmation */}
-      <Dialog
-        open={!!deleteCategoryId}
-        onClose={() => setDeleteCategoryId(null)}
-        PaperProps={dialogPaperProps}
-      >
-        <DialogTitle sx={{ color: '#fff' }}>Удаление категории</DialogTitle>
-        <DialogContent>
-          <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-            Вы уверены, что хотите удалить эту категорию?
-            Шаблоны в этой категории будут перемещены в "Без категории".
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <CancelButton onClick={() => setDeleteCategoryId(null)}>
-            Отмена
-          </CancelButton>
-          <Button
-            onClick={handleDeleteCategory}
-            color="error"
-            variant="contained"
-            disabled={deleteCategoryMutation.isPending}
-          >
-            {deleteCategoryMutation.isPending ? (
-              <CircularProgress size={20} color="inherit" />
-            ) : (
-              'Удалить'
-            )}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        {/* Delete Category Confirmation */}
+        <Dialog
+          open={!!deleteCategoryId}
+          onClose={() => setDeleteCategoryId(null)}
+          PaperProps={dialogPaperProps}
+        >
+          <DialogTitle sx={{ color: '#fff', ...dialogTitleStyles }}>
+            Удаление категории
+          </DialogTitle>
+          <DialogContent sx={dialogContentStyles}>
+            <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+              Вы уверены, что хотите удалить эту категорию?
+              Шаблоны в этой категории будут перемещены в "Без категории".
+            </Typography>
+          </DialogContent>
+          <DialogActions sx={dialogActionsStyles}>
+            <CancelButton onClick={() => setDeleteCategoryId(null)}>
+              Отмена
+            </CancelButton>
+            <StyledButton
+              onClick={handleDeleteCategory}
+              color="error"
+              disabled={deleteCategoryMutation.isPending}
+            >
+              {deleteCategoryMutation.isPending ? (
+                <CircularProgress size={20} color="inherit" />
+              ) : (
+                'Удалить'
+              )}
+            </StyledButton>
+          </DialogActions>
+        </Dialog>
+      </Box>
     </Box>
   );
 }

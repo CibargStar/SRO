@@ -52,14 +52,21 @@ function TabPanel(props: TabPanelProps) {
 }
 
 const StyledTabs = styled(Tabs)({
-  borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+  borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
   '& .MuiTabs-indicator': {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#6366f1',
+    height: 2,
   },
   '& .MuiTab-root': {
     color: 'rgba(255, 255, 255, 0.7)',
+    textTransform: 'none',
+    fontWeight: 500,
+    fontSize: '0.9rem',
     '&.Mui-selected': {
-      color: '#ffffff',
+      color: '#f5f5f5',
+    },
+    '&:hover': {
+      color: 'rgba(255, 255, 255, 0.9)',
     },
   },
 });
@@ -149,7 +156,19 @@ export function ProfileDetailsDialog({ open, onClose, profileId }: ProfileDetail
   };
 
   return (
-    <Dialog open={open} onClose={onClose} PaperProps={dialogPaperProps} maxWidth="lg" fullWidth>
+    <Dialog 
+      open={open} 
+      onClose={onClose} 
+      PaperProps={{
+        ...dialogPaperProps,
+        sx: {
+          ...dialogPaperProps.sx,
+          borderRadius: '16px',
+        },
+      }} 
+      maxWidth="lg" 
+      fullWidth
+    >
       {profileLoading ? (
         <DialogContent>
           <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
@@ -158,9 +177,11 @@ export function ProfileDetailsDialog({ open, onClose, profileId }: ProfileDetail
         </DialogContent>
       ) : profile ? (
         <>
-          <Box sx={dialogTitleStyles}>
+          <Box sx={{ ...dialogTitleStyles, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="h6">{profile.name}</Typography>
+              <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
+                {profile.name}
+              </Typography>
               <ProfileStatusChip status={profile.status} />
             </Box>
           </Box>
@@ -260,7 +281,15 @@ export function ProfileDetailsDialog({ open, onClose, profileId }: ProfileDetail
                   )}
                 </Box>
               ) : (
-                <Alert severity="info" sx={{ backgroundColor: 'rgba(33, 150, 243, 0.1)', color: '#ffffff' }}>
+                <Alert 
+                  severity="info" 
+                  sx={{ 
+                    borderRadius: '12px',
+                    backgroundColor: 'rgba(33, 150, 243, 0.15)', 
+                    color: '#2196f3',
+                    border: '1px solid rgba(33, 150, 243, 0.3)',
+                  }}
+                >
                   Профиль не запущен. Статистика ресурсов будет доступна после запуска.
                 </Alert>
               )}
@@ -313,7 +342,15 @@ export function ProfileDetailsDialog({ open, onClose, profileId }: ProfileDetail
                   </Box>
                 </Box>
               ) : (
-                <Alert severity="info" sx={{ backgroundColor: 'rgba(33, 150, 243, 0.1)', color: '#ffffff' }}>
+                <Alert 
+                  severity="info" 
+                  sx={{ 
+                    borderRadius: '12px',
+                    backgroundColor: 'rgba(33, 150, 243, 0.15)', 
+                    color: '#2196f3',
+                    border: '1px solid rgba(33, 150, 243, 0.3)',
+                  }}
+                >
                   Профиль не запущен. Статистика сетевой активности будет доступна после запуска.
                 </Alert>
               )}
@@ -354,8 +391,22 @@ export function ProfileDetailsDialog({ open, onClose, profileId }: ProfileDetail
                           key={alert.id}
                           severity={alert.severity === 'critical' ? 'error' : alert.severity === 'error' ? 'error' : alert.severity === 'warning' ? 'warning' : 'info'}
                           sx={{
-                            backgroundColor: 'rgba(33, 150, 243, 0.1)',
-                            color: '#ffffff',
+                            borderRadius: '12px',
+                            backgroundColor: alert.severity === 'error' || alert.severity === 'critical' 
+                              ? 'rgba(244, 67, 54, 0.15)' 
+                              : alert.severity === 'warning'
+                              ? 'rgba(255, 152, 0, 0.15)'
+                              : 'rgba(33, 150, 243, 0.15)',
+                            color: alert.severity === 'error' || alert.severity === 'critical'
+                              ? '#f44336'
+                              : alert.severity === 'warning'
+                              ? '#ff9800'
+                              : '#2196f3',
+                            border: alert.severity === 'error' || alert.severity === 'critical'
+                              ? '1px solid rgba(244, 67, 54, 0.3)'
+                              : alert.severity === 'warning'
+                              ? '1px solid rgba(255, 152, 0, 0.3)'
+                              : '1px solid rgba(33, 150, 243, 0.3)',
                             opacity: alert.read ? 0.6 : 1,
                           }}
                           action={
@@ -382,7 +433,15 @@ export function ProfileDetailsDialog({ open, onClose, profileId }: ProfileDetail
                   </Box>
                 </Box>
               ) : (
-                <Alert severity="info" sx={{ backgroundColor: 'rgba(33, 150, 243, 0.1)', color: '#ffffff' }}>
+                <Alert 
+                  severity="info" 
+                  sx={{ 
+                    borderRadius: '12px',
+                    backgroundColor: 'rgba(33, 150, 243, 0.15)', 
+                    color: '#2196f3',
+                    border: '1px solid rgba(33, 150, 243, 0.3)',
+                  }}
+                >
                   Алерты отсутствуют
                 </Alert>
               )}
@@ -405,9 +464,10 @@ export function ProfileDetailsDialog({ open, onClose, profileId }: ProfileDetail
                           <Box
                             key={index}
                             sx={{
-                              p: 2,
-                              borderRadius: '8px',
-                              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                              p: 2.5,
+                              borderRadius: '12px',
+                              backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                              border: 'none',
                             }}
                           >
                             <Typography variant="subtitle2" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1 }}>
@@ -448,7 +508,15 @@ export function ProfileDetailsDialog({ open, onClose, profileId }: ProfileDetail
                         ))}
                       </Box>
                     ) : (
-                      <Alert severity="info" sx={{ backgroundColor: 'rgba(33, 150, 243, 0.1)', color: '#ffffff' }}>
+                      <Alert 
+                        severity="info" 
+                        sx={{ 
+                          borderRadius: '12px',
+                          backgroundColor: 'rgba(33, 150, 243, 0.15)', 
+                          color: '#2196f3',
+                          border: '1px solid rgba(33, 150, 243, 0.3)',
+                        }}
+                      >
                         Нет данных о ресурсах за выбранный период
                       </Alert>
                     )}
@@ -463,9 +531,10 @@ export function ProfileDetailsDialog({ open, onClose, profileId }: ProfileDetail
                           <Box
                             key={index}
                             sx={{
-                              p: 2,
-                              borderRadius: '8px',
-                              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                              p: 2.5,
+                              borderRadius: '12px',
+                              backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                              border: 'none',
                             }}
                           >
                             <Typography variant="subtitle2" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1 }}>
@@ -504,14 +573,30 @@ export function ProfileDetailsDialog({ open, onClose, profileId }: ProfileDetail
                         ))}
                       </Box>
                     ) : (
-                      <Alert severity="info" sx={{ backgroundColor: 'rgba(33, 150, 243, 0.1)', color: '#ffffff' }}>
+                      <Alert 
+                        severity="info" 
+                        sx={{ 
+                          borderRadius: '12px',
+                          backgroundColor: 'rgba(33, 150, 243, 0.15)', 
+                          color: '#2196f3',
+                          border: '1px solid rgba(33, 150, 243, 0.3)',
+                        }}
+                      >
                         Нет данных о сетевой активности за выбранный период
                       </Alert>
                     )}
                   </Box>
                 </Box>
               ) : (
-                <Alert severity="info" sx={{ backgroundColor: 'rgba(33, 150, 243, 0.1)', color: '#ffffff' }}>
+                <Alert 
+                  severity="info" 
+                  sx={{ 
+                    borderRadius: '12px',
+                    backgroundColor: 'rgba(33, 150, 243, 0.15)', 
+                    color: '#2196f3',
+                    border: '1px solid rgba(33, 150, 243, 0.3)',
+                  }}
+                >
                   Аналитика недоступна. Профиль должен быть запущен для сбора статистики.
                 </Alert>
               )}

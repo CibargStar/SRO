@@ -38,7 +38,6 @@ import {
 import { CampaignStatusBadge } from './CampaignStatusBadge';
 import { CampaignTypeBadge } from './CampaignTypeBadge';
 import { MessengerTargetBadge } from './MessengerTargetBadge';
-import { CampaignProgressBar } from './CampaignProgressBar';
 
 interface CampaignDetailsProps {
   campaign: Campaign | undefined;
@@ -84,16 +83,44 @@ function InfoRow({
   valueComponent?: React.ReactNode;
 }) {
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1 }}>
-      <Box sx={{ color: 'text.secondary', display: 'flex' }}>{icon}</Box>
-      <Typography variant="body2" color="text.secondary" sx={{ minWidth: 140 }}>
-        {label}:
-      </Typography>
-      {valueComponent || (
-        <Typography variant="body2" fontWeight={500}>
-          {value ?? '—'}
+    <Box 
+      sx={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: 1.5, 
+        p: 1.5,
+        borderRadius: '12px',
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        transition: 'background-color 0.2s',
+        '&:hover': {
+          backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        },
+      }}
+    >
+      <Box 
+        sx={{ 
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 32,
+          height: 32,
+          borderRadius: '8px',
+          backgroundColor: 'rgba(99, 102, 241, 0.15)',
+          color: '#818cf8',
+        }}
+      >
+        {icon}
+      </Box>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)', display: 'block', mb: 0.25 }}>
+          {label}
         </Typography>
-      )}
+        {valueComponent || (
+          <Typography variant="body2" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
+            {value ?? '—'}
+          </Typography>
+        )}
+      </Box>
     </Box>
   );
 }
@@ -101,14 +128,14 @@ function InfoRow({
 export function CampaignDetails({ campaign, isLoading }: CampaignDetailsProps) {
   if (isLoading) {
     return (
-      <Paper sx={{ p: 3 }}>
+      <Paper sx={{ p: 3.5, backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '16px', border: 'none' }}>
         <Skeleton variant="text" width={200} height={32} sx={{ mb: 2 }} />
         <Grid container spacing={3}>
           <Grid item xs={12} md={6}>
-            <Skeleton variant="rectangular" height={200} />
+            <Skeleton variant="rectangular" height={200} sx={{ borderRadius: '12px' }} />
           </Grid>
           <Grid item xs={12} md={6}>
-            <Skeleton variant="rectangular" height={200} />
+            <Skeleton variant="rectangular" height={200} sx={{ borderRadius: '12px' }} />
           </Grid>
         </Grid>
       </Paper>
@@ -117,8 +144,8 @@ export function CampaignDetails({ campaign, isLoading }: CampaignDetailsProps) {
 
   if (!campaign) {
     return (
-      <Paper sx={{ p: 3 }}>
-        <Typography color="text.secondary">Кампания не найдена</Typography>
+      <Paper sx={{ p: 3.5, backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '16px', border: 'none' }}>
+        <Typography sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>Кампания не найдена</Typography>
       </Paper>
     );
   }
@@ -143,18 +170,15 @@ export function CampaignDetails({ campaign, isLoading }: CampaignDetailsProps) {
   );
 
   return (
-    <Paper sx={{ p: 3 }}>
+    <Paper sx={{ p: 3.5, backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '16px', border: 'none' }}>
       {/* Заголовок */}
       <Box sx={{ mb: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-          <Typography variant="h5" fontWeight={600}>
-            {campaign.name}
-          </Typography>
-          <CampaignStatusBadge status={campaign.status} />
-        </Box>
+        <Typography variant="h5" sx={{ color: '#f5f5f5', fontWeight: 600, mb: 1.5 }}>
+          Основная информация
+        </Typography>
         
         {campaign.description && (
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography variant="body2" sx={{ mb: 2, color: 'rgba(255, 255, 255, 0.6)' }}>
             {campaign.description}
           </Typography>
         )}
@@ -166,236 +190,258 @@ export function CampaignDetails({ campaign, isLoading }: CampaignDetailsProps) {
             <Chip
               size="small"
               label={UNIVERSAL_TARGET_LABELS[campaign.universalTarget]}
-              variant="outlined"
+              sx={{
+                backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                color: '#818cf8',
+                border: '1px solid rgba(99, 102, 241, 0.4)',
+              }}
             />
           )}
         </Stack>
       </Box>
 
-      <Divider sx={{ my: 2 }} />
-
-      {/* Прогресс */}
-      {campaign.status !== 'DRAFT' && (
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="subtitle2" gutterBottom>
-            Прогресс выполнения
-          </Typography>
-          <CampaignProgressBar
-            processed={campaign.processedContacts}
-            total={campaign.totalContacts}
-            sx={{ mb: 2 }}
-          />
-          <Grid container spacing={2}>
-            <Grid item xs={6} sm={3}>
-              <Box sx={{ textAlign: 'center' }}>
-                <Typography variant="h6" color="primary.main">
-                  {campaign.totalContacts}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Всего
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={6} sm={3}>
-              <Box sx={{ textAlign: 'center' }}>
-                <Typography variant="h6" color="success.main">
-                  {campaign.successfulContacts}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Успешно
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={6} sm={3}>
-              <Box sx={{ textAlign: 'center' }}>
-                <Typography variant="h6" color="error.main">
-                  {campaign.failedContacts}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Ошибки
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={6} sm={3}>
-              <Box sx={{ textAlign: 'center' }}>
-                <Typography variant="h6" color="warning.main">
-                  {campaign.skippedContacts}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Пропущено
-                </Typography>
-              </Box>
-            </Grid>
-          </Grid>
-          <Divider sx={{ my: 2 }} />
-        </Box>
-      )}
-
       <Grid container spacing={3}>
         {/* Левая колонка - основная информация */}
         <Grid item xs={12} md={6}>
-          <Typography variant="subtitle2" gutterBottom sx={{ mb: 2 }}>
-            Основная информация
-          </Typography>
+          <Box sx={{ 
+            p: 2.5, 
+            backgroundColor: 'rgba(255, 255, 255, 0.03)', 
+            borderRadius: '12px',
+            mb: 3,
+          }}>
+            <Typography variant="subtitle1" gutterBottom sx={{ mb: 2, color: '#f5f5f5', fontWeight: 600, fontSize: '1rem' }}>
+              Параметры кампании
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6}>
+                <InfoRow
+                  icon={<TemplateIcon fontSize="small" />}
+                  label="Шаблон"
+                  value={campaign.template?.name || campaign.templateId}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <InfoRow
+                  icon={<GroupIcon fontSize="small" />}
+                  label="Группа клиентов"
+                  value={campaign.clientGroup?.name || campaign.clientGroupId}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <InfoRow
+                  icon={<ContactsIcon fontSize="small" />}
+                  label="Контактов"
+                  value={campaign.totalContacts}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <InfoRow
+                  icon={<ProfileIcon fontSize="small" />}
+                  label="Профилей"
+                  value={campaign._count?.profiles || campaign.profiles?.length || 0}
+                />
+              </Grid>
+            </Grid>
+          </Box>
 
-          <InfoRow
-            icon={<TemplateIcon fontSize="small" />}
-            label="Шаблон"
-            value={campaign.template?.name || campaign.templateId}
-          />
-          <InfoRow
-            icon={<GroupIcon fontSize="small" />}
-            label="Группа клиентов"
-            value={campaign.clientGroup?.name || campaign.clientGroupId}
-          />
-          <InfoRow
-            icon={<ContactsIcon fontSize="small" />}
-            label="Контактов"
-            value={campaign.totalContacts}
-          />
-          <InfoRow
-            icon={<ProfileIcon fontSize="small" />}
-            label="Профилей"
-            value={campaign._count?.profiles || campaign.profiles?.length || 0}
-          />
-
-          <Divider sx={{ my: 2 }} />
-
-          <Typography variant="subtitle2" gutterBottom sx={{ mb: 2 }}>
-            Временные метки
-          </Typography>
-
-          <InfoRow
-            icon={<CalendarIcon fontSize="small" />}
-            label="Создана"
-            value={formatDateTime(campaign.createdAt)}
-          />
-          {campaign.scheduledAt && (
-            <InfoRow
-              icon={<ScheduleIcon fontSize="small" />}
-              label="Запланирована"
-              value={formatDateTime(campaign.scheduledAt)}
-            />
-          )}
-          {campaign.startedAt && (
-            <InfoRow
-              icon={<StartIcon fontSize="small" />}
-              label="Запущена"
-              value={formatDateTime(campaign.startedAt)}
-            />
-          )}
-          {campaign.pausedAt && (
-            <InfoRow
-              icon={<PauseIcon fontSize="small" />}
-              label="На паузе с"
-              value={formatDateTime(campaign.pausedAt)}
-            />
-          )}
-          {campaign.completedAt && (
-            <InfoRow
-              icon={<CompletedIcon fontSize="small" />}
-              label="Завершена"
-              value={formatDateTime(campaign.completedAt)}
-            />
-          )}
+          <Box sx={{ 
+            p: 2.5, 
+            backgroundColor: 'rgba(255, 255, 255, 0.03)', 
+            borderRadius: '12px',
+          }}>
+            <Typography variant="subtitle1" gutterBottom sx={{ mb: 2, color: '#f5f5f5', fontWeight: 600, fontSize: '1rem' }}>
+              Временные метки
+            </Typography>
+            <Stack spacing={1.5}>
+              <InfoRow
+                icon={<CalendarIcon fontSize="small" />}
+                label="Создана"
+                value={formatDateTime(campaign.createdAt)}
+              />
+              {campaign.scheduledAt && (
+                <InfoRow
+                  icon={<ScheduleIcon fontSize="small" />}
+                  label="Запланирована"
+                  value={formatDateTime(campaign.scheduledAt)}
+                />
+              )}
+              {campaign.startedAt && (
+                <InfoRow
+                  icon={<StartIcon fontSize="small" />}
+                  label="Запущена"
+                  value={formatDateTime(campaign.startedAt)}
+                />
+              )}
+              {campaign.pausedAt && (
+                <InfoRow
+                  icon={<PauseIcon fontSize="small" />}
+                  label="На паузе с"
+                  value={formatDateTime(campaign.pausedAt)}
+                />
+              )}
+              {campaign.completedAt && (
+                <InfoRow
+                  icon={<CompletedIcon fontSize="small" />}
+                  label="Завершена"
+                  value={formatDateTime(campaign.completedAt)}
+                />
+              )}
+            </Stack>
+          </Box>
         </Grid>
 
         {/* Правая колонка - настройки */}
         <Grid item xs={12} md={6}>
           {/* Расписание */}
           {hasScheduleConfig && campaign.scheduleConfig && (
-            <>
-              <Typography variant="subtitle2" gutterBottom sx={{ mb: 2 }}>
+            <Box sx={{ 
+              p: 2.5, 
+              backgroundColor: 'rgba(255, 255, 255, 0.03)', 
+              borderRadius: '12px',
+              mb: 3,
+            }}>
+              <Typography variant="subtitle1" gutterBottom sx={{ mb: 2, color: '#f5f5f5', fontWeight: 600, fontSize: '1rem' }}>
                 Расписание
               </Typography>
-
-              {campaign.scheduleConfig.workHoursEnabled && (
-                <InfoRow
-                  icon={<TimeIcon fontSize="small" />}
-                  label="Рабочие часы"
-                  value={`${campaign.scheduleConfig.workHoursStart || '09:00'} - ${campaign.scheduleConfig.workHoursEnd || '18:00'}`}
-                />
-              )}
-              {campaign.scheduleConfig.workDaysEnabled && (
-                <InfoRow
-                  icon={<CalendarIcon fontSize="small" />}
-                  label="Рабочие дни"
-                  value={formatWorkDays(campaign.scheduleConfig.workDays)}
-                />
-              )}
-              <Divider sx={{ my: 2 }} />
-            </>
+              <Stack spacing={1.5}>
+                {campaign.scheduleConfig.workHoursEnabled && (
+                  <InfoRow
+                    icon={<TimeIcon fontSize="small" />}
+                    label="Рабочие часы"
+                    value={`${campaign.scheduleConfig.workHoursStart || '09:00'} - ${campaign.scheduleConfig.workHoursEnd || '18:00'}`}
+                  />
+                )}
+                {campaign.scheduleConfig.workDaysEnabled && (
+                  <InfoRow
+                    icon={<CalendarIcon fontSize="small" />}
+                    label="Рабочие дни"
+                    value={formatWorkDays(campaign.scheduleConfig.workDays)}
+                  />
+                )}
+              </Stack>
+            </Box>
           )}
 
           {/* Фильтры */}
           {hasFilterConfig && campaign.filterConfig && (
-            <>
-              <Typography variant="subtitle2" gutterBottom sx={{ mb: 2 }}>
+            <Box sx={{ 
+              p: 2.5, 
+              backgroundColor: 'rgba(255, 255, 255, 0.03)', 
+              borderRadius: '12px',
+              mb: 3,
+            }}>
+              <Typography variant="subtitle1" gutterBottom sx={{ mb: 2, color: '#f5f5f5', fontWeight: 600, fontSize: '1rem' }}>
                 Фильтры базы
               </Typography>
-
-              {campaign.filterConfig.limitContacts && (
-                <InfoRow
-                  icon={<ContactsIcon fontSize="small" />}
-                  label="Лимит контактов"
-                  value={campaign.filterConfig.limitContacts}
-                />
-              )}
-              {campaign.filterConfig.randomOrder && (
-                <Chip
-                  size="small"
-                  label="Случайный порядок"
-                  color="info"
-                  sx={{ mr: 1, mb: 1 }}
-                />
-              )}
-              {campaign.filterConfig.neverCampaigned && (
-                <Chip
-                  size="small"
-                  label="Только новые клиенты"
-                  color="info"
-                  sx={{ mr: 1, mb: 1 }}
-                />
-              )}
-              <Divider sx={{ my: 2 }} />
-            </>
+              <Stack spacing={1.5}>
+                {campaign.filterConfig.limitContacts && (
+                  <InfoRow
+                    icon={<ContactsIcon fontSize="small" />}
+                    label="Лимит контактов"
+                    value={campaign.filterConfig.limitContacts}
+                  />
+                )}
+                {(campaign.filterConfig.randomOrder || campaign.filterConfig.neverCampaigned) && (
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
+                    {campaign.filterConfig.randomOrder && (
+                      <Chip
+                        size="small"
+                        label="Случайный порядок"
+                        sx={{
+                          backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                          color: '#818cf8',
+                          border: '1px solid rgba(99, 102, 241, 0.4)',
+                        }}
+                      />
+                    )}
+                    {campaign.filterConfig.neverCampaigned && (
+                      <Chip
+                        size="small"
+                        label="Только новые клиенты"
+                        sx={{
+                          backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                          color: '#818cf8',
+                          border: '1px solid rgba(99, 102, 241, 0.4)',
+                        }}
+                      />
+                    )}
+                  </Box>
+                )}
+              </Stack>
+            </Box>
           )}
 
           {/* Опции */}
           {hasOptionsConfig && campaign.optionsConfig && (
-            <>
-              <Typography variant="subtitle2" gutterBottom sx={{ mb: 2 }}>
+            <Box sx={{ 
+              p: 2.5, 
+              backgroundColor: 'rgba(255, 255, 255, 0.03)', 
+              borderRadius: '12px',
+              mb: 3,
+            }}>
+              <Typography variant="subtitle1" gutterBottom sx={{ mb: 2, color: '#f5f5f5', fontWeight: 600, fontSize: '1rem' }}>
                 Дополнительные опции
               </Typography>
-
               <Stack direction="row" spacing={1} flexWrap="wrap">
                 {campaign.optionsConfig.deduplicationEnabled && (
                   <Tooltip title={`Период: ${campaign.optionsConfig.deduplicationPeriodDays || 30} дней`}>
-                    <Chip size="small" label="Дедупликация" color="primary" variant="outlined" />
+                    <Chip 
+                      size="small" 
+                      label="Дедупликация" 
+                      sx={{
+                        backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                        color: '#818cf8',
+                        border: '1px solid rgba(99, 102, 241, 0.4)',
+                      }}
+                    />
                   </Tooltip>
                 )}
                 {campaign.optionsConfig.cooldownEnabled && (
                   <Tooltip title={`Интервал: ${campaign.optionsConfig.cooldownMinutes || 60} мин`}>
-                    <Chip size="small" label="Cooldown" color="primary" variant="outlined" />
+                    <Chip 
+                      size="small" 
+                      label="Cooldown" 
+                      sx={{
+                        backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                        color: '#818cf8',
+                        border: '1px solid rgba(99, 102, 241, 0.4)',
+                      }}
+                    />
                   </Tooltip>
                 )}
                 {campaign.optionsConfig.warmupEnabled && (
                   <Tooltip title="Постепенный прогрев профиля">
-                    <Chip size="small" label="Прогрев" color="primary" variant="outlined" />
+                    <Chip 
+                      size="small" 
+                      label="Прогрев" 
+                      sx={{
+                        backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                        color: '#818cf8',
+                        border: '1px solid rgba(99, 102, 241, 0.4)',
+                      }}
+                    />
                   </Tooltip>
                 )}
                 {campaign.optionsConfig.autoResumeEnabled && (
-                  <Chip size="small" label="Авто-возобновление" color="success" variant="outlined" />
+                  <Chip 
+                    size="small" 
+                    label="Авто-возобновление" 
+                    sx={{
+                      backgroundColor: 'rgba(76, 175, 80, 0.2)',
+                      color: '#4caf50',
+                      border: '1px solid rgba(76, 175, 80, 0.4)',
+                    }}
+                  />
                 )}
               </Stack>
-            </>
+            </Box>
           )}
 
           {/* Профили */}
           {campaign.profiles && campaign.profiles.length > 0 && (
             <>
-              <Divider sx={{ my: 2 }} />
-              <Typography variant="subtitle2" gutterBottom sx={{ mb: 2 }}>
+              <Divider sx={{ my: 2.5, borderColor: 'rgba(255, 255, 255, 0.08)' }} />
+              <Typography variant="subtitle2" gutterBottom sx={{ mb: 2, color: '#f5f5f5', fontWeight: 500 }}>
                 Профили ({campaign.profiles.length})
               </Typography>
               <Stack spacing={1}>
@@ -406,26 +452,36 @@ export function CampaignDetails({ campaign, isLoading }: CampaignDetailsProps) {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      p: 1,
-                      bgcolor: 'action.hover',
-                      borderRadius: 1,
+                      p: 1.5,
+                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                      borderRadius: '12px',
                     }}
                   >
-                    <Typography variant="body2">
+                    <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
                       {cp.profile?.name || cp.profileId}
                     </Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>
                         {cp.processedCount}/{cp.assignedCount}
                       </Typography>
                       <Chip
                         size="small"
                         label={cp.status}
-                        color={
-                          cp.status === 'COMPLETED' ? 'success' :
-                          cp.status === 'RUNNING' ? 'primary' :
-                          cp.status === 'ERROR' ? 'error' : 'default'
-                        }
+                        sx={{
+                          backgroundColor:
+                            cp.status === 'COMPLETED' ? 'rgba(76, 175, 80, 0.2)' :
+                            cp.status === 'RUNNING' ? 'rgba(99, 102, 241, 0.2)' :
+                            cp.status === 'ERROR' ? 'rgba(244, 67, 54, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                          color:
+                            cp.status === 'COMPLETED' ? '#4caf50' :
+                            cp.status === 'RUNNING' ? '#818cf8' :
+                            cp.status === 'ERROR' ? '#f44336' : 'rgba(255, 255, 255, 0.7)',
+                          border: '1px solid',
+                          borderColor:
+                            cp.status === 'COMPLETED' ? 'rgba(76, 175, 80, 0.4)' :
+                            cp.status === 'RUNNING' ? 'rgba(99, 102, 241, 0.4)' :
+                            cp.status === 'ERROR' ? 'rgba(244, 67, 54, 0.4)' : 'rgba(255, 255, 255, 0.12)',
+                        }}
                       />
                     </Box>
                   </Box>
@@ -438,5 +494,6 @@ export function CampaignDetails({ campaign, isLoading }: CampaignDetailsProps) {
     </Paper>
   );
 }
+
 
 

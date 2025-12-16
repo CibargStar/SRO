@@ -1,5 +1,6 @@
 import React from 'react';
-import { Grid, TextField, Typography, Stack, Chip } from '@mui/material';
+import { Grid, Typography, Stack, Chip } from '@mui/material';
+import { StyledTextField } from '@/components/common';
 import type { UpdateGlobalSettingsInput } from '@/types/campaign';
 
 type OnChange = <K extends keyof UpdateGlobalSettingsInput>(key: K, value: UpdateGlobalSettingsInput[K]) => void;
@@ -31,7 +32,7 @@ export function WorkHoursForm({ form, onChange }: Props) {
   return (
     <Grid container spacing={2}>
       <Grid item xs={12} md={6}>
-        <TextField
+        <StyledTextField
           label="Старт рабочего времени (HH:mm)"
           fullWidth
           value={form.defaultWorkHoursStart ?? ''}
@@ -39,7 +40,7 @@ export function WorkHoursForm({ form, onChange }: Props) {
         />
       </Grid>
       <Grid item xs={12} md={6}>
-        <TextField
+        <StyledTextField
           label="Конец рабочего времени (HH:mm)"
           fullWidth
           value={form.defaultWorkHoursEnd ?? ''}
@@ -47,20 +48,26 @@ export function WorkHoursForm({ form, onChange }: Props) {
         />
       </Grid>
       <Grid item xs={12}>
-        <Typography variant="subtitle2" gutterBottom>
+        <Typography variant="subtitle2" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1.5, fontWeight: 500 }}>
           Рабочие дни
         </Typography>
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+        <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
           {WEEK_DAYS.map((d) => {
             const active = selected.includes(d.value);
             return (
               <Chip
                 key={d.value}
                 label={d.label}
-                color={active ? 'primary' : 'default'}
-                variant={active ? 'filled' : 'outlined'}
                 onClick={() => toggleDay(d.value)}
-                sx={{ cursor: 'pointer' }}
+                sx={{
+                  cursor: 'pointer',
+                  backgroundColor: active ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                  color: active ? '#818cf8' : 'rgba(255, 255, 255, 0.7)',
+                  border: active ? '1px solid rgba(99, 102, 241, 0.4)' : '1px solid rgba(255, 255, 255, 0.12)',
+                  '&:hover': {
+                    backgroundColor: active ? 'rgba(99, 102, 241, 0.3)' : 'rgba(255, 255, 255, 0.12)',
+                  },
+                }}
               />
             );
           })}
@@ -71,5 +78,6 @@ export function WorkHoursForm({ form, onChange }: Props) {
 }
 
 export default WorkHoursForm;
+
 
 

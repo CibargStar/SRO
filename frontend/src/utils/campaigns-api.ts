@@ -115,7 +115,7 @@ export async function fetchWithAutoRefresh(url: string, options: RequestInit = {
     if (!refreshPromise) {
       refreshPromise = (async () => {
         try {
-          const refreshResponse = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+          const refreshResponse = await fetch(`${API_BASE_URL}/auth/refresh`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ refreshToken }),
@@ -186,7 +186,7 @@ export async function listCampaigns(query?: ListCampaignsQuery): Promise<Campaig
   if (query?.includeArchived !== undefined) params.set('includeArchived', String(query.includeArchived));
 
   const queryString = params.toString();
-  const url = `${API_BASE_URL}/api/campaigns${queryString ? `?${queryString}` : ''}`;
+  const url = `${API_BASE_URL}/campaigns${queryString ? `?${queryString}` : ''}`;
 
   const response = await fetchWithAutoRefresh(url, {
     method: 'GET',
@@ -200,7 +200,7 @@ export async function listCampaigns(query?: ListCampaignsQuery): Promise<Campaig
  * Получить кампанию по ID
  */
 export async function getCampaign(campaignId: string): Promise<Campaign> {
-  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/api/campaigns/${campaignId}`, {
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/campaigns/${campaignId}`, {
     method: 'GET',
     headers: createHeaders(),
   });
@@ -212,7 +212,7 @@ export async function getCampaign(campaignId: string): Promise<Campaign> {
  * Создать новую кампанию
  */
 export async function createCampaign(input: CreateCampaignInput): Promise<Campaign> {
-  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/api/campaigns`, {
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/campaigns`, {
     method: 'POST',
     headers: createHeaders(),
     body: JSON.stringify(input),
@@ -225,7 +225,7 @@ export async function createCampaign(input: CreateCampaignInput): Promise<Campai
  * Обновить кампанию
  */
 export async function updateCampaign(campaignId: string, input: UpdateCampaignInput): Promise<Campaign> {
-  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/api/campaigns/${campaignId}`, {
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/campaigns/${campaignId}`, {
     method: 'PATCH',
     headers: createHeaders(),
     body: JSON.stringify(input),
@@ -238,7 +238,7 @@ export async function updateCampaign(campaignId: string, input: UpdateCampaignIn
  * Удалить кампанию
  */
 export async function deleteCampaign(campaignId: string): Promise<void> {
-  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/api/campaigns/${campaignId}`, {
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/campaigns/${campaignId}`, {
     method: 'DELETE',
     headers: createHeaders(),
   });
@@ -250,7 +250,7 @@ export async function deleteCampaign(campaignId: string): Promise<void> {
  * Дублировать кампанию
  */
 export async function duplicateCampaign(campaignId: string, input?: DuplicateCampaignInput): Promise<Campaign> {
-  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/api/campaigns/${campaignId}/duplicate`, {
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/campaigns/${campaignId}/duplicate`, {
     method: 'POST',
     headers: createHeaders(),
     body: JSON.stringify(input || {}),
@@ -263,7 +263,7 @@ export async function duplicateCampaign(campaignId: string, input?: DuplicateCam
  * Архивировать кампанию
  */
 export async function archiveCampaign(campaignId: string): Promise<Campaign> {
-  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/api/campaigns/${campaignId}/archive`, {
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/campaigns/${campaignId}/archive`, {
     method: 'POST',
     headers: createHeaders(),
   });
@@ -279,7 +279,7 @@ export async function archiveCampaign(campaignId: string): Promise<Campaign> {
  * Запустить кампанию
  */
 export async function startCampaign(campaignId: string, input?: StartCampaignInput): Promise<Campaign> {
-  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/api/campaigns/${campaignId}/start`, {
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/campaigns/${campaignId}/start`, {
     method: 'POST',
     headers: createHeaders(),
     body: JSON.stringify(input || {}),
@@ -292,7 +292,7 @@ export async function startCampaign(campaignId: string, input?: StartCampaignInp
  * Поставить кампанию на паузу
  */
 export async function pauseCampaign(campaignId: string): Promise<Campaign> {
-  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/api/campaigns/${campaignId}/pause`, {
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/campaigns/${campaignId}/pause`, {
     method: 'POST',
     headers: createHeaders(),
   });
@@ -304,7 +304,7 @@ export async function pauseCampaign(campaignId: string): Promise<Campaign> {
  * Возобновить кампанию
  */
 export async function resumeCampaign(campaignId: string): Promise<Campaign> {
-  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/api/campaigns/${campaignId}/resume`, {
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/campaigns/${campaignId}/resume`, {
     method: 'POST',
     headers: createHeaders(),
   });
@@ -316,7 +316,7 @@ export async function resumeCampaign(campaignId: string): Promise<Campaign> {
  * Отменить кампанию
  */
 export async function cancelCampaign(campaignId: string): Promise<Campaign> {
-  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/api/campaigns/${campaignId}/cancel`, {
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/campaigns/${campaignId}/cancel`, {
     method: 'POST',
     headers: createHeaders(),
   });
@@ -332,7 +332,7 @@ export async function cancelCampaign(campaignId: string): Promise<Campaign> {
  * Получить прогресс кампании
  */
 export async function getCampaignProgress(campaignId: string): Promise<CampaignProgress> {
-  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/api/campaigns/${campaignId}/progress`, {
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/campaigns/${campaignId}/progress`, {
     method: 'GET',
     headers: createHeaders(),
   });
@@ -359,7 +359,7 @@ export async function getCampaignMessages(campaignId: string, query?: ListMessag
   if (query?.profileId) params.set('profileId', query.profileId);
 
   const queryString = params.toString();
-  const url = `${API_BASE_URL}/api/campaigns/${campaignId}/messages${queryString ? `?${queryString}` : ''}`;
+  const url = `${API_BASE_URL}/campaigns/${campaignId}/messages${queryString ? `?${queryString}` : ''}`;
 
   const response = await fetchWithAutoRefresh(url, {
     method: 'GET',
@@ -387,7 +387,7 @@ export async function getCampaignLogs(campaignId: string, query?: ListLogsQuery)
   if (query?.action) params.set('action', query.action);
 
   const queryString = params.toString();
-  const url = `${API_BASE_URL}/api/campaigns/${campaignId}/logs${queryString ? `?${queryString}` : ''}`;
+  const url = `${API_BASE_URL}/campaigns/${campaignId}/logs${queryString ? `?${queryString}` : ''}`;
 
   const response = await fetchWithAutoRefresh(url, {
     method: 'GET',
@@ -401,7 +401,7 @@ export async function getCampaignLogs(campaignId: string, query?: ListLogsQuery)
  * Получить статистику кампании
  */
 export async function getCampaignStats(campaignId: string): Promise<CampaignStats> {
-  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/api/campaigns/${campaignId}/stats`, {
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/campaigns/${campaignId}/stats`, {
     method: 'GET',
     headers: createHeaders(),
   });
@@ -413,7 +413,7 @@ export async function getCampaignStats(campaignId: string): Promise<CampaignStat
  * Экспортировать результаты кампании
  */
 export async function exportCampaign(campaignId: string): Promise<Blob> {
-  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/api/campaigns/${campaignId}/export`, {
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/campaigns/${campaignId}/export`, {
     method: 'GET',
     headers: {
       ...createHeaders(),
@@ -440,7 +440,7 @@ export async function updateCampaignProfiles(
   campaignId: string,
   input: UpdateCampaignProfilesInput
 ): Promise<CampaignProfile[]> {
-  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/api/campaigns/${campaignId}/profiles`, {
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/campaigns/${campaignId}/profiles`, {
     method: 'PUT',
     headers: createHeaders(),
     body: JSON.stringify(input),
@@ -453,7 +453,7 @@ export async function updateCampaignProfiles(
  * Получить профили кампании
  */
 export async function getCampaignProfiles(campaignId: string): Promise<CampaignProfile[]> {
-  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/api/campaigns/${campaignId}/profiles`, {
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/campaigns/${campaignId}/profiles`, {
     method: 'GET',
     headers: createHeaders(),
   });
@@ -469,7 +469,7 @@ export async function getCampaignProfiles(campaignId: string): Promise<CampaignP
  * Валидация кампании перед запуском
  */
 export async function validateCampaign(campaignId: string): Promise<CampaignValidationResult> {
-  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/api/campaigns/${campaignId}/validate`, {
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/campaigns/${campaignId}/validate`, {
     method: 'GET',
     headers: createHeaders(),
   });
@@ -481,7 +481,7 @@ export async function validateCampaign(campaignId: string): Promise<CampaignVali
  * Расчёт количества контактов
  */
 export async function calculateContacts(campaignId: string): Promise<CalculatedContacts> {
-  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/api/campaigns/${campaignId}/calculate-contacts`, {
+  const response = await fetchWithAutoRefresh(`${API_BASE_URL}/campaigns/${campaignId}/calculate-contacts`, {
     method: 'GET',
     headers: createHeaders(),
   });

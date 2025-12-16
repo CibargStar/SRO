@@ -461,6 +461,8 @@ export class TemplateRepository {
 
   /**
    * Проверка использования шаблона в активных кампаниях
+   * Разрешаем удаление, если шаблон используется только в DRAFT кампаниях
+   * Запрещаем удаление, если шаблон используется в RUNNING, QUEUED, PAUSED или SCHEDULED кампаниях
    */
   async isUsedInActiveCampaigns(templateId: string): Promise<boolean> {
     try {
@@ -468,13 +470,74 @@ export class TemplateRepository {
         where: {
           templateId,
           status: {
-            in: ['DRAFT', 'SCHEDULED', 'QUEUED', 'RUNNING', 'PAUSED'],
+            in: ['SCHEDULED', 'QUEUED', 'RUNNING', 'PAUSED'],
           },
         },
       });
       return count > 0;
     } catch (error) {
       logger.error('Failed to check if template is used in active campaigns', { error, templateId });
+      throw error;
+    }
+  }
+
+  /**
+   * Подсчет кампаний по статусу для шаблона
+   */
+  async countCampaignsByStatus(templateId: string, status: 'DRAFT' | 'SCHEDULED' | 'QUEUED' | 'RUNNING' | 'PAUSED' | 'COMPLETED' | 'CANCELLED' | 'ERROR'): Promise<number> {
+    try {
+      return await this.prisma.campaign.count({
+        where: {
+          templateId,
+          status,
+        },
+      });
+    } catch (error) {
+      logger.error('Failed to count campaigns by status', { error, templateId, status });
+      throw error;
+    }
+  }
+
+  /**
+   * Удаление неактивных кампаний, использующих шаблон
+   * Удаляются кампании в статусах: DRAFT, COMPLETED, CANCELLED, ERROR
+   * Это необходимо перед удалением шаблона, чтобы избежать нарушения внешнего ключа
+   */
+  async deleteInactiveCampaigns(templateId: string): Promise<number> {
+    try {
+      // Сначала получаем ID кампаний для логирования
+      const inactiveCampaigns = await this.prisma.campaign.findMany({
+        where: {
+          templateId,
+          status: {
+            in: ['DRAFT', 'COMPLETED', 'CANCELLED', 'ERROR'],
+          },
+        },
+        select: { id: true, status: true },
+      });
+
+      if (inactiveCampaigns.length > 0) {
+        // Удаляем неактивные кампании (каскадно удалятся связанные сообщения и логи)
+        const result = await this.prisma.campaign.deleteMany({
+          where: {
+            templateId,
+            status: {
+              in: ['DRAFT', 'COMPLETED', 'CANCELLED', 'ERROR'],
+            },
+          },
+        });
+        
+        logger.info('Inactive campaigns deleted', { 
+          templateId, 
+          deletedCount: result.count,
+          campaignIds: inactiveCampaigns.map(c => ({ id: c.id, status: c.status })),
+        });
+        return result.count;
+      }
+      
+      return 0;
+    } catch (error) {
+      logger.error('Failed to delete inactive campaigns', { error, templateId });
       throw error;
     }
   }
@@ -621,6 +684,26 @@ export class TemplateItemRepository {
    */
   async reorderItems(templateId: string, itemOrders: Array<{ id: string; orderIndex: number }>): Promise<void> {
     try {
+      // Валидация: проверяем что все элементы принадлежат этому шаблону
+      const itemIds = itemOrders.map((item) => item.id);
+      const items = await this.prisma.templateItem.findMany({
+        where: {
+          id: { in: itemIds },
+        },
+        select: { id: true, templateId: true },
+      });
+
+      // Проверяем что все элементы найдены и принадлежат шаблону
+      if (items.length !== itemIds.length) {
+        throw new Error('Some items not found');
+      }
+
+      const invalidItems = items.filter((item) => item.templateId !== templateId);
+      if (invalidItems.length > 0) {
+        throw new Error('Some items do not belong to this template');
+      }
+
+      // Обновляем порядок элементов
       await this.prisma.$transaction(
         itemOrders.map((item) =>
           this.prisma.templateItem.update({

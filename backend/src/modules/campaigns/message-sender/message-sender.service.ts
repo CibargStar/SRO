@@ -14,6 +14,7 @@ import { MessengerType, UniversalTarget } from '@prisma/client';
 import logger from '../../../config/logger';
 import { WhatsAppSender } from './whatsapp-sender';
 import { TelegramSender } from './telegram-sender';
+import type { ChromeProcessService } from '../../profiles/chrome-process/chrome-process.service';
 
 export interface SendMessageInput {
   messenger: MessengerType | null;
@@ -26,6 +27,7 @@ export interface SendMessageInput {
   universalTarget?: UniversalTarget | null;
   hasWhatsApp?: boolean;
   hasTelegram?: boolean;
+  profileId?: string; // ID профиля для доступа к Puppeteer
 }
 
 export interface SendMessageResult {
@@ -38,8 +40,8 @@ export class MessageSenderService {
   private whatsappSender: WhatsAppSender;
   private telegramSender: TelegramSender;
 
-  constructor() {
-    this.whatsappSender = new WhatsAppSender();
+  constructor(chromeProcessService?: ChromeProcessService) {
+    this.whatsappSender = new WhatsAppSender(chromeProcessService);
     this.telegramSender = new TelegramSender();
   }
 
@@ -73,7 +75,7 @@ export class MessageSenderService {
         );
 
       if (resolvedMessenger === 'WHATSAPP') {
-        return await this.whatsappSender.sendMessage({ phone, text, attachments });
+        return await this.whatsappSender.sendMessage({ phone, text, attachments, profileId: input.profileId });
       }
 
       if (resolvedMessenger === 'TELEGRAM') {

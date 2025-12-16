@@ -18,7 +18,6 @@ import {
   Tooltip,
   FormControl,
   InputLabel,
-  Select,
   MenuItem,
   Stack,
   Pagination,
@@ -31,6 +30,7 @@ import {
   Refresh as RefreshIcon,
   FilterList as FilterIcon,
 } from '@mui/icons-material';
+import { StyledSelect, MenuProps, selectInputLabelStyles } from '@/components/common';
 import type { CampaignLog, ListLogsQuery, LogLevel } from '@/types/campaign';
 import { LOG_LEVEL_LABELS } from '@/types/campaign';
 import { LogLevelBadge } from './LogLevelBadge';
@@ -101,30 +101,49 @@ export function CampaignLogs({
 
   if (isLoading && logs.length === 0) {
     return (
-      <Paper sx={{ p: 3 }}>
+      <Paper sx={{ p: 3.5, backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '16px', border: 'none' }}>
         <Skeleton variant="text" width={200} height={32} sx={{ mb: 2 }} />
-        <Skeleton variant="rectangular" height={400} />
+        <Skeleton variant="rectangular" height={400} sx={{ borderRadius: '12px' }} />
       </Paper>
     );
   }
 
   return (
-    <Paper sx={{ overflow: 'hidden' }}>
+    <Paper sx={{ overflow: 'hidden', backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '16px', border: 'none' }}>
       {/* Header */}
-      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+      <Box sx={{ p: 2.5 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: showFilters ? 2 : 0 }}>
-          <Typography variant="h6">
+          <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
             Логи событий ({totalCount})
           </Typography>
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', gap: 0.5 }}>
             <Tooltip title="Фильтры">
-              <IconButton onClick={() => setShowFilters(!showFilters)} color={showFilters ? 'primary' : 'default'}>
+              <IconButton 
+                onClick={() => setShowFilters(!showFilters)}
+                sx={{
+                  color: showFilters ? '#6366f1' : 'rgba(255, 255, 255, 0.7)',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                    color: showFilters ? '#818cf8' : '#f5f5f5',
+                  },
+                }}
+              >
                 <FilterIcon />
               </IconButton>
             </Tooltip>
             {onRefresh && (
               <Tooltip title="Обновить">
-                <IconButton onClick={onRefresh} disabled={isLoading}>
+                <IconButton 
+                  onClick={onRefresh} 
+                  disabled={isLoading}
+                  sx={{
+                    color: 'rgba(255, 255, 255, 0.7)',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                      color: '#f5f5f5',
+                    },
+                  }}
+                >
                   <RefreshIcon />
                 </IconButton>
               </Tooltip>
@@ -136,11 +155,12 @@ export function CampaignLogs({
         {showFilters && (
           <Stack direction="row" spacing={2}>
             <FormControl size="small" sx={{ minWidth: 150 }}>
-              <InputLabel>Уровень</InputLabel>
-              <Select
+              <InputLabel sx={selectInputLabelStyles}>Уровень</InputLabel>
+              <StyledSelect
                 value={query.level || ''}
                 onChange={handleLevelChange}
                 label="Уровень"
+                MenuProps={MenuProps}
               >
                 <MenuItem value="">Все</MenuItem>
                 {Object.entries(LOG_LEVEL_LABELS).map(([value, label]) => (
@@ -148,16 +168,18 @@ export function CampaignLogs({
                     {label}
                   </MenuItem>
                 ))}
-              </Select>
+              </StyledSelect>
             </FormControl>
           </Stack>
         )}
       </Box>
 
+      {showFilters && <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.08)' }} />}
+
       {/* Logs List */}
       {logs.length === 0 ? (
         <Box sx={{ p: 4, textAlign: 'center' }}>
-          <Typography color="text.secondary">
+          <Typography sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>
             {isLoading ? 'Загрузка...' : 'Нет записей в логе'}
           </Typography>
         </Box>
@@ -165,12 +187,13 @@ export function CampaignLogs({
         <List dense disablePadding>
           {logs.map((log, index) => (
             <React.Fragment key={log.id}>
-              {index > 0 && <Divider component="li" />}
+              {index > 0 && <Divider component="li" sx={{ borderColor: 'rgba(255, 255, 255, 0.08)' }} />}
               <ListItem
                 sx={{
                   py: 1.5,
+                  px: 2.5,
                   '&:hover': {
-                    bgcolor: 'action.hover',
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
                   },
                 }}
               >
@@ -181,16 +204,16 @@ export function CampaignLogs({
                   primary={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                       <LogLevelBadge level={log.level} size="small" />
-                      <Typography variant="body2" fontWeight={500}>
+                      <Typography variant="body2" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
                         {log.action}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
+                      <Typography variant="caption" sx={{ ml: 'auto', color: 'rgba(255, 255, 255, 0.5)' }}>
                         {formatDateTime(log.createdAt)}
                       </Typography>
                     </Box>
                   }
                   secondary={
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    <Typography variant="body2" sx={{ mt: 0.5, color: 'rgba(255, 255, 255, 0.6)' }}>
                       {log.message}
                     </Typography>
                   }
@@ -204,18 +227,36 @@ export function CampaignLogs({
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <Box sx={{ p: 2, display: 'flex', justifyContent: 'center', borderTop: 1, borderColor: 'divider' }}>
-          <Pagination
-            count={totalPages}
-            page={query.page || 1}
-            onChange={handlePageChange}
-            color="primary"
-            size="small"
-          />
-        </Box>
+        <>
+          <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.08)' }} />
+          <Box sx={{ p: 2.5, display: 'flex', justifyContent: 'center' }}>
+            <Pagination
+              count={totalPages}
+              page={query.page || 1}
+              onChange={handlePageChange}
+              size="small"
+              sx={{
+                '& .MuiPaginationItem-root': {
+                  color: 'rgba(255, 255, 255, 0.7)',
+                  '&.Mui-selected': {
+                    backgroundColor: '#6366f1',
+                    color: '#fff',
+                    '&:hover': {
+                      backgroundColor: '#818cf8',
+                    },
+                  },
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                  },
+                },
+              }}
+            />
+          </Box>
+        </>
       )}
     </Paper>
   );
 }
+
 
 

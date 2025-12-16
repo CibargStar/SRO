@@ -25,18 +25,24 @@ export function WorkDaysPicker({ value, onChange }: WorkDaysPickerProps) {
   };
 
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1.5}>
       <FormControlLabel
         control={
           <Checkbox
             checked={value.workDaysEnabled ?? false}
             onChange={(e) => onChange({ ...value, workDaysEnabled: e.target.checked })}
+            sx={{
+              color: '#6366f1',
+              '&.Mui-checked': {
+                color: '#6366f1',
+              },
+            }}
           />
         }
-        label="Ограничить отправку рабочими днями"
+        label={<Typography sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Ограничить отправку рабочими днями</Typography>}
       />
 
-      <Grid container spacing={1}>
+      <Grid container spacing={1.5}>
         {DAYS.map((day) => (
           <Grid item key={day.value}>
             <FormControlLabel
@@ -46,9 +52,18 @@ export function WorkDaysPicker({ value, onChange }: WorkDaysPickerProps) {
                   onChange={(e) => updateDays(day.value, e.target.checked)}
                   disabled={!value.workDaysEnabled}
                   size="small"
+                  sx={{
+                    color: '#6366f1',
+                    '&.Mui-checked': {
+                      color: '#6366f1',
+                    },
+                    '&.Mui-disabled': {
+                      color: 'rgba(255, 255, 255, 0.3)',
+                    },
+                  }}
                 />
               }
-              label={<Typography variant="body2">{day.label}</Typography>}
+              label={<Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>{day.label}</Typography>}
             />
           </Grid>
         ))}
@@ -58,6 +73,7 @@ export function WorkDaysPicker({ value, onChange }: WorkDaysPickerProps) {
 }
 
 export default WorkDaysPicker;
+
 
 
 

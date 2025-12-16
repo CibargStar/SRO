@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, MenuItem, TextField, CircularProgress, Alert } from '@mui/material';
-import { CancelButton } from '@/components/common';
+import { Dialog, DialogContent, DialogActions, MenuItem, CircularProgress, Alert, Box, Typography, FormControl, InputLabel } from '@mui/material';
+import { CancelButton, StyledButton } from '@/components/common';
+import { StyledSelect, MenuProps, selectInputLabelStyles } from '@/components/common/SelectStyles';
+import { dialogPaperProps, dialogTitleStyles, dialogContentStyles, dialogActionsStyles } from '@/components/common/DialogStyles';
 import { useTemplateCategories, useMoveTemplate } from '@/hooks/useTemplates';
 
 interface MoveToCategoryDialogProps {
@@ -16,15 +18,16 @@ export function MoveToCategoryDialog({ open, templateId, currentCategoryId, onCl
   const [categoryId, setCategoryId] = useState<string | ''>(currentCategoryId || '');
 
   useEffect(() => {
-    if (categories?.length) {
+    if (open && categories?.length) {
       const nextCategory = currentCategoryId && categories.some((c) => c.id === currentCategoryId)
         ? currentCategoryId
         : categories[0].id;
       setCategoryId(nextCategory);
-    } else {
-      setCategoryId('');
+    } else if (open && !categories?.length) {
+      // Если нет категорий, закрываем диалог
+      onClose();
     }
-  }, [categories, currentCategoryId, open]);
+  }, [categories, currentCategoryId, open, onClose]);
 
   const handleMove = async () => {
     if (!templateId || !categoryId) return;
@@ -41,33 +44,48 @@ export function MoveToCategoryDialog({ open, templateId, currentCategoryId, onCl
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} PaperProps={{ sx: { backgroundColor: 'rgba(24,24,27,0.95)', borderRadius: 2, minWidth: 360 } }}>
-      <DialogTitle sx={{ color: '#fff' }}>Переместить в категорию</DialogTitle>
-      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <Dialog open={open} onClose={handleClose} PaperProps={dialogPaperProps}>
+      <Box sx={dialogTitleStyles}>
+        <Typography sx={{ color: '#fff', fontSize: '1.25rem', fontWeight: 500 }}>
+          Переместить в категорию
+        </Typography>
+      </Box>
+      <DialogContent sx={dialogContentStyles}>
         {moveTemplate.isError && (
-          <Alert severity="error">
+          <Alert 
+            severity="error" 
+            sx={{ 
+              mb: 2,
+              borderRadius: '12px',
+              backgroundColor: 'rgba(244, 67, 54, 0.1)',
+              color: '#ffffff',
+              border: 'none',
+            }}
+          >
             {(moveTemplate.error as Error)?.message || 'Не удалось переместить шаблон'}
           </Alert>
         )}
-        <TextField
-          select
-          label="Категория"
-          value={categoryId}
-          onChange={(e) => setCategoryId(e.target.value)}
-          fullWidth
-        >
-          {categories?.map((cat) => (
-            <MenuItem key={cat.id} value={cat.id}>
-              {cat.name}
-            </MenuItem>
-          ))}
-        </TextField>
+        <FormControl fullWidth>
+          <InputLabel sx={selectInputLabelStyles}>Категория</InputLabel>
+          <StyledSelect
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+            label="Категория"
+            MenuProps={MenuProps}
+          >
+            {categories?.map((cat) => (
+              <MenuItem key={cat.id} value={cat.id}>
+                {cat.name}
+              </MenuItem>
+            ))}
+          </StyledSelect>
+        </FormControl>
       </DialogContent>
-      <DialogActions sx={{ p: 2 }}>
-        <CancelButton onClick={handleClose}>Отмена</CancelButton>
-        <Button variant="contained" onClick={handleMove} disabled={moveTemplate.isPending || !categoryId}>
+      <DialogActions sx={dialogActionsStyles}>
+        <CancelButton onClick={handleClose} disabled={moveTemplate.isPending}>Отмена</CancelButton>
+        <StyledButton onClick={handleMove} disabled={moveTemplate.isPending || !categoryId}>
           {moveTemplate.isPending ? <CircularProgress size={18} color="inherit" /> : 'Переместить'}
-        </Button>
+        </StyledButton>
       </DialogActions>
     </Dialog>
   );

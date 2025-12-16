@@ -36,14 +36,14 @@ export function CampaignProgress({ campaign, progress, isLoading }: CampaignProg
   return (
     <Paper
       sx={{
-        p: 3,
-        backgroundColor: 'rgba(24,24,27,0.9)',
-        borderRadius: 2,
-        border: '1px solid rgba(255,255,255,0.05)',
+        p: 3.5,
+        backgroundColor: 'rgba(255, 255, 255, 0.06)',
+        borderRadius: '16px',
+        border: 'none',
       }}
     >
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-        <Typography variant="h6" sx={{ color: '#fff' }}>
+      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+        <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
           Прогресс кампании
         </Typography>
         {isLoading && (
@@ -79,6 +79,7 @@ export function CampaignProgress({ campaign, progress, isLoading }: CampaignProg
 }
 
 export default CampaignProgress;
+
 
 
 

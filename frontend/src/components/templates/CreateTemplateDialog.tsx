@@ -24,6 +24,7 @@ import {
 import { styled } from '@mui/material/styles';
 import { Article as SingleIcon, ViewList as MultiIcon } from '@mui/icons-material';
 import { StyledTextField, StyledButton, CancelButton } from '../common/FormStyles';
+import { StyledSelect, MenuProps, selectInputLabelStyles } from '../common/SelectStyles';
 import { dialogPaperProps, dialogTitleStyles, dialogContentStyles, dialogActionsStyles } from '../common/DialogStyles';
 import { LOADING_ICON_SIZE } from '../common/Constants';
 import { createTemplateSchema, type CreateTemplateFormData } from '@/schemas/template.schema';
@@ -57,24 +58,6 @@ const StyledToggleButtonGroup = styled(ToggleButtonGroup)(({ theme }) => ({
   },
 }));
 
-const StyledSelect = styled(Select)({
-  backgroundColor: 'rgba(0, 0, 0, 0.2)',
-  '& .MuiOutlinedInput-notchedOutline': {
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  '&:hover .MuiOutlinedInput-notchedOutline': {
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-    borderColor: '#6366f1',
-  },
-  '& .MuiSelect-select': {
-    color: '#fff',
-  },
-  '& .MuiSvgIcon-root': {
-    color: 'rgba(255, 255, 255, 0.5)',
-  },
-});
 
 const messengerTargetOptions: { value: MessengerTarget; label: string }[] = [
   { value: 'UNIVERSAL', label: 'Универсальный (WA + TG)' },
@@ -145,12 +128,25 @@ export function CreateTemplateDialog({
       fullWidth
       PaperProps={dialogPaperProps}
     >
-      <Typography sx={dialogTitleStyles}>Создание шаблона</Typography>
+      <Box sx={dialogTitleStyles}>
+        <Typography sx={{ color: '#fff', fontSize: '1.25rem', fontWeight: 500 }}>
+          Создание шаблона
+        </Typography>
+      </Box>
 
       <form onSubmit={handleSubmit(onSubmit)}>
         <DialogContent sx={dialogContentStyles}>
           {createMutation.isError && (
-            <Alert severity="error" sx={{ mb: 2 }}>
+            <Alert 
+              severity="error" 
+              sx={{ 
+                mb: 2,
+                borderRadius: '12px',
+                backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                color: '#ffffff',
+                border: 'none',
+              }}
+            >
               {(createMutation.error as Error)?.message || 'Ошибка при создании шаблона'}
             </Alert>
           )}
@@ -205,7 +201,7 @@ export function CreateTemplateDialog({
           </Box>
 
           <FormControl fullWidth sx={{ mb: 2 }}>
-            <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>Мессенджер</InputLabel>
+            <InputLabel sx={selectInputLabelStyles}>Мессенджер</InputLabel>
             <Controller
               name="messengerTarget"
               control={control}
@@ -214,6 +210,7 @@ export function CreateTemplateDialog({
                   {...field}
                   label="Мессенджер"
                   error={!!errors.messengerTarget}
+                  MenuProps={MenuProps}
                 >
                   {messengerTargetOptions.map((option) => (
                     <MenuItem key={option.value} value={option.value}>
@@ -224,12 +221,14 @@ export function CreateTemplateDialog({
               )}
             />
             {errors.messengerTarget && (
-              <FormHelperText error>{errors.messengerTarget.message}</FormHelperText>
+              <FormHelperText sx={{ color: '#f44336', mt: 0.5 }}>
+                {errors.messengerTarget.message}
+              </FormHelperText>
             )}
           </FormControl>
 
           <FormControl fullWidth>
-            <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>Категория</InputLabel>
+            <InputLabel sx={selectInputLabelStyles}>Категория</InputLabel>
             <Controller
               name="categoryId"
               control={control}
@@ -239,6 +238,7 @@ export function CreateTemplateDialog({
                   value={field.value || ''}
                   label="Категория"
                   onChange={(e) => field.onChange(e.target.value)}
+                  MenuProps={MenuProps}
                 >
                   <MenuItem value="" disabled>
                     <em>Выберите категорию</em>
@@ -252,7 +252,9 @@ export function CreateTemplateDialog({
               )}
             />
             {errors.categoryId && (
-              <FormHelperText error>{errors.categoryId.message}</FormHelperText>
+              <FormHelperText sx={{ color: '#f44336', mt: 0.5 }}>
+                {errors.categoryId.message}
+              </FormHelperText>
             )}
           </FormControl>
         </DialogContent>

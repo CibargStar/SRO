@@ -2,13 +2,15 @@ import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Box,
-  Button,
   FormControlLabel,
   Paper,
   Stack,
   Switch,
   Typography,
+  CircularProgress,
 } from '@mui/material';
+import { StyledButton } from '@/components/common';
+import { LOADING_ICON_SIZE } from '@/components/common/Constants';
 import type { TelegramBotSettings, UpdateTelegramNotificationsInput } from '@/types';
 import { useUpdateTelegramNotifications } from '@/hooks';
 
@@ -54,61 +56,202 @@ export const NotificationSettingsForm: React.FC<Props> = ({ settings }) => {
   };
 
   return (
-    <Paper sx={{ p: 3 }}>
-      <Stack spacing={2}>
+    <Paper sx={{ p: 3.5, backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '16px', border: 'none' }}>
+      <Stack spacing={3}>
         <Box>
-          <Typography variant="h6">Настройки уведомлений</Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500, mb: 1 }}>
+            Настройки уведомлений
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
             Выберите события, о которых нужно уведомлять через Telegram.
           </Typography>
         </Box>
 
-        <Stack direction="row" spacing={3} flexWrap="wrap">
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
+            gap: 2,
+          }}
+        >
           <FormControlLabel
-            control={<Switch checked={form.notifyOnStart} onChange={handleToggle('notifyOnStart')} />}
-            label="Старт кампании"
+            control={
+              <Switch 
+                checked={form.notifyOnStart} 
+                onChange={handleToggle('notifyOnStart')}
+                sx={{
+                  '& .MuiSwitch-switchBase.Mui-checked': {
+                    color: '#6366f1',
+                  },
+                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                    backgroundColor: '#6366f1',
+                  },
+                }}
+              />
+            }
+            label={<Typography sx={{ color: '#f5f5f5', fontSize: '0.9rem' }}>Старт кампании</Typography>}
           />
           <FormControlLabel
-            control={<Switch checked={form.notifyOnComplete} onChange={handleToggle('notifyOnComplete')} />}
-            label="Завершение кампании"
+            control={
+              <Switch 
+                checked={form.notifyOnComplete} 
+                onChange={handleToggle('notifyOnComplete')}
+                sx={{
+                  '& .MuiSwitch-switchBase.Mui-checked': {
+                    color: '#6366f1',
+                  },
+                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                    backgroundColor: '#6366f1',
+                  },
+                }}
+              />
+            }
+            label={<Typography sx={{ color: '#f5f5f5', fontSize: '0.9rem' }}>Завершение кампании</Typography>}
           />
           <FormControlLabel
-            control={<Switch checked={form.notifyOnError} onChange={handleToggle('notifyOnError')} />}
-            label="Ошибки кампании"
+            control={
+              <Switch 
+                checked={form.notifyOnError} 
+                onChange={handleToggle('notifyOnError')}
+                sx={{
+                  '& .MuiSwitch-switchBase.Mui-checked': {
+                    color: '#6366f1',
+                  },
+                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                    backgroundColor: '#6366f1',
+                  },
+                }}
+              />
+            }
+            label={<Typography sx={{ color: '#f5f5f5', fontSize: '0.9rem' }}>Ошибки кампании</Typography>}
           />
           <FormControlLabel
-            control={<Switch checked={form.notifyOnProgress50} onChange={handleToggle('notifyOnProgress50')} />}
-            label="Прогресс 50%"
+            control={
+              <Switch 
+                checked={form.notifyOnProgress50} 
+                onChange={handleToggle('notifyOnProgress50')}
+                sx={{
+                  '& .MuiSwitch-switchBase.Mui-checked': {
+                    color: '#6366f1',
+                  },
+                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                    backgroundColor: '#6366f1',
+                  },
+                }}
+              />
+            }
+            label={<Typography sx={{ color: '#f5f5f5', fontSize: '0.9rem' }}>Прогресс 50%</Typography>}
           />
           <FormControlLabel
-            control={<Switch checked={form.notifyOnProgress75} onChange={handleToggle('notifyOnProgress75')} />}
-            label="Прогресс 75%"
+            control={
+              <Switch 
+                checked={form.notifyOnProgress75} 
+                onChange={handleToggle('notifyOnProgress75')}
+                sx={{
+                  '& .MuiSwitch-switchBase.Mui-checked': {
+                    color: '#6366f1',
+                  },
+                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                    backgroundColor: '#6366f1',
+                  },
+                }}
+              />
+            }
+            label={<Typography sx={{ color: '#f5f5f5', fontSize: '0.9rem' }}>Прогресс 75%</Typography>}
           />
           <FormControlLabel
-            control={<Switch checked={form.notifyOnProgress90} onChange={handleToggle('notifyOnProgress90')} />}
-            label="Прогресс 90%"
+            control={
+              <Switch 
+                checked={form.notifyOnProgress90} 
+                onChange={handleToggle('notifyOnProgress90')}
+                sx={{
+                  '& .MuiSwitch-switchBase.Mui-checked': {
+                    color: '#6366f1',
+                  },
+                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                    backgroundColor: '#6366f1',
+                  },
+                }}
+              />
+            }
+            label={<Typography sx={{ color: '#f5f5f5', fontSize: '0.9rem' }}>Прогресс 90%</Typography>}
           />
           <FormControlLabel
-            control={<Switch checked={form.notifyOnProfileIssue} onChange={handleToggle('notifyOnProfileIssue')} />}
-            label="Проблемы профилей"
+            control={
+              <Switch 
+                checked={form.notifyOnProfileIssue} 
+                onChange={handleToggle('notifyOnProfileIssue')}
+                sx={{
+                  '& .MuiSwitch-switchBase.Mui-checked': {
+                    color: '#6366f1',
+                  },
+                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                    backgroundColor: '#6366f1',
+                  },
+                }}
+              />
+            }
+            label={<Typography sx={{ color: '#f5f5f5', fontSize: '0.9rem' }}>Проблемы профилей</Typography>}
           />
           <FormControlLabel
-            control={<Switch checked={form.notifyOnLoginRequired} onChange={handleToggle('notifyOnLoginRequired')} />}
-            label="Требуется вход"
+            control={
+              <Switch 
+                checked={form.notifyOnLoginRequired} 
+                onChange={handleToggle('notifyOnLoginRequired')}
+                sx={{
+                  '& .MuiSwitch-switchBase.Mui-checked': {
+                    color: '#6366f1',
+                  },
+                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                    backgroundColor: '#6366f1',
+                  },
+                }}
+              />
+            }
+            label={<Typography sx={{ color: '#f5f5f5', fontSize: '0.9rem' }}>Требуется вход</Typography>}
           />
-        </Stack>
+        </Box>
 
-        <Button variant="contained" onClick={handleSave} disabled={mutation.isPending}>
-          Сохранить
-        </Button>
+        <Box>
+          <StyledButton onClick={handleSave} disabled={mutation.isPending} sx={{ minWidth: 140 }}>
+            {mutation.isPending ? (
+              <CircularProgress size={LOADING_ICON_SIZE} color="inherit" />
+            ) : (
+              'Сохранить'
+            )}
+          </StyledButton>
+        </Box>
 
-        {mutation.isSuccess && <Alert severity="success">Настройки сохранены.</Alert>}
+        {mutation.isSuccess && (
+          <Alert 
+            severity="success"
+            sx={{
+              borderRadius: '12px',
+              backgroundColor: 'rgba(76, 175, 80, 0.15)',
+              color: '#4caf50',
+              border: '1px solid rgba(76, 175, 80, 0.3)',
+            }}
+          >
+            Настройки сохранены.
+          </Alert>
+        )}
         {mutation.error && (
-          <Alert severity="error">{mutation.error.message || 'Ошибка при сохранении настроек'}</Alert>
+          <Alert 
+            severity="error"
+            sx={{
+              borderRadius: '12px',
+              backgroundColor: 'rgba(244, 67, 54, 0.1)',
+              color: '#f44336',
+              border: '1px solid rgba(244, 67, 54, 0.2)',
+            }}
+          >
+            {mutation.error.message || 'Ошибка при сохранении настроек'}
+          </Alert>
         )}
       </Stack>
     </Paper>
   );
 };
+
 
 

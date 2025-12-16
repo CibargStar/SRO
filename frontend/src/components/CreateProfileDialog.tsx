@@ -125,15 +125,38 @@ export function CreateProfileDialog({ open, onClose }: CreateProfileDialogProps)
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} PaperProps={dialogPaperProps} maxWidth="sm" fullWidth>
-      <Box sx={dialogTitleStyles}>
-        <Typography variant="h6">Создание профиля Chrome</Typography>
+    <Dialog 
+      open={open} 
+      onClose={handleClose} 
+      PaperProps={{
+        ...dialogPaperProps,
+        sx: {
+          ...dialogPaperProps.sx,
+          borderRadius: '16px',
+        },
+      }} 
+      maxWidth="sm" 
+      fullWidth
+    >
+      <Box sx={{ ...dialogTitleStyles, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+        <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
+          Создание профиля Chrome
+        </Typography>
       </Box>
 
       <form onSubmit={handleSubmit(onSubmit)}>
-        <DialogContent sx={dialogContentStyles}>
+        <DialogContent sx={{ ...dialogContentStyles, pt: 3 }}>
           {createMutation.isError && (
-            <Alert severity="error" sx={{ mb: 2 }}>
+            <Alert 
+              severity="error" 
+              sx={{ 
+                mb: 2,
+                borderRadius: '12px',
+                backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                color: '#f44336',
+                border: '1px solid rgba(244, 67, 54, 0.2)',
+              }}
+            >
               {createMutation.error instanceof Error
                 ? createMutation.error.message
                 : 'Произошла ошибка при создании профиля'}
@@ -165,9 +188,9 @@ export function CreateProfileDialog({ open, onClose }: CreateProfileDialogProps)
             sx={{ mb: 2 }}
           />
 
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, borderRadius: '12px', backgroundColor: 'rgba(255, 255, 255, 0.05)' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2.5, borderRadius: '12px', backgroundColor: 'rgba(255, 255, 255, 0.06)' }}>
             <Box>
-              <Typography variant="body1" sx={{ color: '#ffffff', fontWeight: 500, mb: 0.5 }}>
+              <Typography variant="body1" sx={{ color: '#f5f5f5', fontWeight: 500, mb: 0.5 }}>
                 Режим работы
               </Typography>
               <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Grid, TextField } from '@mui/material';
+import { Grid } from '@mui/material';
+import { StyledTextField } from '@/components/common';
 import type { UpdateGlobalSettingsInput } from '@/types/campaign';
 
 type OnChange = <K extends keyof UpdateGlobalSettingsInput>(key: K, value: UpdateGlobalSettingsInput[K]) => void;
@@ -13,7 +14,7 @@ export function StorageForm({ form, onChange }: Props) {
   return (
     <Grid container spacing={2}>
       <Grid item xs={12} md={6}>
-        <TextField
+        <StyledTextField
           label="Хранение завершенных кампаний (дней)"
           type="number"
           fullWidth
@@ -26,5 +27,6 @@ export function StorageForm({ form, onChange }: Props) {
 }
 
 export default StorageForm;
+
 
 

@@ -115,10 +115,12 @@ export const createTemplateItemSchema = z.object({
     .max(4096, { message: 'Содержимое не должно превышать 4096 символов' })
     .optional()
     .nullable(),
-  orderIndex: z
+  // orderIndex не передается - backend вычисляет автоматически
+  delayAfterMs: z
     .number()
-    .int({ message: 'Индекс сортировки должен быть целым числом' })
-    .min(0, { message: 'Индекс сортировки не может быть отрицательным' })
+    .int({ message: 'Задержка должна быть целым числом' })
+    .min(0, { message: 'Задержка не может быть отрицательной' })
+    .max(60000, { message: 'Задержка не должна превышать 60000 мс (1 минута)' })
     .optional(),
 });
 
@@ -147,10 +149,8 @@ export const createTemplateSchema = z.object({
 
   messengerTarget: messengerTargetEnum,
 
-  items: z
-    .array(createTemplateItemSchema)
-    .max(50, { message: 'Максимальное количество элементов - 50' })
-    .optional(),
+  // items не используется при создании - элементы добавляются отдельно после создания шаблона
+  // Для SINGLE шаблона можно использовать content для создания первого элемента
 });
 
 export type CreateTemplateFormData = z.infer<typeof createTemplateSchema>;
@@ -177,9 +177,21 @@ export const updateTemplateSchema = z
       .nullable(),
 
     messengerTarget: messengerTargetEnum.optional(),
+
+    isActive: z.boolean().optional(),
   })
   .refine(
-    (data) => Object.values(data).some((v) => v !== undefined),
+    (data) => {
+      // Проверяем что хотя бы одно поле предоставлено
+      const hasValue = Object.entries(data).some(([key, value]) => {
+        if (key === 'categoryId') {
+          // categoryId может быть пустой строкой, но не null
+          return value !== undefined && value !== '';
+        }
+        return value !== undefined;
+      });
+      return hasValue;
+    },
     { message: 'Хотя бы одно поле должно быть предоставлено для обновления' }
   );
 
@@ -195,10 +207,12 @@ export const updateTemplateItemSchema = z
       .max(4096, { message: 'Содержимое не должно превышать 4096 символов' })
       .optional()
       .nullable(),
-    orderIndex: z
+    // orderIndex не используется - порядок изменяется через reorderItems
+    delayAfterMs: z
       .number()
-      .int({ message: 'Индекс сортировки должен быть целым числом' })
-      .min(0, { message: 'Индекс сортировки не может быть отрицательным' })
+      .int({ message: 'Задержка должна быть целым числом' })
+      .min(0, { message: 'Задержка не может быть отрицательной' })
+      .max(60000, { message: 'Задержка не должна превышать 60000 мс (1 минута)' })
       .optional(),
   })
   .refine(

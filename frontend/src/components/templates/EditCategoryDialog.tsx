@@ -103,12 +103,25 @@ export function EditCategoryDialog({ open, category, onClose }: EditCategoryDial
       fullWidth
       PaperProps={dialogPaperProps}
     >
-      <Typography sx={dialogTitleStyles}>Редактирование категории</Typography>
+      <Box sx={dialogTitleStyles}>
+        <Typography sx={{ color: '#fff', fontSize: '1.25rem', fontWeight: 500 }}>
+          Редактирование категории
+        </Typography>
+      </Box>
 
       <form onSubmit={handleSubmit(onSubmit)}>
         <DialogContent sx={dialogContentStyles}>
           {updateMutation.isError && (
-            <Alert severity="error" sx={{ mb: 2 }}>
+            <Alert 
+              severity="error" 
+              sx={{ 
+                mb: 2,
+                borderRadius: '12px',
+                backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                color: '#ffffff',
+                border: 'none',
+              }}
+            >
               {(updateMutation.error as Error)?.message || 'Ошибка при обновлении категории'}
             </Alert>
           )}
@@ -171,6 +184,7 @@ export function EditCategoryDialog({ open, category, onClose }: EditCategoryDial
 }
 
 export default EditCategoryDialog;
+
 
 
 

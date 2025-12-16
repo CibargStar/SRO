@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Card,
@@ -38,6 +38,13 @@ export function TemplateItemEditor({ templateId, item, index, total, onMoveUp, o
   const deleteItem = useDeleteTemplateItem();
   const uploadFile = useUploadTemplateFile();
   const deleteFile = useDeleteTemplateFile();
+
+  // Синхронизация состояния с обновленными данными элемента
+  useEffect(() => {
+    if (item.id && item.content !== undefined) {
+      setContent(item.content || '');
+    }
+  }, [item.id, item.content]);
 
   const handleSave = async () => {
     setLocalError(null);
@@ -83,16 +90,45 @@ export function TemplateItemEditor({ templateId, item, index, total, onMoveUp, o
     <Card
       variant="outlined"
       sx={{
-        backgroundColor: 'rgba(255, 255, 255, 0.02)',
-        borderColor: 'rgba(255, 255, 255, 0.08)',
+        backgroundColor: 'rgba(255, 255, 255, 0.04)',
+        border: 'none',
+        borderRadius: '12px',
+        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+        '&:hover': {
+          backgroundColor: 'rgba(255, 255, 255, 0.06)',
+        },
       }}
     >
-      <CardContent>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2} sx={{ mb: 1 }}>
-          <Typography variant="subtitle2" sx={{ color: '#fff' }}>
-            Элемент #{index + 1} — {isText ? 'Текст' : 'Файл'}
-          </Typography>
-          <Stack direction="row" spacing={1} alignItems="center">
+      <CardContent sx={{ p: 2.5 }}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2} sx={{ mb: 2 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+            }}
+          >
+            <Box
+              sx={{
+                width: 24,
+                height: 24,
+                borderRadius: '6px',
+                backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#818cf8',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+              }}
+            >
+              {index + 1}
+            </Box>
+            <Typography variant="subtitle2" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
+              {isText ? 'Текст' : 'Файл'}
+            </Typography>
+          </Box>
+          <Stack direction="row" spacing={0.5} alignItems="center">
             <TemplateItemDragHandle
               onMoveUp={onMoveUp}
               onMoveDown={onMoveDown}
@@ -100,8 +136,19 @@ export function TemplateItemEditor({ templateId, item, index, total, onMoveUp, o
               disableDown={index === total - 1}
             />
             <Tooltip title="Удалить элемент">
-              <IconButton size="small" onClick={handleDelete} disabled={deleteItem.isPending}>
-                <DeleteIcon sx={{ color: '#f44336' }} fontSize="small" />
+              <IconButton 
+                size="small" 
+                onClick={handleDelete} 
+                disabled={deleteItem.isPending}
+                sx={{
+                  color: 'rgba(255, 255, 255, 0.6)',
+                  '&:hover': {
+                    color: '#f44336',
+                    backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                  },
+                }}
+              >
+                <DeleteIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           </Stack>
@@ -142,21 +189,40 @@ export function TemplateItemEditor({ templateId, item, index, total, onMoveUp, o
         )}
 
         {localError && (
-          <Alert severity="error" sx={{ mt: 1 }}>
+          <Alert 
+            severity="error" 
+            sx={{ 
+              mt: 1,
+              borderRadius: '12px',
+              backgroundColor: 'rgba(244, 67, 54, 0.1)',
+              color: '#ffffff',
+              border: 'none',
+            }}
+          >
             {localError}
           </Alert>
         )}
       </CardContent>
 
       {isText && (
-        <CardActions sx={{ justifyContent: 'flex-end', px: 2, pb: 2 }}>
+        <CardActions sx={{ justifyContent: 'flex-end', px: 2.5, pb: 2.5, pt: 0 }}>
           <Tooltip title="Сохранить текст">
             <span>
-              <IconButton onClick={handleSave} disabled={updateItem.isPending}>
+              <IconButton 
+                onClick={handleSave} 
+                disabled={updateItem.isPending}
+                sx={{
+                  color: 'rgba(255, 255, 255, 0.7)',
+                  '&:hover': {
+                    color: '#4caf50',
+                    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                  },
+                }}
+              >
                 {updateItem.isPending ? (
-                  <CircularProgress size={18} />
+                  <CircularProgress size={18} color="inherit" />
                 ) : (
-                  <SaveIcon sx={{ color: '#4caf50' }} />
+                  <SaveIcon fontSize="small" />
                 )}
               </IconButton>
             </span>

@@ -132,9 +132,9 @@ export class FileStorageService {
     try {
       await fs.unlink(fullPath);
       logger.info('File deleted', { relativePath });
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Игнорируем ошибку если файл не существует
-      if (error.code === 'ENOENT') {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
         logger.warn('File not found for deletion', { relativePath });
         return;
       }
@@ -155,9 +155,9 @@ export class FileStorageService {
     try {
       await fs.rm(templateDir, { recursive: true, force: true });
       logger.info('Template files deleted', { userId, templateId });
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Игнорируем ошибку если директория не существует
-      if (error.code === 'ENOENT') {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
         logger.warn('Template directory not found for deletion', { userId, templateId });
         return;
       }
@@ -177,8 +177,8 @@ export class FileStorageService {
     try {
       await fs.rm(userDir, { recursive: true, force: true });
       logger.info('User files deleted', { userId });
-    } catch (error: any) {
-      if (error.code === 'ENOENT') {
+    } catch (error: unknown) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
         logger.warn('User directory not found for deletion', { userId });
         return;
       }
@@ -223,8 +223,8 @@ export class FileStorageService {
     const fullPath = path.join(this.uploadsDir, relativePath);
     try {
       return await fs.readFile(fullPath);
-    } catch (error: any) {
-      if (error.code === 'ENOENT') {
+    } catch (error: unknown) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
         throw new FileValidationError('File not found', 'FILE_NOT_FOUND');
       }
       logger.error('Failed to read file', { error, relativePath });
@@ -246,8 +246,8 @@ export class FileStorageService {
         size: stats.size,
         mtime: stats.mtime,
       };
-    } catch (error: any) {
-      if (error.code === 'ENOENT') {
+    } catch (error: unknown) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
         return null;
       }
       logger.error('Failed to get file stats', { error, relativePath });
@@ -287,8 +287,8 @@ export class FileStorageService {
       
       logger.info('File copied', { sourcePath, targetPath: relativePath });
       return relativePath;
-    } catch (error: any) {
-      if (error.code === 'ENOENT') {
+    } catch (error: unknown) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
         throw new FileValidationError('Source file not found', 'FILE_NOT_FOUND');
       }
       logger.error('Failed to copy file', { error, sourcePath, targetTemplateId });
@@ -348,5 +348,7 @@ export class FileStorageService {
     return this.uploadsDir;
   }
 }
+
+
 
 

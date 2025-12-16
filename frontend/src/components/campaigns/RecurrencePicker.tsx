@@ -1,5 +1,6 @@
 import React from 'react';
-import { FormControl, InputLabel, MenuItem, Select, Stack, TextField } from '@mui/material';
+import { FormControl, InputLabel, MenuItem, Stack } from '@mui/material';
+import { StyledSelect, StyledTextField, MenuProps, selectInputLabelStyles } from '@/components/common';
 import type { ScheduleConfig, RecurrenceType } from '@/types/campaign';
 
 interface RecurrencePickerProps {
@@ -20,22 +21,23 @@ export function RecurrencePicker({ value, onChange }: RecurrencePickerProps) {
   return (
     <Stack spacing={1.5}>
       <FormControl fullWidth>
-        <InputLabel>Периодичность</InputLabel>
-        <Select
+        <InputLabel sx={selectInputLabelStyles}>Периодичность</InputLabel>
+        <StyledSelect
           label="Периодичность"
           value={value.recurrence || 'NONE'}
           onChange={(e) => update({ recurrence: e.target.value as RecurrenceType })}
+          MenuProps={MenuProps}
         >
           {RECURRENCE_OPTIONS.map((opt) => (
             <MenuItem key={opt.value} value={opt.value}>
               {opt.label}
             </MenuItem>
           ))}
-        </Select>
+        </StyledSelect>
       </FormControl>
 
       {value.recurrence && value.recurrence !== 'NONE' && (
-        <TextField
+        <StyledTextField
           label="Дата окончания (опционально)"
           type="date"
           InputLabelProps={{ shrink: true }}
@@ -49,6 +51,7 @@ export function RecurrencePicker({ value, onChange }: RecurrencePickerProps) {
 }
 
 export default RecurrencePicker;
+
 
 
 

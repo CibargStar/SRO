@@ -10,7 +10,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../../middleware/auth';
 import { CampaignsService, getCampaignsService } from './campaigns.service';
-import { getCampaignExecutorService } from './executor';
+import { getCampaignExecutorService, CampaignExecutorService } from './executor';
 import {
   createCampaignSchema,
   updateCampaignSchema,
@@ -43,6 +43,15 @@ export class CampaignsController {
       return wsServerUnknown;
     }
     return undefined;
+  }
+
+  private resolveExecutor(req: AuthenticatedRequest): CampaignExecutorService {
+    const executorUnknown: unknown = req.app.get('campaignExecutor');
+    if (executorUnknown instanceof CampaignExecutorService) {
+      return executorUnknown;
+    }
+    const wsServer = this.resolveWsServer(req);
+    return getCampaignExecutorService(prisma, wsServer);
   }
 
   // ============================================
@@ -300,8 +309,7 @@ export class CampaignsController {
       // Подготовка очереди и перевод в QUEUED
       await this.service.queueCampaign(userId, campaignId, input.profileIds);
 
-      const wsServer = this.resolveWsServer(req);
-      const executor = getCampaignExecutorService(prisma, wsServer);
+      const executor = this.resolveExecutor(req);
       await executor.startCampaign(campaignId);
 
       res.json({
@@ -328,8 +336,7 @@ export class CampaignsController {
     try {
       const { campaignId } = campaignIdParamSchema.parse(req.params);
 
-      const wsServer = this.resolveWsServer(req);
-      const executor = getCampaignExecutorService(prisma, wsServer);
+      const executor = this.resolveExecutor(req);
       await executor.pauseCampaign(campaignId);
 
       res.json({
@@ -355,8 +362,7 @@ export class CampaignsController {
     try {
       const { campaignId } = campaignIdParamSchema.parse(req.params);
 
-      const wsServer = this.resolveWsServer(req);
-      const executor = getCampaignExecutorService(prisma, wsServer);
+      const executor = this.resolveExecutor(req);
       await executor.resumeCampaign(campaignId);
 
       res.json({
@@ -382,8 +388,7 @@ export class CampaignsController {
     try {
       const { campaignId } = campaignIdParamSchema.parse(req.params);
 
-      const wsServer = this.resolveWsServer(req);
-      const executor = getCampaignExecutorService(prisma, wsServer);
+      const executor = this.resolveExecutor(req);
       await executor.cancelCampaign(campaignId);
 
       res.json({

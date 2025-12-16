@@ -3,11 +3,13 @@ import {
   Box,
   Typography,
   IconButton,
-  Button,
   CircularProgress,
   Alert,
+  Paper,
+  Tooltip,
 } from '@mui/material';
 import { Refresh as RefreshIcon } from '@mui/icons-material';
+import { StyledButton, LOADING_ICON_SIZE } from '@/components/common';
 import { useAllCampaignLimits, useSetUserCampaignLimits } from '@/hooks/useCampaignSettings';
 import type { UserCampaignLimits } from '@/types/campaign';
 import { UserCampaignLimitsTable } from '@/components/admin/campaign-limits/UserCampaignLimitsTable';
@@ -65,37 +67,97 @@ export function UserCampaignLimitsPage() {
 
   if (isLoading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
-        <CircularProgress />
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '50vh',
+        maxWidth: 1600,
+        mx: 'auto',
+      }}>
+        <CircularProgress sx={{ color: '#6366f1' }} />
       </Box>
     );
   }
 
   if (error) {
-    return <Alert severity="error">Ошибка загрузки лимитов: {error.message}</Alert>;
+    return (
+      <Box sx={{ maxWidth: 1600, mx: 'auto' }}>
+        <Alert 
+          severity="error"
+          sx={{
+            borderRadius: '12px',
+            backgroundColor: 'rgba(244, 67, 54, 0.1)',
+            color: '#f44336',
+            border: '1px solid rgba(244, 67, 54, 0.2)',
+          }}
+        >
+          Ошибка загрузки лимитов: {error.message}
+        </Alert>
+      </Box>
+    );
   }
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h4">Лимиты кампаний (ROOT)</Typography>
-        <IconButton onClick={() => refetch()} disabled={isLoading}>
-          <RefreshIcon />
-        </IconButton>
+    <Box
+      sx={{
+        width: '100%',
+        overflowY: 'auto',
+        '&::-webkit-scrollbar': {
+          display: 'none',
+          width: 0,
+          height: 0,
+        },
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none',
+        '& *': {
+          '&::-webkit-scrollbar': {
+            display: 'none',
+            width: 0,
+            height: 0,
+          },
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        },
+      }}
+    >
+      <Box sx={{ maxWidth: 1600, mx: 'auto' }}>
+        <Paper sx={{ p: 3, backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '16px', border: 'none', mb: 3 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h4" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
+              Лимиты кампаний
+            </Typography>
+            <Tooltip title="Обновить">
+              <IconButton 
+                onClick={() => refetch()} 
+                disabled={isLoading}
+                sx={{
+                  color: 'rgba(255, 255, 255, 0.7)',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                    color: '#f5f5f5',
+                  },
+                }}
+              >
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        </Paper>
+
+        <UserCampaignLimitsTable rows={rows} onEdit={handleOpenEdit} />
+
+        <EditUserCampaignLimitsDialog
+          open={editState.open}
+          limits={editState.limits}
+          draft={draft}
+          onClose={handleCloseEdit}
+          onChangeNumber={handleNumberChange}
+          onChangeSwitch={handleSwitchChange}
+          onSave={handleSave}
+          saving={setLimitsMutation.isPending}
+        />
       </Box>
-
-      <UserCampaignLimitsTable rows={rows} onEdit={handleOpenEdit} />
-
-      <EditUserCampaignLimitsDialog
-        open={editState.open}
-        limits={editState.limits}
-        draft={draft}
-        onClose={handleCloseEdit}
-        onChangeNumber={handleNumberChange}
-        onChangeSwitch={handleSwitchChange}
-        onSave={handleSave}
-        saving={setLimitsMutation.isPending}
-      />
     </Box>
   );
 }

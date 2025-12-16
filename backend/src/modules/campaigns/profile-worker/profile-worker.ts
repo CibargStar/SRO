@@ -10,6 +10,8 @@ import { LoadBalancerService } from '../load-balancer';
 import { MessageSenderService, SendMessageResult } from '../message-sender';
 import { MessengerType, UniversalTarget, MessengerStatus } from '@prisma/client';
 import prisma from '../../../config/database';
+import { VariableParserService, ClientData } from '../../templates/variable-parser.service';
+import logger from '../../../config/logger';
 
 interface ProfileWorkerConfig {
   campaignId: string;
@@ -38,7 +40,14 @@ type WorkerMessage = {
   id: string;
   messenger: MessengerType | null;
   clientPhone?: { id: string; phone: string; whatsAppStatus: MessengerStatus; telegramStatus: MessengerStatus };
-  client?: { id: string; firstName?: string | null } | null;
+  client?: { 
+    id: string; 
+    firstName?: string | null;
+    lastName?: string | null;
+    middleName?: string | null;
+    group?: { name: string } | null;
+    region?: { name: string } | null;
+  } | null;
 };
 
 export class ProfileWorker {
@@ -57,6 +66,8 @@ export class ProfileWorker {
   private typingDelayMs?: { minMs: number; maxMs: number };
   private lastClientId: string | null = null;
   private universalTarget?: UniversalTarget | null;
+  private templateText: string | null = null;
+  private variableParser: VariableParserService;
 
   constructor(config: ProfileWorkerConfig) {
     this.campaignId = config.campaignId;
@@ -71,6 +82,7 @@ export class ProfileWorker {
     this.typingSimulationEnabled = config.typingSimulationEnabled;
     this.typingDelayMs = config.typingDelayMs;
     this.universalTarget = config.universalTarget;
+    this.variableParser = new VariableParserService();
   }
 
   /**
@@ -79,6 +91,10 @@ export class ProfileWorker {
   async start(): Promise<void> {
     this.running = true;
     this.paused = false;
+    
+    // Загружаем шаблон кампании при старте
+    await this.loadTemplate();
+    
     while (this.running) {
       if (this.paused) {
         await this.delay(200);
@@ -106,28 +122,87 @@ export class ProfileWorker {
         }
 
         // Помечаем PROCESSING
-        await this.messageRepository.update(msg.id, { status: 'PROCESSING' });
+        try {
+          await this.messageRepository.update(msg.id, { status: 'PROCESSING' });
+        } catch (error) {
+          logger.error('Failed to mark message as PROCESSING', {
+            messageId: msg.id,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+          // Продолжаем обработку, но логируем ошибку
+        }
 
         // Определяем мессенджер (если не выбран — универсальный, решит executor/ sender)
         const messenger = msg.messenger ?? null;
         const phone = msg.clientPhone?.phone ?? '';
-        const text = msg.client?.firstName ?? phone;
         const clientId = msg.client?.id ?? null;
         const phoneId = msg.clientPhone?.id ?? null;
+        
+        let result: {
+          messageId: string;
+          status: 'SENT' | 'FAILED' | 'SKIPPED';
+          messenger: SendMessageResult['messenger'] | null;
+          clientId: string | null;
+          phoneId: string | null;
+          errorMessage?: string;
+        };
 
-        // Отправляем
-        const result = await this.sendWithHandling({
-          messageId: msg.id,
-          messenger,
-          phone,
-          text,
-          clientId,
-          phoneId,
-          waStatus: msg.clientPhone?.whatsAppStatus ?? 'Unknown',
-          tgStatus: msg.clientPhone?.telegramStatus ?? 'Unknown',
-        });
+        try {
+          // Получаем текст из шаблона с подстановкой переменных клиента
+          const text = await this.getProcessedTemplateText(msg.client, phone);
 
-        await this.onMessageProcessed(result);
+          // Проверяем, есть ли что отправлять
+          if (!text || text.trim() === '') {
+            // Если текст пустой, помечаем как FAILED
+            result = {
+              messageId: msg.id,
+              status: 'FAILED' as const,
+              messenger: null,
+              clientId,
+              phoneId,
+              errorMessage: 'Template text is empty or failed to load',
+            };
+            await this.onMessageProcessed(result);
+            continue;
+          }
+
+          // Отправляем
+          result = await this.sendWithHandling({
+            messageId: msg.id,
+            messenger,
+            phone,
+            text,
+            clientId,
+            phoneId,
+            waStatus: msg.clientPhone?.whatsAppStatus ?? 'Unknown' as MessengerStatus,
+            tgStatus: msg.clientPhone?.telegramStatus ?? 'Unknown' as MessengerStatus,
+          });
+
+          await this.onMessageProcessed(result);
+        } catch (error) {
+          // Обработка неожиданных ошибок при обработке сообщения
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          logger.error('Unexpected error processing message', {
+            messageId: msg.id,
+            error: errorMessage,
+          });
+
+          // Помечаем сообщение как FAILED
+          result = {
+            messageId: msg.id,
+            status: 'FAILED' as const,
+            messenger: null,
+            clientId,
+            phoneId,
+            errorMessage: `Unexpected error: ${errorMessage}`,
+          };
+          await this.onMessageProcessed(result).catch((processError) => {
+            logger.error('Failed to process failed message result', {
+              messageId: msg.id,
+              error: processError instanceof Error ? processError.message : 'Unknown error',
+            });
+          });
+        }
 
         // Межсообщенческий тайминг
         await this.applyMessageDelay();
@@ -207,6 +282,7 @@ export class ProfileWorker {
           hasWhatsApp: hasWa,
           hasTelegram: hasTg,
           universalTarget: this.universalTarget,
+          profileId: this.profileId,
         });
 
         if (sendResult.success) {
@@ -244,6 +320,7 @@ export class ProfileWorker {
           hasWhatsApp: hasWa,
           hasTelegram: hasTg,
           universalTarget: this.universalTarget,
+          profileId: this.profileId,
         });
         tried.push({ messenger, result: res });
         if (res.success) {
@@ -363,6 +440,97 @@ export class ProfileWorker {
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Загрузка шаблона кампании
+   */
+  private async loadTemplate(): Promise<void> {
+    try {
+      const campaign = await prisma.campaign.findUnique({
+        where: { id: this.campaignId },
+        include: {
+          template: {
+            include: {
+              items: {
+                where: { type: 'TEXT' },
+                orderBy: { orderIndex: 'asc' },
+              },
+            },
+          },
+        },
+      });
+
+      if (!campaign?.template) {
+        logger.warn('Campaign template not found', { 
+          campaignId: this.campaignId 
+        });
+        this.templateText = null;
+        return;
+      }
+
+      // Объединяем все TEXT элементы шаблона
+      const textItems = campaign.template.items
+        .map((item) => item.content || '')
+        .filter((text) => text.trim() !== '')
+        .join('\n')
+        .trim();
+
+      if (!textItems) {
+        logger.warn('Campaign template has no text content', { 
+          campaignId: this.campaignId,
+          templateId: campaign.template.id,
+          itemsCount: campaign.template.items.length
+        });
+        this.templateText = null;
+        return;
+      }
+
+      this.templateText = textItems;
+      logger.debug('Campaign template loaded successfully', { 
+        campaignId: this.campaignId,
+        templateId: campaign.template.id,
+        textLength: this.templateText.length
+      });
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Failed to load campaign template', { 
+        error: errorMsg,
+        campaignId: this.campaignId 
+      });
+      this.templateText = null;
+    }
+  }
+
+  /**
+   * Получение обработанного текста шаблона с подстановкой переменных клиента
+   */
+  private async getProcessedTemplateText(
+    client: WorkerMessage['client'],
+    phone: string
+  ): Promise<string> {
+    // Если шаблон не загружен, возвращаем пустую строку
+    if (!this.templateText) {
+      return '';
+    }
+
+    // Если нет данных клиента, возвращаем шаблон без обработки
+    if (!client) {
+      return this.templateText;
+    }
+
+    // Подготавливаем данные клиента для подстановки
+    const clientData: ClientData = {
+      firstName: client.firstName || '',
+      lastName: client.lastName || '',
+      middleName: client.middleName || null,
+      phone: phone || '',
+      groupName: client.group?.name || null,
+      regionName: client.region?.name || null,
+    };
+
+    // Обрабатываем шаблон с подстановкой переменных
+    return this.variableParser.replaceVariables(this.templateText, clientData);
   }
 }
 

@@ -1,6 +1,7 @@
 import React from 'react';
-import { Dialog, DialogTitle, DialogContent, DialogActions, Typography, Button, CircularProgress } from '@mui/material';
-import { CancelButton } from '@/components/common';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Typography, CircularProgress, Alert } from '@mui/material';
+import { CancelButton, StyledButton } from '@/components/common';
+import { dialogPaperProps, dialogTitleStyles, dialogContentStyles, dialogActionsStyles } from '@/components/common/DialogStyles';
 
 interface DeleteTemplateDialogProps {
   open: boolean;
@@ -8,33 +9,54 @@ interface DeleteTemplateDialogProps {
   onClose: () => void;
   onConfirm: () => void;
   isLoading?: boolean;
+  error?: Error | null;
 }
 
-export function DeleteTemplateDialog({ open, templateName, onClose, onConfirm, isLoading }: DeleteTemplateDialogProps) {
+export function DeleteTemplateDialog({ open, templateName, onClose, onConfirm, isLoading, error }: DeleteTemplateDialogProps) {
   return (
-    <Dialog open={open} onClose={onClose} PaperProps={{ sx: { backgroundColor: 'rgba(24,24,27,0.95)', borderRadius: 2 } }}>
-      <DialogTitle sx={{ color: '#fff' }}>Удаление шаблона</DialogTitle>
-      <DialogContent>
-        <Typography sx={{ color: 'rgba(255,255,255,0.75)' }}>
-          Вы уверены, что хотите удалить шаблон {templateName ? `“${templateName}”` : ''}? Это действие нельзя отменить.
+    <Dialog open={open} onClose={onClose} PaperProps={dialogPaperProps}>
+      <DialogTitle sx={{ color: '#fff', ...dialogTitleStyles }}>Удаление шаблона</DialogTitle>
+      <DialogContent sx={dialogContentStyles}>
+        {error && (
+          <Alert 
+            severity="error" 
+            sx={{ 
+              mb: 2,
+              borderRadius: '12px',
+              backgroundColor: 'rgba(244, 67, 54, 0.1)',
+              color: '#ffffff',
+              border: 'none',
+            }}
+          >
+            {error.message || 'Не удалось удалить шаблон'}
+          </Alert>
+        )}
+        <Typography sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+          Вы уверены, что хотите удалить шаблон {templateName ? `"${templateName}"` : ''}? Это действие нельзя отменить.
         </Typography>
       </DialogContent>
-      <DialogActions sx={{ p: 2 }}>
-        <CancelButton onClick={onClose}>Отмена</CancelButton>
-        <Button
-          color="error"
-          variant="contained"
+      <DialogActions sx={dialogActionsStyles}>
+        <CancelButton onClick={onClose} disabled={isLoading}>Отмена</CancelButton>
+        <StyledButton
           onClick={onConfirm}
           disabled={isLoading}
+          sx={{
+            backgroundColor: '#f44336',
+            color: '#ffffff',
+            '&:hover': {
+              backgroundColor: '#d32f2f',
+            },
+          }}
         >
           {isLoading ? <CircularProgress size={18} color="inherit" /> : 'Удалить'}
-        </Button>
+        </StyledButton>
       </DialogActions>
     </Dialog>
   );
 }
 
 export default DeleteTemplateDialog;
+
 
 
 

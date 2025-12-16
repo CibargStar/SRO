@@ -156,15 +156,18 @@ export function EditProfileDialog({ open, onClose, profile, onProfileUpdated }: 
       return;
     }
 
-    console.log('[EditProfileDialog] Updating profile:', {
-      profileId: profile.id,
-      profileData,
-      currentHeadless,
-      profileHeadless,
-      formValues,
-      headlessValue,
-      dataFromSubmit: data,
-    });
+    // Логирование для отладки (можно удалить в продакшене)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[EditProfileDialog] Updating profile:', {
+        profileId: profile.id,
+        profileData,
+        currentHeadless,
+        profileHeadless,
+        formValues,
+        headlessValue,
+        dataFromSubmit: data,
+      });
+    }
 
     updateMutation.mutate(
       {
@@ -173,7 +176,10 @@ export function EditProfileDialog({ open, onClose, profile, onProfileUpdated }: 
       },
       {
         onSuccess: (updatedProfile) => {
-          console.log('[EditProfileDialog] Profile updated successfully:', updatedProfile);
+          // Логирование для отладки (можно удалить в продакшене)
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[EditProfileDialog] Profile updated successfully:', updatedProfile);
+          }
           // Вызываем callback для обновления selectedProfile в родительском компоненте
           if (onProfileUpdated) {
             onProfileUpdated(updatedProfile);
@@ -181,6 +187,7 @@ export function EditProfileDialog({ open, onClose, profile, onProfileUpdated }: 
           onClose();
         },
         onError: (error) => {
+          // Логирование ошибок всегда актуально
           console.error('[EditProfileDialog] Error updating profile:', error);
         },
       }
@@ -199,15 +206,38 @@ export function EditProfileDialog({ open, onClose, profile, onProfileUpdated }: 
   }
 
   return (
-    <Dialog open={open} onClose={handleClose} PaperProps={dialogPaperProps} maxWidth="sm" fullWidth>
-      <Box sx={dialogTitleStyles}>
-        <Typography variant="h6">Редактирование профиля</Typography>
+    <Dialog 
+      open={open} 
+      onClose={handleClose} 
+      PaperProps={{
+        ...dialogPaperProps,
+        sx: {
+          ...dialogPaperProps.sx,
+          borderRadius: '16px',
+        },
+      }} 
+      maxWidth="sm" 
+      fullWidth
+    >
+      <Box sx={{ ...dialogTitleStyles, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+        <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
+          Редактирование профиля
+        </Typography>
       </Box>
 
       <form onSubmit={handleSubmit(onSubmit)}>
-        <DialogContent sx={dialogContentStyles}>
+        <DialogContent sx={{ ...dialogContentStyles, pt: 3 }}>
           {updateMutation.isError && (
-            <Alert severity="error" sx={{ mb: 2 }}>
+            <Alert 
+              severity="error" 
+              sx={{ 
+                mb: 2,
+                borderRadius: '12px',
+                backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                color: '#f44336',
+                border: '1px solid rgba(244, 67, 54, 0.2)',
+              }}
+            >
               {updateMutation.error instanceof Error
                 ? updateMutation.error.message
                 : 'Произошла ошибка при обновлении профиля'}
@@ -239,9 +269,9 @@ export function EditProfileDialog({ open, onClose, profile, onProfileUpdated }: 
             sx={{ mb: 2 }}
           />
 
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, borderRadius: '12px', backgroundColor: 'rgba(255, 255, 255, 0.05)' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2.5, borderRadius: '12px', backgroundColor: 'rgba(255, 255, 255, 0.06)' }}>
             <Box>
-              <Typography variant="body1" sx={{ color: '#ffffff', fontWeight: 500, mb: 0.5 }}>
+              <Typography variant="body1" sx={{ color: '#f5f5f5', fontWeight: 500, mb: 0.5 }}>
                 Режим работы
               </Typography>
               <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
@@ -258,7 +288,10 @@ export function EditProfileDialog({ open, onClose, profile, onProfileUpdated }: 
                       checked={field.value === true}
                       onChange={(e) => {
                         const newValue = e.target.checked;
-                        console.log('[EditProfileDialog] Headless switch changed:', { newValue, currentValue: field.value });
+                        // Логирование для отладки (можно удалить в продакшене)
+                        if (process.env.NODE_ENV === 'development') {
+                          console.log('[EditProfileDialog] Headless switch changed:', { newValue, currentValue: field.value });
+                        }
                         // Обновляем значение в форме
                         field.onChange(newValue);
                         // Также обновляем через setValue для гарантии, что значение точно попадет в форму

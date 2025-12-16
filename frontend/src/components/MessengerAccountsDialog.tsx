@@ -82,6 +82,7 @@ export function MessengerAccountsDialog({ open, onClose, profileId, isProfileRun
         cloudPasswordRequired: result.cloudPasswordRequired,
       };
     } catch (error) {
+      // Логирование ошибок всегда актуально
       console.error('Error refreshing status:', error);
       return { status: 'ERROR' };
     }
@@ -127,9 +128,23 @@ export function MessengerAccountsDialog({ open, onClose, profileId, isProfileRun
 
   return (
     <>
-      <Dialog open={open} onClose={onClose} PaperProps={dialogPaperProps} maxWidth="lg" fullWidth>
-        <Box sx={dialogTitleStyles}>
-          <Typography variant="h6">Управление мессенджерами</Typography>
+      <Dialog 
+        open={open} 
+        onClose={onClose} 
+        PaperProps={{
+          ...dialogPaperProps,
+          sx: {
+            ...dialogPaperProps.sx,
+            borderRadius: '16px',
+          },
+        }} 
+        maxWidth="lg" 
+        fullWidth
+      >
+        <Box sx={{ ...dialogTitleStyles, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
+            Управление мессенджерами
+          </Typography>
         </Box>
 
         <DialogContent>

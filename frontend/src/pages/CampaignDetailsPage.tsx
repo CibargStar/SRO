@@ -14,17 +14,13 @@ import {
   CircularProgress,
   Tabs,
   Tab,
-  Button,
   Stack,
   IconButton,
   Tooltip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
   Breadcrumbs,
   Link,
+  Divider,
+  Paper,
 } from '@mui/material';
 import {
   ArrowBack as BackIcon,
@@ -37,6 +33,8 @@ import {
   Archive as ArchiveIcon,
   Edit as EditIcon,
 } from '@mui/icons-material';
+import { StyledButton, CancelButton, LOADING_ICON_SIZE } from '@/components/common';
+import { CancelCampaignDialog, ArchiveCampaignDialog, ExportCampaignDialog } from '@/components/campaigns';
 import {
   useCampaign,
   useCampaignProgress,
@@ -95,6 +93,7 @@ export function CampaignDetailsPage() {
   // Dialogs
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
   // Data queries
   const {
@@ -200,10 +199,8 @@ export function CampaignDetailsPage() {
   }, [campaignId, archiveMutation, navigate]);
 
   const handleExport = useCallback(() => {
-    if (campaignId) {
-      exportMutation.mutate(campaignId);
-    }
-  }, [campaignId, exportMutation]);
+    setExportDialogOpen(true);
+  }, []);
 
   const handleRefresh = useCallback(() => {
     refetchCampaign();
@@ -215,8 +212,15 @@ export function CampaignDetailsPage() {
   // Loading state
   if (campaignLoading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-        <CircularProgress />
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '50vh',
+        maxWidth: 1600,
+        mx: 'auto',
+      }}>
+        <CircularProgress sx={{ color: '#6366f1' }} />
       </Box>
     );
   }
@@ -224,13 +228,22 @@ export function CampaignDetailsPage() {
   // Error state
   if (campaignError) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="error">
+      <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
+        <Alert 
+          severity="error"
+          sx={{
+            borderRadius: '12px',
+            backgroundColor: 'rgba(244, 67, 54, 0.1)',
+            color: '#f44336',
+            border: '1px solid rgba(244, 67, 54, 0.2)',
+            mb: 2,
+          }}
+        >
           Ошибка загрузки кампании: {(campaignError as Error).message}
         </Alert>
-        <Button sx={{ mt: 2 }} onClick={handleBack}>
+        <StyledButton onClick={handleBack}>
           Вернуться к списку
-        </Button>
+        </StyledButton>
       </Box>
     );
   }
@@ -238,11 +251,22 @@ export function CampaignDetailsPage() {
   // Not found state
   if (!campaign) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="warning">Кампания не найдена</Alert>
-        <Button sx={{ mt: 2 }} onClick={handleBack}>
+      <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
+        <Alert 
+          severity="warning"
+          sx={{
+            borderRadius: '12px',
+            backgroundColor: 'rgba(255, 152, 0, 0.1)',
+            color: '#ff9800',
+            border: '1px solid rgba(255, 152, 0, 0.2)',
+            mb: 2,
+          }}
+        >
+          Кампания не найдена
+        </Alert>
+        <StyledButton onClick={handleBack}>
           Вернуться к списку
-        </Button>
+        </StyledButton>
       </Box>
     );
   }
@@ -257,220 +281,311 @@ export function CampaignDetailsPage() {
   const isFinished = ['COMPLETED', 'CANCELLED', 'ERROR'].includes(campaign.status);
 
   return (
-    <Box>
-      {/* Header */}
-      <Box sx={{ mb: 3 }}>
-        {/* Breadcrumbs */}
-        <Breadcrumbs sx={{ mb: 2 }}>
-          <Link
-            color="inherit"
-            href="/campaigns"
-            onClick={(e) => { e.preventDefault(); handleBack(); }}
-            sx={{ cursor: 'pointer' }}
-          >
-            Кампании
-          </Link>
-          <Typography color="text.primary">{campaign.name}</Typography>
-        </Breadcrumbs>
+    <Box
+      sx={{
+        width: '100%',
+        overflowY: 'auto',
+        '&::-webkit-scrollbar': {
+          display: 'none',
+          width: 0,
+          height: 0,
+        },
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none',
+        '& *': {
+          '&::-webkit-scrollbar': {
+            display: 'none',
+            width: 0,
+            height: 0,
+          },
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        },
+      }}
+    >
+      <Box sx={{ maxWidth: 1600, mx: 'auto', p: 3 }}>
+        {/* Header */}
+        <Box sx={{ mb: 3 }}>
+          {/* Breadcrumbs */}
+          <Breadcrumbs sx={{ mb: 2 }}>
+            <Link
+              href="/campaigns"
+              onClick={(e) => { e.preventDefault(); handleBack(); }}
+              sx={{ 
+                cursor: 'pointer', 
+                color: 'rgba(255, 255, 255, 0.7)',
+                '&:hover': { color: '#6366f1' }
+              }}
+            >
+              Кампании
+            </Link>
+            <Typography sx={{ color: 'rgba(255, 255, 255, 0.5)' }}>{campaign.name}</Typography>
+          </Breadcrumbs>
 
-        {/* Title and Actions */}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <IconButton onClick={handleBack}>
-              <BackIcon />
-            </IconButton>
-            <Typography variant="h4" component="h1">
-              {campaign.name}
-            </Typography>
-            <CampaignStatusBadge status={campaign.status} />
-          </Box>
-
-          <Stack direction="row" spacing={1}>
-            {/* Action buttons based on status */}
-            {canStart && (
-              <Button
-                variant="contained"
-                color="success"
-                startIcon={<StartIcon />}
-                onClick={handleStart}
-                disabled={startMutation.isPending}
-              >
-                Запустить
-              </Button>
-            )}
-            {canPause && (
-              <Button
-                variant="outlined"
-                color="warning"
-                startIcon={<PauseIcon />}
-                onClick={handlePause}
-                disabled={pauseMutation.isPending}
-              >
-                Пауза
-              </Button>
-            )}
-            {canResume && (
-              <Button
-                variant="contained"
-                color="primary"
-                startIcon={<StartIcon />}
-                onClick={handleResume}
-                disabled={resumeMutation.isPending}
-              >
-                Продолжить
-              </Button>
-            )}
-            {canCancel && (
-              <Button
-                variant="outlined"
-                color="error"
-                startIcon={<StopIcon />}
-                onClick={() => setCancelDialogOpen(true)}
-              >
-                Отменить
-              </Button>
-            )}
-            {canEdit && (
-              <Tooltip title="Редактировать">
-                <IconButton onClick={() => navigate(`/campaigns/${campaignId}/edit`)}>
-                  <EditIcon />
+          {/* Title and Actions */}
+          <Paper sx={{ p: 3, backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '16px', border: 'none', mb: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <IconButton 
+                  onClick={handleBack}
+                  sx={{
+                    color: 'rgba(255, 255, 255, 0.7)',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                      color: '#f5f5f5',
+                    },
+                  }}
+                >
+                  <BackIcon />
                 </IconButton>
-              </Tooltip>
-            )}
-            <Tooltip title="Дублировать">
-              <IconButton onClick={handleDuplicate} disabled={duplicateMutation.isPending}>
-                <DuplicateIcon />
-              </IconButton>
-            </Tooltip>
-            {isFinished && (
-              <>
-                <Tooltip title="Экспорт результатов">
-                  <IconButton onClick={handleExport} disabled={exportMutation.isPending}>
-                    <ExportIcon />
-                  </IconButton>
-                </Tooltip>
-                {canArchive && (
-                  <Tooltip title="Архивировать">
-                    <IconButton onClick={() => setArchiveDialogOpen(true)}>
-                      <ArchiveIcon />
+                <Typography variant="h4" component="h1" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
+                  {campaign.name}
+                </Typography>
+                <CampaignStatusBadge status={campaign.status} />
+              </Box>
+
+              <Stack direction="row" spacing={1} flexWrap="wrap">
+                {/* Action buttons based on status */}
+                {canStart && (
+                  <StyledButton
+                    startIcon={<StartIcon />}
+                    onClick={handleStart}
+                    disabled={startMutation.isPending}
+                    sx={{
+                      backgroundColor: '#4caf50',
+                      '&:hover': { backgroundColor: '#45a049' },
+                    }}
+                  >
+                    {startMutation.isPending ? <CircularProgress size={LOADING_ICON_SIZE} color="inherit" /> : 'Запустить'}
+                  </StyledButton>
+                )}
+                {canPause && (
+                  <StyledButton
+                    variant="outlined"
+                    startIcon={<PauseIcon />}
+                    onClick={handlePause}
+                    disabled={pauseMutation.isPending}
+                    sx={{
+                      borderColor: '#f59e0b',
+                      color: '#f59e0b',
+                      '&:hover': {
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                      },
+                    }}
+                  >
+                    {pauseMutation.isPending ? <CircularProgress size={LOADING_ICON_SIZE} color="inherit" /> : 'Пауза'}
+                  </StyledButton>
+                )}
+                {canResume && (
+                  <StyledButton
+                    startIcon={<StartIcon />}
+                    onClick={handleResume}
+                    disabled={resumeMutation.isPending}
+                  >
+                    {resumeMutation.isPending ? <CircularProgress size={LOADING_ICON_SIZE} color="inherit" /> : 'Продолжить'}
+                  </StyledButton>
+                )}
+                {canCancel && (
+                  <StyledButton
+                    variant="outlined"
+                    startIcon={<StopIcon />}
+                    onClick={() => setCancelDialogOpen(true)}
+                    sx={{
+                      borderColor: '#f44336',
+                      color: '#f44336',
+                      '&:hover': {
+                        borderColor: '#f44336',
+                        backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                      },
+                    }}
+                  >
+                    Отменить
+                  </StyledButton>
+                )}
+                {canEdit && (
+                  <Tooltip title="Редактировать">
+                    <IconButton 
+                      onClick={() => navigate(`/campaigns/${campaignId}/edit`)}
+                      sx={{
+                        color: 'rgba(255, 255, 255, 0.7)',
+                        '&:hover': {
+                          backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                          color: '#f5f5f5',
+                        },
+                      }}
+                    >
+                      <EditIcon />
                     </IconButton>
                   </Tooltip>
                 )}
-              </>
-            )}
-            <Tooltip title="Обновить">
-              <IconButton onClick={handleRefresh}>
-                <RefreshIcon />
-              </IconButton>
-            </Tooltip>
-          </Stack>
+                <Tooltip title="Дублировать">
+                  <IconButton 
+                    onClick={handleDuplicate} 
+                    disabled={duplicateMutation.isPending}
+                    sx={{
+                      color: 'rgba(255, 255, 255, 0.7)',
+                      '&:hover': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                        color: '#f5f5f5',
+                      },
+                    }}
+                  >
+                    <DuplicateIcon />
+                  </IconButton>
+                </Tooltip>
+                {isFinished && (
+                  <>
+                    <Tooltip title="Экспорт результатов">
+                      <IconButton 
+                        onClick={() => setExportDialogOpen(true)} 
+                        disabled={exportMutation.isPending}
+                        sx={{
+                          color: 'rgba(255, 255, 255, 0.7)',
+                          '&:hover': {
+                            backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                            color: '#f5f5f5',
+                          },
+                        }}
+                      >
+                        <ExportIcon />
+                      </IconButton>
+                    </Tooltip>
+                    {canArchive && (
+                      <Tooltip title="Архивировать">
+                        <IconButton 
+                          onClick={() => setArchiveDialogOpen(true)}
+                          sx={{
+                            color: 'rgba(255, 255, 255, 0.7)',
+                            '&:hover': {
+                              backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                              color: '#f5f5f5',
+                            },
+                          }}
+                        >
+                          <ArchiveIcon />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                  </>
+                )}
+                <Tooltip title="Обновить">
+                  <IconButton 
+                    onClick={handleRefresh}
+                    sx={{
+                      color: 'rgba(255, 255, 255, 0.7)',
+                      '&:hover': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                        color: '#f5f5f5',
+                      },
+                    }}
+                  >
+                    <RefreshIcon />
+                  </IconButton>
+                </Tooltip>
+              </Stack>
+            </Box>
+          </Paper>
+
+          {/* Tabs */}
+          <Paper sx={{ backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '16px', border: 'none', overflow: 'hidden' }}>
+            <Tabs 
+              value={tabValue} 
+              onChange={handleTabChange}
+              sx={{
+                '& .MuiTab-root': {
+                  color: 'rgba(255, 255, 255, 0.7)',
+                  '&.Mui-selected': {
+                    color: '#6366f1',
+                  },
+                },
+                '& .MuiTabs-indicator': {
+                  backgroundColor: '#6366f1',
+                },
+              }}
+            >
+              <Tab label="Информация" />
+              <Tab label={`Сообщения (${campaign._count?.messages || 0})`} />
+              <Tab label={`Логи (${campaign._count?.logs || 0})`} />
+              <Tab label="Статистика" disabled={!isFinished} />
+            </Tabs>
+          </Paper>
         </Box>
-      </Box>
 
-      {/* Tabs */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-        <Tabs value={tabValue} onChange={handleTabChange}>
-          <Tab label="Информация" />
-          <Tab label={`Сообщения (${campaign._count?.messages || 0})`} />
-          <Tab label={`Логи (${campaign._count?.logs || 0})`} />
-          <Tab label="Статистика" disabled={!isFinished} />
-        </Tabs>
-      </Box>
+        {/* Tab Panels */}
+        <TabPanel value={tabValue} index={0}>
+          <Stack spacing={3}>
+            <CampaignProgressBlock
+              campaign={campaign}
+              progress={progress}
+              isLoading={campaignLoading}
+            />
+            <CampaignDetails
+              campaign={progress ? { ...campaign, ...progress } : campaign}
+              isLoading={campaignLoading}
+            />
+          </Stack>
+        </TabPanel>
 
-      {/* Tab Panels */}
-      <TabPanel value={tabValue} index={0}>
-        <Stack spacing={2}>
-          <CampaignProgressBlock
-            campaign={campaign}
-            progress={progress}
-            isLoading={campaignLoading}
+        <TabPanel value={tabValue} index={1}>
+          <CampaignMessages
+            campaignId={campaignId!}
+            messages={messagesData?.data || []}
+            totalCount={messagesData?.pagination.total || 0}
+            isLoading={messagesLoading}
+            query={messagesQuery}
+            onQueryChange={setMessagesQuery}
+            onRefresh={refetchMessages}
           />
-          <CampaignDetails
-            campaign={progress ? { ...campaign, ...progress } : campaign}
-            isLoading={campaignLoading}
+        </TabPanel>
+
+        <TabPanel value={tabValue} index={2}>
+          <CampaignLogs
+            campaignId={campaignId!}
+            logs={logsData?.data || []}
+            totalCount={logsData?.pagination.total || 0}
+            totalPages={logsData?.pagination.totalPages || 1}
+            isLoading={logsLoading}
+            query={logsQuery}
+            onQueryChange={setLogsQuery}
+            onRefresh={refetchLogs}
           />
-        </Stack>
-      </TabPanel>
+        </TabPanel>
 
-      <TabPanel value={tabValue} index={1}>
-        <CampaignMessages
-          campaignId={campaignId!}
-          messages={messagesData?.data || []}
-          totalCount={messagesData?.pagination.total || 0}
-          isLoading={messagesLoading}
-          query={messagesQuery}
-          onQueryChange={setMessagesQuery}
-          onRefresh={refetchMessages}
+        <TabPanel value={tabValue} index={3}>
+          <CampaignStatsView
+            stats={stats}
+            isLoading={statsLoading}
+          />
+        </TabPanel>
+
+        {/* Dialogs */}
+        <CancelCampaignDialog
+          open={cancelDialogOpen}
+          onClose={() => setCancelDialogOpen(false)}
+          campaign={campaign}
+          onSuccess={() => {
+            setCancelDialogOpen(false);
+            refetchCampaign();
+          }}
         />
-      </TabPanel>
 
-      <TabPanel value={tabValue} index={2}>
-        <CampaignLogs
-          campaignId={campaignId!}
-          logs={logsData?.data || []}
-          totalCount={logsData?.pagination.total || 0}
-          totalPages={logsData?.pagination.totalPages || 1}
-          isLoading={logsLoading}
-          query={logsQuery}
-          onQueryChange={setLogsQuery}
-          onRefresh={refetchLogs}
+        <ArchiveCampaignDialog
+          open={archiveDialogOpen}
+          onClose={() => setArchiveDialogOpen(false)}
+          campaign={campaign}
+          onSuccess={() => {
+            setArchiveDialogOpen(false);
+            navigate('/campaigns');
+          }}
         />
-      </TabPanel>
 
-      <TabPanel value={tabValue} index={3}>
-        <CampaignStatsView
-          stats={stats}
-          isLoading={statsLoading}
+        <ExportCampaignDialog
+          open={exportDialogOpen}
+          onClose={() => setExportDialogOpen(false)}
+          campaign={campaign || null}
         />
-      </TabPanel>
-
-      {/* Cancel Dialog */}
-      <Dialog open={cancelDialogOpen} onClose={() => setCancelDialogOpen(false)}>
-        <DialogTitle>Отменить кампанию?</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Вы уверены, что хотите отменить кампанию "{campaign.name}"?
-            Это действие нельзя отменить. Все необработанные сообщения будут пропущены.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCancelDialogOpen(false)}>
-            Отмена
-          </Button>
-          <Button
-            onClick={handleCancel}
-            color="error"
-            variant="contained"
-            disabled={cancelMutation.isPending}
-          >
-            {cancelMutation.isPending ? <CircularProgress size={20} /> : 'Отменить кампанию'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Archive Dialog */}
-      <Dialog open={archiveDialogOpen} onClose={() => setArchiveDialogOpen(false)}>
-        <DialogTitle>Архивировать кампанию?</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Вы уверены, что хотите архивировать кампанию "{campaign.name}"?
-            Архивированные кампании скрыты из основного списка.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setArchiveDialogOpen(false)}>
-            Отмена
-          </Button>
-          <Button
-            onClick={handleArchive}
-            color="primary"
-            variant="contained"
-            disabled={archiveMutation.isPending}
-          >
-            {archiveMutation.isPending ? <CircularProgress size={20} /> : 'Архивировать'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      </Box>
     </Box>
   );
 }
