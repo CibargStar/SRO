@@ -425,16 +425,69 @@ export class LoadBalancerService {
       // 3. Распределяем контакты
       const distributionResult = this.distributeContacts(contacts, profileIds, profileNames);
 
-      // 4. Создаём сообщения в очереди
-      const createdMessages = await this.createCampaignMessages(
-        campaignId,
-        distributionResult.distributions,
-        messengerTarget,
-        universalTarget
-      );
+      // 4. Создаём сообщения в очереди и обновляем счётчики профилей в транзакции
+      const createdMessages = await this.prisma.$transaction(async (tx) => {
+        // Подготовка данных для создания сообщений
+        const messagesToCreate: Array<{
+          campaignId: string;
+          clientId: string;
+          clientPhoneId: string;
+          profileId: string;
+          messenger: MessengerType | null;
+        }> = [];
 
-      // 5. Обновляем счётчики профилей
-      await this.updateProfileAssignments(campaignId, distributionResult.distributions);
+        for (const distribution of distributionResult.distributions) {
+          for (const contact of distribution.contacts) {
+            const messenger = this.determineMessenger(contact, messengerTarget, universalTarget);
+            messagesToCreate.push({
+              campaignId,
+              clientId: contact.clientId,
+              clientPhoneId: contact.clientPhoneId,
+              profileId: distribution.profileId,
+              messenger,
+            });
+          }
+        }
+
+        // Массовое создание сообщений
+        let createdCount = 0;
+        if (messagesToCreate.length > 0) {
+          const result = await tx.campaignMessage.createMany({
+            data: messagesToCreate.map((d) => ({
+              campaignId: d.campaignId,
+              clientId: d.clientId,
+              clientPhoneId: d.clientPhoneId,
+              profileId: d.profileId,
+              messenger: d.messenger,
+              status: 'PENDING',
+            })),
+          });
+          createdCount = result.count;
+        }
+
+        // Обновление счётчиков профилей
+        for (const distribution of distributionResult.distributions) {
+          const campaignProfile = await tx.campaignProfile.findUnique({
+            where: {
+              campaignId_profileId: { campaignId, profileId: distribution.profileId },
+            },
+          });
+
+          if (campaignProfile) {
+            await tx.campaignProfile.update({
+              where: { id: campaignProfile.id },
+              data: {
+                assignedCount: distribution.assignedCount,
+                processedCount: 0,
+                successCount: 0,
+                failedCount: 0,
+              },
+            });
+          }
+        }
+
+        return createdCount;
+      });
 
       logger.info('Distribution completed for campaign', {
         campaignId,

@@ -57,7 +57,7 @@ export function EditTemplatePage() {
       // Успешное сохранение обрабатывается через React Query кэш
     } catch (error) {
       // Ошибка отображается через updateTemplate.isError
-      console.error('Failed to update template:', error);
+      // Логирование не требуется - React Query обрабатывает ошибки автоматически
     }
   };
 

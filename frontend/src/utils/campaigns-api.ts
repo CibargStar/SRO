@@ -470,7 +470,7 @@ export async function getCampaignProfiles(campaignId: string): Promise<CampaignP
  */
 export async function validateCampaign(campaignId: string): Promise<CampaignValidationResult> {
   const response = await fetchWithAutoRefresh(`${API_BASE_URL}/campaigns/${campaignId}/validate`, {
-    method: 'GET',
+    method: 'POST',
     headers: createHeaders(),
   });
 

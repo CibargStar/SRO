@@ -44,7 +44,8 @@ export function ExportCampaignDialog({
   const handleExport = () => {
     if (!campaign) return;
     
-    // В будущем можно передавать опции фильтрации
+    // TODO: В будущем можно передавать опции фильтрации (includeSuccessful, includeFailed, includeSkipped)
+    // Сейчас эти опции не используются, но можно добавить в API
     exportMutation.mutate(campaign.id, {
       onSuccess: () => {
         onClose();

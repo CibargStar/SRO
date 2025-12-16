@@ -24,7 +24,7 @@ export function WizardStep4_SelectProfiles() {
         )}
       />
 
-      {(errors as any)?.profileIds && (
+      {errors.profileIds && (
         <Alert 
           severity="error" 
           sx={{ 
@@ -35,7 +35,7 @@ export function WizardStep4_SelectProfiles() {
             border: '1px solid rgba(244, 67, 54, 0.2)',
           }}
         >
-          {(errors as any)?.profileIds?.message as string}
+          {errors.profileIds.message}
         </Alert>
       )}
     </>

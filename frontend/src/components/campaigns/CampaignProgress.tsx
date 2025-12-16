@@ -22,7 +22,7 @@ export function CampaignProgress({ campaign, progress, isLoading }: CampaignProg
   const success = progress?.successfulContacts ?? campaign.successfulContacts;
   const failed = progress?.failedContacts ?? campaign.failedContacts;
   const skipped = progress?.skippedContacts ?? campaign.skippedContacts;
-  const profiles = progress?.profilesProgress ?? campaign.profiles?.map((p) => ({
+  const profiles = progress?.profilesProgress ?? (campaign.profiles?.map((p) => ({
     profileId: p.profileId,
     profileName: p.profile?.name || p.profileId,
     status: p.status,
@@ -31,7 +31,7 @@ export function CampaignProgress({ campaign, progress, isLoading }: CampaignProg
     successCount: p.successCount,
     failedCount: p.failedCount,
     progressPercent: p.assignedCount > 0 ? Math.round((p.processedCount / p.assignedCount) * 100) : 0,
-  })) ?? [];
+  })) ?? []);
 
   return (
     <Paper

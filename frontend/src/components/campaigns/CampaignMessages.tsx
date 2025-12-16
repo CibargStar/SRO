@@ -83,7 +83,7 @@ export function CampaignMessages({
     onQueryChange({ ...query, limit: parseInt(event.target.value, 10), page: 1 });
   };
 
-  const handleStatusChange = (event: any) => {
+  const handleStatusChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     onQueryChange({
       ...query,
@@ -92,7 +92,7 @@ export function CampaignMessages({
     });
   };
 
-  const handleMessengerChange = (event: any) => {
+  const handleMessengerChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     onQueryChange({
       ...query,

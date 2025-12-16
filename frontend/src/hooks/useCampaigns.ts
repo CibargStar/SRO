@@ -106,8 +106,13 @@ export function useCampaign(
   options?: Omit<UseQueryOptions<Campaign, ApiError>, 'queryKey' | 'queryFn'>
 ) {
   return useQuery({
-    queryKey: campaignsKeys.detail(campaignId!),
-    queryFn: () => getCampaign(campaignId!),
+    queryKey: campaignsKeys.detail(campaignId ?? ''),
+    queryFn: () => {
+      if (!campaignId) {
+        throw new Error('campaignId is required');
+      }
+      return getCampaign(campaignId);
+    },
     enabled: !!campaignId,
     ...options,
   });
@@ -276,23 +281,43 @@ export function useCampaignProgress(
     onProgress: (data) => {
       if (!campaignId || !data) return;
       if (data.campaignId && data.campaignId !== campaignId) return;
-      queryClient.setQueryData(campaignsKeys.progress(campaignId), (prev) => ({
-        ...(prev || {}),
+      queryClient.setQueryData(campaignsKeys.progress(campaignId), (prev: CampaignProgress | undefined) => ({
+        ...(prev || {
+          campaignId,
+          status: 'RUNNING',
+          totalContacts: 0,
+          processedContacts: 0,
+          successfulContacts: 0,
+          failedContacts: 0,
+          skippedContacts: 0,
+          progressPercent: 0,
+          contactsPerMinute: 0,
+          estimatedSecondsRemaining: null,
+          estimatedCompletionTime: null,
+          profilesProgress: [],
+          startedAt: null,
+          lastUpdateAt: new Date().toISOString(),
+        }),
         ...data,
       }));
     },
     onStatus: (data) => {
       if (!campaignId || !data) return;
       if (data.campaignId && data.campaignId !== campaignId) return;
-      queryClient.setQueryData(campaignsKeys.detail(campaignId), (prev: any) =>
+      queryClient.setQueryData(campaignsKeys.detail(campaignId), (prev: Campaign | undefined) =>
         prev ? { ...prev, status: data.status } : prev
       );
     },
   });
 
   const queryResult = useQuery({
-    queryKey: campaignsKeys.progress(campaignId!),
-    queryFn: () => getCampaignProgress(campaignId!),
+    queryKey: campaignsKeys.progress(campaignId ?? ''),
+    queryFn: () => {
+      if (!campaignId) {
+        throw new Error('campaignId is required');
+      }
+      return getCampaignProgress(campaignId);
+    },
     enabled: !!campaignId,
     refetchInterval: useWs ? false : 5000,
     ...options,
@@ -332,7 +357,9 @@ export function useCampaignProgress(
       wsService.unsubscribe('close', handleClose);
       stopPolling();
     };
-  }, [campaignId, queryResult, useWs]);
+    // queryResult.refetch стабилен, но eslint может жаловаться - это нормально для refetch
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaignId, useWs]);
 
   return queryResult;
 }
@@ -354,15 +381,22 @@ export function useCampaignMessages(
       if (!campaignId || !data) return;
       if (data.campaignId && data.campaignId !== campaignId) return;
       // Инвалидируем список сообщений и статистику, чтобы подтянуть актуальные данные
-      queryClient.invalidateQueries({ queryKey: campaignsKeys.messages(campaignId!, query) });
-      queryClient.invalidateQueries({ queryKey: campaignsKeys.stats(campaignId!) });
-      queryClient.invalidateQueries({ queryKey: campaignsKeys.progress(campaignId!) });
+      if (campaignId) {
+        queryClient.invalidateQueries({ queryKey: campaignsKeys.messages(campaignId, query) });
+        queryClient.invalidateQueries({ queryKey: campaignsKeys.stats(campaignId) });
+        queryClient.invalidateQueries({ queryKey: campaignsKeys.progress(campaignId) });
+      }
     },
   } : {});
 
   const queryResult = useQuery({
-    queryKey: campaignsKeys.messages(campaignId!, query),
-    queryFn: () => getCampaignMessages(campaignId!, query),
+    queryKey: campaignsKeys.messages(campaignId ?? '', query),
+    queryFn: () => {
+      if (!campaignId) {
+        throw new Error('campaignId is required');
+      }
+      return getCampaignMessages(campaignId, query);
+    },
     enabled: !!campaignId,
     refetchInterval: useWs ? false : 5000,
     ...options,
@@ -401,7 +435,9 @@ export function useCampaignMessages(
       wsService.unsubscribe('close', handleClose);
       stopPolling();
     };
-  }, [campaignId, queryResult, useWs]);
+    // queryResult.refetch стабилен, но eslint может жаловаться - это нормально для refetch
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaignId, useWs]);
 
   return queryResult;
 }
@@ -415,8 +451,13 @@ export function useCampaignLogs(
   options?: Omit<UseQueryOptions<LogsListResponse, ApiError>, 'queryKey' | 'queryFn'>
 ) {
   return useQuery({
-    queryKey: campaignsKeys.logs(campaignId!, query),
-    queryFn: () => getCampaignLogs(campaignId!, query),
+    queryKey: campaignsKeys.logs(campaignId ?? '', query),
+    queryFn: () => {
+      if (!campaignId) {
+        throw new Error('campaignId is required');
+      }
+      return getCampaignLogs(campaignId, query);
+    },
     enabled: !!campaignId,
     ...options,
   });
@@ -430,8 +471,13 @@ export function useCampaignStats(
   options?: Omit<UseQueryOptions<CampaignStats, ApiError>, 'queryKey' | 'queryFn'>
 ) {
   return useQuery({
-    queryKey: campaignsKeys.stats(campaignId!),
-    queryFn: () => getCampaignStats(campaignId!),
+    queryKey: campaignsKeys.stats(campaignId ?? ''),
+    queryFn: () => {
+      if (!campaignId) {
+        throw new Error('campaignId is required');
+      }
+      return getCampaignStats(campaignId);
+    },
     enabled: !!campaignId,
     ...options,
   });
@@ -469,8 +515,13 @@ export function useCampaignProfiles(
   options?: Omit<UseQueryOptions<CampaignProfile[], ApiError>, 'queryKey' | 'queryFn'>
 ) {
   return useQuery({
-    queryKey: campaignsKeys.profiles(campaignId!),
-    queryFn: () => getCampaignProfiles(campaignId!),
+    queryKey: campaignsKeys.profiles(campaignId ?? ''),
+    queryFn: () => {
+      if (!campaignId) {
+        throw new Error('campaignId is required');
+      }
+      return getCampaignProfiles(campaignId);
+    },
     enabled: !!campaignId,
     ...options,
   });
@@ -504,8 +555,13 @@ export function useCampaignValidation(
   options?: Omit<UseQueryOptions<CampaignValidationResult, ApiError>, 'queryKey' | 'queryFn'>
 ) {
   return useQuery({
-    queryKey: campaignsKeys.validation(campaignId!),
-    queryFn: () => validateCampaign(campaignId!),
+    queryKey: campaignsKeys.validation(campaignId ?? ''),
+    queryFn: () => {
+      if (!campaignId) {
+        throw new Error('campaignId is required');
+      }
+      return validateCampaign(campaignId);
+    },
     enabled: !!campaignId,
     staleTime: 0, // Всегда свежие данные
     ...options,
@@ -534,8 +590,13 @@ export function useCampaignContacts(
   options?: Omit<UseQueryOptions<CalculatedContacts, ApiError>, 'queryKey' | 'queryFn'>
 ) {
   return useQuery({
-    queryKey: campaignsKeys.contacts(campaignId!),
-    queryFn: () => calculateContacts(campaignId!),
+    queryKey: campaignsKeys.contacts(campaignId ?? ''),
+    queryFn: () => {
+      if (!campaignId) {
+        throw new Error('campaignId is required');
+      }
+      return calculateContacts(campaignId);
+    },
     enabled: !!campaignId,
     ...options,
   });

@@ -120,11 +120,10 @@ export function CampaignsPage() {
     };
 
     if (search) q.search = search;
-    if (statusFilter !== 'ALL') q.status = statusFilter;
     if (typeFilter !== 'ALL') q.campaignType = typeFilter;
     if (messengerFilter !== 'ALL') q.messengerType = messengerFilter;
 
-    // Логика табов
+    // Логика табов (приоритет над фильтром статуса)
     switch (tabValue) {
       case 'active':
         q.status = ['RUNNING', 'PAUSED', 'QUEUED'];
@@ -135,6 +134,13 @@ export function CampaignsPage() {
         break;
       case 'archived':
         q.includeArchived = true;
+        break;
+      case 'all':
+      default:
+        // Для 'all' используем фильтр статуса, если он задан
+        if (statusFilter !== 'ALL') {
+          q.status = statusFilter;
+        }
         break;
     }
 

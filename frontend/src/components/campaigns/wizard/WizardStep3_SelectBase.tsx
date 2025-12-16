@@ -20,7 +20,7 @@ export function WizardStep3_SelectBase({ clientGroupsData, groupsLoading }: Prop
         <Typography variant="subtitle2" sx={{ color: '#f5f5f5', fontWeight: 500, mb: 1.5 }}>
           Группа клиентов
         </Typography>
-        <Controller
+            <Controller
           name="clientGroupId"
           control={control}
           render={({ field }) => (
@@ -29,9 +29,9 @@ export function WizardStep3_SelectBase({ clientGroupsData, groupsLoading }: Prop
               onChange={(val) => field.onChange(val)}
               label="Группа клиентов"
               required
-              error={!!(errors as any)?.clientGroupId}
+              error={!!errors.clientGroupId}
               helperText={
-                (errors as any)?.clientGroupId?.message ||
+                errors.clientGroupId?.message ||
                 (!groupsLoading && (!clientGroupsData || clientGroupsData.length === 0)
                   ? 'Создайте группу клиентов в разделе Клиенты'
                   : undefined)

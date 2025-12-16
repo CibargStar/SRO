@@ -19,6 +19,8 @@ import {
   CreateCampaignData,
   UpdateCampaignData,
   ListCampaignsQuery,
+  ListMessagesQuery,
+  ListLogsQuery,
 } from './campaigns.repository';
 import { LoadBalancerService } from './load-balancer';
 import {
@@ -26,9 +28,12 @@ import {
   UpdateCampaignInput,
   DuplicateCampaignInput,
   FilterConfig,
+  ScheduleConfig,
+  OptionsConfig,
 } from './campaigns.schemas';
 import logger from '../../config/logger';
 import { HttpError } from '../../utils/http-error';
+import { safeJsonParse } from './utils/json-utils';
 
 // ============================================
 // Типы
@@ -85,12 +90,27 @@ export class CampaignsService {
   /**
    * Маппинг Campaign из Prisma в формат API (парсинг JSON конфигураций)
    */
-  private mapCampaignToApi(campaign: any): any {
+  private mapCampaignToApi(
+    campaign: Campaign & {
+      template?: { id: string; name: string; type: string; messengerType: string } | null;
+      clientGroup?: { id: string; name: string } | null;
+      profiles?: Array<CampaignProfile & { profile: { id: string; name: string; status: string } }>;
+      _count?: { profiles: number; messages: number; logs: number };
+    }
+  ): Campaign & {
+    scheduleConfig: ScheduleConfig | null;
+    filterConfig: FilterConfig | null;
+    optionsConfig: OptionsConfig | null;
+    template?: { id: string; name: string; type: string; messengerType: string } | null;
+    clientGroup?: { id: string; name: string } | null;
+    profiles?: Array<CampaignProfile & { profile: { id: string; name: string; status: string } }>;
+    _count?: { profiles: number; messages: number; logs: number };
+  } {
     return {
       ...campaign,
-      scheduleConfig: campaign.scheduleConfig ? JSON.parse(campaign.scheduleConfig) : null,
-      filterConfig: campaign.filterConfig ? JSON.parse(campaign.filterConfig) : null,
-      optionsConfig: campaign.optionsConfig ? JSON.parse(campaign.optionsConfig) : null,
+      scheduleConfig: safeJsonParse<ScheduleConfig>(campaign.scheduleConfig, null),
+      filterConfig: safeJsonParse<FilterConfig>(campaign.filterConfig, null),
+      optionsConfig: safeJsonParse<OptionsConfig>(campaign.optionsConfig, null),
     };
   }
 
@@ -149,7 +169,7 @@ export class CampaignsService {
       }
     }
 
-    // Создание кампании
+    // Создание кампании и связей с профилями в транзакции
     const campaignData: CreateCampaignData = {
       userId,
       name: input.name,
@@ -165,23 +185,51 @@ export class CampaignsService {
       scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
     };
 
-    const campaign = await this.campaignRepo.create(campaignData);
+    // Выполняем создание кампании, профилей и лога в одной транзакции
+    const campaign = await this.prisma.$transaction(async (tx) => {
+      // Создание кампании
+      const newCampaign = await tx.campaign.create({
+        data: {
+          userId: campaignData.userId,
+          name: campaignData.name,
+          description: campaignData.description ?? null,
+          templateId: campaignData.templateId,
+          clientGroupId: campaignData.clientGroupId,
+          campaignType: campaignData.campaignType,
+          messengerType: campaignData.messengerType,
+          universalTarget: campaignData.universalTarget ?? null,
+          scheduleConfig: campaignData.scheduleConfig ?? null,
+          filterConfig: campaignData.filterConfig ?? null,
+          optionsConfig: campaignData.optionsConfig ?? null,
+          scheduledAt: campaignData.scheduledAt ?? null,
+          status: 'DRAFT',
+        },
+      });
 
-    // Создание связей с профилями
-    await this.profileRepo.createMany(
-      input.profileIds.map((profileId) => ({
-        campaignId: campaign.id,
-        profileId,
-      }))
-    );
+      // Создание связей с профилями
+      if (input.profileIds.length > 0) {
+        await tx.campaignProfile.createMany({
+          data: input.profileIds.map((profileId) => ({
+            campaignId: newCampaign.id,
+            profileId,
+            assignedCount: 0,
+            status: 'PENDING',
+          })),
+        });
+      }
 
-    // Логирование
-    await this.logRepo.create({
-      campaignId: campaign.id,
-      level: 'INFO',
-      action: 'created',
-      message: `Кампания "${input.name}" создана`,
-      metadata: JSON.stringify({ profileCount: input.profileIds.length }),
+      // Логирование
+      await tx.campaignLog.create({
+        data: {
+          campaignId: newCampaign.id,
+          level: 'INFO',
+          action: 'created',
+          message: `Кампания "${input.name}" создана`,
+          metadata: JSON.stringify({ profileCount: input.profileIds.length }),
+        },
+      });
+
+      return newCampaign;
     });
 
     logger.info('Campaign created successfully', { campaignId: campaign.id, userId });
@@ -297,9 +345,9 @@ export class CampaignsService {
     // Парсим JSON конфиги
     return {
       ...campaign,
-      scheduleConfig: campaign.scheduleConfig ? JSON.parse(campaign.scheduleConfig) : null,
-      filterConfig: campaign.filterConfig ? JSON.parse(campaign.filterConfig) : null,
-      optionsConfig: campaign.optionsConfig ? JSON.parse(campaign.optionsConfig) : null,
+      scheduleConfig: safeJsonParse<ScheduleConfig>(campaign.scheduleConfig, null),
+      filterConfig: safeJsonParse<FilterConfig>(campaign.filterConfig, null),
+      optionsConfig: safeJsonParse<OptionsConfig>(campaign.optionsConfig, null),
     };
   }
 
@@ -314,9 +362,9 @@ export class CampaignsService {
       ...result,
       data: result.data.map((campaign) => ({
         ...campaign,
-        scheduleConfig: campaign.scheduleConfig ? JSON.parse(campaign.scheduleConfig) : null,
-        filterConfig: campaign.filterConfig ? JSON.parse(campaign.filterConfig) : null,
-        optionsConfig: campaign.optionsConfig ? JSON.parse(campaign.optionsConfig) : null,
+        scheduleConfig: safeJsonParse<ScheduleConfig>(campaign.scheduleConfig, null),
+        filterConfig: safeJsonParse<FilterConfig>(campaign.filterConfig, null),
+        optionsConfig: safeJsonParse<OptionsConfig>(campaign.optionsConfig, null),
       })),
     };
   }
@@ -596,21 +644,22 @@ export class CampaignsService {
       throw new HttpError('Кампания не найдена', 404, 'CAMPAIGN_NOT_FOUND');
     }
 
-    const filterConfig: FilterConfig | null = campaign.filterConfig
-      ? JSON.parse(campaign.filterConfig)
-      : null;
+    const filterConfig: FilterConfig | null = safeJsonParse<FilterConfig>(campaign.filterConfig, null);
 
     // Базовый запрос клиентов из группы
-    const whereClause: any = {
+    const whereClause: {
+      groupId: string;
+      phones: { some: Record<string, never> };
+      regionId?: { in: string[] };
+      status?: { in: string[] };
+      lastCampaignAt?: { lt?: Date; gt?: Date } | null;
+      campaignCount?: { lte: number };
+    } = {
       groupId: campaign.clientGroupId,
       phones: {
         some: {}, // Должен быть хотя бы один телефон
       },
     };
-
-    if (filterConfig?.clientStatuses && filterConfig.clientStatuses.length > 0) {
-      whereClause.status = { in: filterConfig.clientStatuses };
-    }
 
     // Применение фильтров
     if (filterConfig) {
@@ -800,17 +849,6 @@ export class CampaignsService {
       throw new HttpError('Не выбраны профили для выполнения кампании', 400, 'PROFILES_REQUIRED');
     }
 
-    // Если переданы новые профили — заменяем привязки
-    if (profileIdsOverride && profileIdsOverride.length > 0) {
-      await this.profileRepo.deleteByCampaignId(campaignId);
-      await this.profileRepo.createMany(
-        profileIdsOverride.map((profileId) => ({
-          campaignId,
-          profileId,
-        }))
-      );
-    }
-
     // Проверяем доступность профилей (с исключением текущей кампании)
     for (const profileId of profileIds) {
       const isAvailable = await this.profileRepo.isProfileAvailable(profileId, campaignId);
@@ -819,10 +857,33 @@ export class CampaignsService {
       }
     }
 
-    const filterConfig = campaign.filterConfig ? JSON.parse(campaign.filterConfig) : undefined;
-    const optionsConfig = campaign.optionsConfig ? JSON.parse(campaign.optionsConfig) : undefined;
+    const filterConfig = safeJsonParse<FilterConfig>(campaign.filterConfig, undefined);
+    const optionsConfig = safeJsonParse<OptionsConfig>(campaign.optionsConfig, undefined);
 
-    // Очищаем старую очередь перед пересозданием
+    // Если переданы новые профили — заменяем привязки в транзакции
+    if (profileIdsOverride && profileIdsOverride.length > 0) {
+      await this.prisma.$transaction(async (tx) => {
+        // Удаление старых связей
+        await tx.campaignProfile.deleteMany({
+          where: { campaignId },
+        });
+
+        // Создание новых связей
+        if (profileIdsOverride.length > 0) {
+          await tx.campaignProfile.createMany({
+            data: profileIdsOverride.map((profileId) => ({
+              campaignId,
+              profileId,
+              assignedCount: 0,
+              status: 'PENDING',
+            })),
+          });
+        }
+      });
+    }
+
+    // Очищаем старую очередь перед пересозданием (в транзакции с созданием новых)
+    // Это будет сделано в loadBalancer.distributeForCampaign, но сначала очистим
     await this.messageRepo.deleteByCampaignId(campaignId);
 
     const distribution = await this.loadBalancer.distributeForCampaign(
@@ -900,7 +961,7 @@ export class CampaignsService {
   /**
    * Получение сообщений кампании
    */
-  async getCampaignMessages(userId: string, campaignId: string, query: any) {
+  async getCampaignMessages(userId: string, campaignId: string, query: ListMessagesQuery) {
     const campaign = await this.campaignRepo.findById(campaignId);
 
     if (!campaign) {
@@ -917,7 +978,7 @@ export class CampaignsService {
   /**
    * Получение логов кампании
    */
-  async getCampaignLogs(userId: string, campaignId: string, query: any) {
+  async getCampaignLogs(userId: string, campaignId: string, query: ListLogsQuery) {
     const campaign = await this.campaignRepo.findById(campaignId);
 
     if (!campaign) {
@@ -1016,23 +1077,42 @@ export class CampaignsService {
       throw new HttpError('Один или несколько профилей не найдены или не принадлежат пользователю', 404, 'PROFILE_NOT_FOUND');
     }
 
-    // Удаление старых связей
-    await this.profileRepo.deleteByCampaignId(campaignId);
+    // Проверка доступности новых профилей
+    for (const profile of profiles) {
+      const isAvailable = await this.profileRepo.isProfileAvailable(profile.id, campaignId);
+      if (!isAvailable) {
+        throw new HttpError(`Профиль "${profile.name}" уже используется в другой активной кампании`, 409, 'PROFILE_BUSY');
+      }
+    }
 
-    // Создание новых связей
-    await this.profileRepo.createMany(
-      profileIds.map((profileId) => ({
-        campaignId,
-        profileId,
-      }))
-    );
+    // Удаление старых связей и создание новых в транзакции
+    await this.prisma.$transaction(async (tx) => {
+      // Удаление старых связей
+      await tx.campaignProfile.deleteMany({
+        where: { campaignId },
+      });
 
-    // Логирование
-    await this.logRepo.create({
-      campaignId,
-      level: 'INFO',
-      action: 'profiles_updated',
-      message: `Профили обновлены (${profileIds.length} профилей)`,
+      // Создание новых связей
+      if (profileIds.length > 0) {
+        await tx.campaignProfile.createMany({
+          data: profileIds.map((profileId) => ({
+            campaignId,
+            profileId,
+            assignedCount: 0,
+            status: 'PENDING',
+          })),
+        });
+      }
+
+      // Логирование
+      await tx.campaignLog.create({
+        data: {
+          campaignId,
+          level: 'INFO',
+          action: 'profiles_updated',
+          message: `Профили обновлены (${profileIds.length} профилей)`,
+        },
+      });
     });
 
     return this.profileRepo.findByCampaignId(campaignId);

@@ -42,7 +42,7 @@ export class MessageSenderService {
 
   constructor(chromeProcessService?: ChromeProcessService) {
     this.whatsappSender = new WhatsAppSender(chromeProcessService);
-    this.telegramSender = new TelegramSender();
+    this.telegramSender = new TelegramSender(chromeProcessService);
   }
 
   /**
@@ -79,7 +79,7 @@ export class MessageSenderService {
       }
 
       if (resolvedMessenger === 'TELEGRAM') {
-        return await this.telegramSender.sendMessage({ phone, text, attachments });
+        return await this.telegramSender.sendMessage({ phone, text, attachments, profileId: input.profileId });
       }
 
       throw new Error(`Unsupported messenger: ${String(resolvedMessenger)}`);

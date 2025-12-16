@@ -117,7 +117,7 @@ export function TemplatesPage() {
     setPage(1);
   };
 
-  const handleTypeFilter = (e: React.ChangeEvent<{ value: unknown }>) => {
+  const handleTypeFilter = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     if (value === '' || value === 'SINGLE' || value === 'MULTI') {
       setTypeFilter(value as TemplateType | '');
@@ -125,7 +125,7 @@ export function TemplatesPage() {
     }
   };
 
-  const handleMessengerFilter = (e: React.ChangeEvent<{ value: unknown }>) => {
+  const handleMessengerFilter = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     if (value === '' || value === 'WHATSAPP_ONLY' || value === 'TELEGRAM_ONLY' || value === 'UNIVERSAL') {
       setMessengerFilter(value as MessengerTarget | '');
@@ -156,7 +156,7 @@ export function TemplatesPage() {
       setDeleteTemplateId(null);
     } catch (error) {
       // Error will be shown via mutation error state
-      console.error('Failed to delete template:', error);
+      // Логирование не требуется - React Query обрабатывает ошибки автоматически
     }
   };
 

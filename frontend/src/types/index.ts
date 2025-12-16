@@ -304,3 +304,8 @@ export * from './campaign';
  * Экспорт типов для модуля Telegram бота
  */
 export * from './telegram-bot';
+
+/**
+ * Экспорт типов для WebSocket событий
+ */
+export * from './websocket';

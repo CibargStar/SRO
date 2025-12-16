@@ -113,7 +113,7 @@ router.post('/:campaignId/validate', campaignActionRateLimiter, controller.valid
 router.get('/:campaignId/calculate-contacts', campaignActionRateLimiter, controller.calculateContacts);
 
 // ============================================
-// Campaign Control Routes (будут реализованы в ЭТАП 6)
+// Campaign Control Routes
 // ============================================
 
 /**
@@ -188,6 +188,12 @@ router.get('/:campaignId/stats', controller.getStats);
 // ============================================
 // Profile Management Routes
 // ============================================
+
+/**
+ * GET /api/campaigns/:campaignId/profiles
+ * Получение профилей кампании
+ */
+router.get('/:campaignId/profiles', controller.getProfiles);
 
 /**
  * PUT /api/campaigns/:campaignId/profiles

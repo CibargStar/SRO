@@ -161,7 +161,7 @@ export function WizardStep1_BasicInfo() {
             control={control}
             render={({ field }) => (
               <UniversalTargetSelector
-                value={(field.value as any) || 'WHATSAPP_FIRST'}
+                value={field.value || 'WHATSAPP_FIRST'}
                 onChange={(val) => field.onChange(val)}
               />
             )}

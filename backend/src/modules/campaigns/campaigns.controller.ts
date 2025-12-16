@@ -11,6 +11,8 @@ import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../../middleware/auth';
 import { CampaignsService, getCampaignsService } from './campaigns.service';
 import { getCampaignExecutorService, CampaignExecutorService } from './executor';
+import { CampaignStatsService } from './stats';
+import { CampaignProgressService } from './progress';
 import {
   createCampaignSchema,
   updateCampaignSchema,
@@ -32,9 +34,13 @@ import { WebSocketServer } from '../websocket';
 
 export class CampaignsController {
   private service: CampaignsService;
+  private statsService: CampaignStatsService;
+  private progressService: CampaignProgressService;
 
   constructor() {
     this.service = getCampaignsService(prisma);
+    this.statsService = new CampaignStatsService(prisma);
+    this.progressService = new CampaignProgressService(prisma);
   }
 
   private resolveWsServer(req: AuthenticatedRequest): WebSocketServer | undefined {
@@ -276,14 +282,12 @@ export class CampaignsController {
   };
 
   // ============================================
-  // Campaign Control Handlers (Stubs for Executor)
+  // Campaign Control Handlers
   // ============================================
 
   /**
    * Запуск кампании
    * POST /api/campaigns/:campaignId/start
-   * 
-   * NOTE: Полная реализация будет добавлена в ЭТАП 6 (Campaign Executor)
    */
   startCampaign = async (
     req: AuthenticatedRequest,
@@ -312,11 +316,10 @@ export class CampaignsController {
       const executor = this.resolveExecutor(req);
       await executor.startCampaign(campaignId);
 
-      res.json({
-        campaignId,
-        status: 'RUNNING',
-        validation,
-      });
+      // Получаем обновлённую кампанию для возврата
+      const campaign = await this.service.getCampaign(userId, campaignId);
+
+      res.json(campaign);
     } catch (error) {
       next(error);
     }
@@ -325,8 +328,6 @@ export class CampaignsController {
   /**
    * Приостановка кампании
    * POST /api/campaigns/:campaignId/pause
-   * 
-   * NOTE: Полная реализация будет добавлена в ЭТАП 6 (Campaign Executor)
    */
   pauseCampaign = async (
     req: AuthenticatedRequest,
@@ -334,15 +335,16 @@ export class CampaignsController {
     next: NextFunction
   ): Promise<void> => {
     try {
+      const userId = req.user!.id;
       const { campaignId } = campaignIdParamSchema.parse(req.params);
 
       const executor = this.resolveExecutor(req);
       await executor.pauseCampaign(campaignId);
 
-      res.json({
-        campaignId,
-        status: 'PAUSED',
-      });
+      // Получаем обновлённую кампанию для возврата
+      const campaign = await this.service.getCampaign(userId, campaignId);
+
+      res.json(campaign);
     } catch (error) {
       next(error);
     }
@@ -351,8 +353,6 @@ export class CampaignsController {
   /**
    * Возобновление кампании
    * POST /api/campaigns/:campaignId/resume
-   * 
-   * NOTE: Полная реализация будет добавлена в ЭТАП 6 (Campaign Executor)
    */
   resumeCampaign = async (
     req: AuthenticatedRequest,
@@ -360,15 +360,16 @@ export class CampaignsController {
     next: NextFunction
   ): Promise<void> => {
     try {
+      const userId = req.user!.id;
       const { campaignId } = campaignIdParamSchema.parse(req.params);
 
       const executor = this.resolveExecutor(req);
       await executor.resumeCampaign(campaignId);
 
-      res.json({
-        campaignId,
-        status: 'RUNNING',
-      });
+      // Получаем обновлённую кампанию для возврата
+      const campaign = await this.service.getCampaign(userId, campaignId);
+
+      res.json(campaign);
     } catch (error) {
       next(error);
     }
@@ -377,8 +378,6 @@ export class CampaignsController {
   /**
    * Отмена кампании
    * POST /api/campaigns/:campaignId/cancel
-   * 
-   * NOTE: Полная реализация будет добавлена в ЭТАП 6 (Campaign Executor)
    */
   cancelCampaign = async (
     req: AuthenticatedRequest,
@@ -386,15 +385,16 @@ export class CampaignsController {
     next: NextFunction
   ): Promise<void> => {
     try {
+      const userId = req.user!.id;
       const { campaignId } = campaignIdParamSchema.parse(req.params);
 
       const executor = this.resolveExecutor(req);
       await executor.cancelCampaign(campaignId);
 
-      res.json({
-        campaignId,
-        status: 'CANCELLED',
-      });
+      // Получаем обновлённую кампанию для возврата
+      const campaign = await this.service.getCampaign(userId, campaignId);
+
+      res.json(campaign);
     } catch (error) {
       next(error);
     }
@@ -407,8 +407,6 @@ export class CampaignsController {
   /**
    * Получение прогресса кампании
    * GET /api/campaigns/:campaignId/progress
-   * 
-   * NOTE: Полная реализация с WebSocket будет добавлена позже
    */
   getProgress = async (
     req: AuthenticatedRequest,
@@ -419,20 +417,83 @@ export class CampaignsController {
       const userId = req.user!.id;
       const { campaignId } = campaignIdParamSchema.parse(req.params);
 
-      const stats = await this.service.getCampaignStats(userId, campaignId);
+      // Проверка доступа
+      const campaign = await this.service.getCampaign(userId, campaignId);
+      if (!campaign) {
+        res.status(404).json({ error: 'Кампания не найдена' });
+        return;
+      }
 
-      // Расчёт прогресса
-      const progress = stats.campaign.totalContacts > 0
-        ? (stats.campaign.processedContacts / stats.campaign.totalContacts) * 100
-        : 0;
+      // Используем CampaignProgressService для получения полного прогресса
+      const backendProgress = await this.progressService.getProgress(campaignId);
+      
+      if (!backendProgress) {
+        // Fallback к базовой статистике
+        const stats = await this.service.getCampaignStats(userId, campaignId);
+        const progressPercent = stats.campaign.totalContacts > 0
+          ? Math.round((stats.campaign.processedContacts / stats.campaign.totalContacts) * 100)
+          : 0;
 
-      res.json({
-        campaign: stats.campaign,
-        progress: Math.round(progress * 100) / 100, // 2 знака после запятой
-        messages: stats.messages,
-        byMessenger: stats.byMessenger,
-        profiles: stats.profiles,
-      });
+        res.json({
+          campaignId: stats.campaign.id,
+          status: stats.campaign.status,
+          totalContacts: stats.campaign.totalContacts,
+          processedContacts: stats.campaign.processedContacts,
+          successfulContacts: stats.campaign.successfulContacts,
+          failedContacts: stats.campaign.failedContacts,
+          skippedContacts: stats.campaign.skippedContacts,
+          progressPercent,
+          contactsPerMinute: 0,
+          estimatedSecondsRemaining: null,
+          estimatedCompletionTime: null,
+          profilesProgress: stats.profiles.map((p) => ({
+            profileId: p.profileId,
+            profileName: p.profileName,
+            status: p.status,
+            assignedCount: p.assignedCount,
+            processedCount: p.processedCount,
+            successCount: p.successCount,
+            failedCount: p.failedCount,
+            progressPercent: p.assignedCount > 0 
+              ? Math.round((p.processedCount / p.assignedCount) * 100)
+              : 0,
+          })),
+          startedAt: stats.campaign.startedAt?.toISOString() || null,
+          lastUpdateAt: new Date().toISOString(),
+        });
+        return;
+      }
+
+      // Преобразуем backend формат в frontend формат
+      const frontendProgress = {
+        campaignId: backendProgress.campaignId,
+        status: backendProgress.status,
+        totalContacts: backendProgress.totalContacts,
+        processedContacts: backendProgress.processedContacts,
+        successfulContacts: backendProgress.successfulContacts,
+        failedContacts: backendProgress.failedContacts,
+        skippedContacts: backendProgress.skippedContacts,
+        progressPercent: backendProgress.progress,
+        contactsPerMinute: backendProgress.speed,
+        estimatedSecondsRemaining: backendProgress.eta,
+        estimatedCompletionTime: backendProgress.eta 
+          ? new Date(Date.now() + (backendProgress.eta * 1000)).toISOString()
+          : null,
+        profilesProgress: backendProgress.profiles.map((p) => ({
+          profileId: p.profileId,
+          profileName: p.profileName,
+          status: p.status,
+          assignedCount: p.assignedCount,
+          processedCount: p.processedCount,
+          successCount: p.successCount,
+          failedCount: p.failedCount,
+          progressPercent: p.progress,
+        })),
+        startedAt: backendProgress.startedAt?.toISOString() || null,
+        lastUpdateAt: new Date().toISOString(),
+      };
+
+      res.json(frontendProgress);
     } catch (error) {
       next(error);
     }
@@ -495,9 +556,23 @@ export class CampaignsController {
       const userId = req.user!.id;
       const { campaignId } = campaignIdParamSchema.parse(req.params);
 
-      const stats = await this.service.getCampaignStats(userId, campaignId);
+      // Используем CampaignStatsService для получения полной статистики
+      const stats = await this.statsService.getStats(campaignId);
+      
+      if (!stats) {
+        // Если статистика не найдена, возвращаем 404
+        res.status(404).json({ error: 'Статистика кампании не найдена' });
+        return;
+      }
 
-      res.json(stats);
+      // Преобразуем даты в строки для frontend
+      const frontendStats = {
+        ...stats,
+        startedAt: stats.startedAt ? stats.startedAt.toISOString() : null,
+        completedAt: stats.completedAt ? stats.completedAt.toISOString() : null,
+      };
+
+      res.json(frontendStats);
     } catch (error) {
       next(error);
     }
@@ -532,6 +607,53 @@ export class CampaignsController {
   };
 
   /**
+   * Получение профилей кампании
+   * GET /api/campaigns/:campaignId/profiles
+   */
+  getProfiles = async (
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const userId = req.user!.id;
+      const { campaignId } = campaignIdParamSchema.parse(req.params);
+
+      // Проверка доступа
+      await this.service.getCampaign(userId, campaignId);
+
+      // Получаем профили через репозиторий
+      const { CampaignProfileRepository } = await import('./campaigns.repository');
+      const profileRepo = new CampaignProfileRepository(prisma);
+      const profiles = await profileRepo.findByCampaignId(campaignId);
+
+      // Преобразуем в формат для frontend
+      const frontendProfiles = profiles.map((p) => ({
+        id: p.id,
+        campaignId: p.campaignId,
+        profileId: p.profileId,
+        profile: p.profile ? {
+          id: p.profile.id,
+          name: p.profile.name,
+          status: p.profile.status,
+        } : undefined,
+        assignedCount: p.assignedCount,
+        processedCount: p.processedCount,
+        successCount: p.successCount,
+        failedCount: p.failedCount,
+        status: p.status,
+        lastError: p.lastError,
+        createdAt: p.createdAt.toISOString(),
+        updatedAt: p.updatedAt.toISOString(),
+      }));
+
+      res.json(frontendProfiles);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
    * Валидация профилей для кампании
    * POST /api/campaigns/:campaignId/validate-profiles
    */
@@ -560,8 +682,6 @@ export class CampaignsController {
   /**
    * Экспорт результатов кампании
    * GET /api/campaigns/:campaignId/export
-   * 
-   * NOTE: Полная реализация будет добавлена в ЭТАП 5.7 (Campaign Stats Service)
    */
   exportCampaign = async (
     req: AuthenticatedRequest,
@@ -569,14 +689,43 @@ export class CampaignsController {
     next: NextFunction
   ): Promise<void> => {
     try {
+      const userId = req.user!.id;
       const { campaignId } = campaignIdParamSchema.parse(req.params);
 
-      // TODO: Вызов CampaignStatsService.exportToCsv() будет добавлен в ЭТАП 5.7
-      await Promise.resolve();
-      res.status(501).json({
-        error: 'Функция экспорта будет реализована в следующем этапе',
-        campaignId,
-      });
+      // Проверка доступа к кампании
+      const campaign = await this.service.getCampaign(userId, campaignId);
+      if (!campaign) {
+        res.status(404).json({ error: 'Кампания не найдена' });
+        return;
+      }
+
+      // Получаем параметры экспорта из query
+      const format = (req.query.format as string) === 'json' ? 'json' : 'csv';
+      const includeContacts = req.query.includeContacts !== 'false';
+      const includeLogs = req.query.includeLogs === 'true';
+      const includeErrors = req.query.includeErrors !== 'false';
+
+      if (format === 'json') {
+        // JSON экспорт - возвращаем статистику
+        const stats = await this.statsService.getStats(campaignId);
+        if (!stats) {
+          res.status(404).json({ error: 'Статистика не найдена' });
+          return;
+        }
+        res.json(stats);
+      } else {
+        // CSV экспорт
+        const csvContent = await this.statsService.exportToCsv(campaignId, {
+          format: 'csv',
+          includeContacts,
+          includeLogs,
+          includeErrors,
+        });
+
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="campaign_${campaignId}_export.csv"`);
+        res.send(csvContent);
+      }
     } catch (error) {
       next(error);
     }

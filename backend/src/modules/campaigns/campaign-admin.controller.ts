@@ -115,7 +115,29 @@ export class CampaignAdminController {
       const input = updateGlobalSettingsSchema.parse(req.body);
 
       // Преобразуем defaultWorkDays в JSON строку, если передан массив
-      const updateInput: any = { ...input };
+      const updateInput: Partial<{
+        pauseMode?: number;
+        minDelayBetweenContactsMs?: number;
+        maxDelayBetweenContactsMs?: number;
+        minDelayBetweenMessagesMs?: number;
+        maxDelayBetweenMessagesMs?: number;
+        maxContactsPerProfilePerHour?: number;
+        maxContactsPerProfilePerDay?: number;
+        defaultWorkHoursStart?: string;
+        defaultWorkHoursEnd?: string;
+        defaultWorkDays?: string;
+        typingSimulationEnabled?: boolean;
+        typingSpeedCharsPerSec?: number;
+        maxRetriesOnError?: number;
+        retryDelayMs?: number;
+        pauseOnCriticalError?: boolean;
+        profileHealthCheckIntervalMs?: number;
+        autoResumeAfterRestart?: boolean;
+        keepCompletedCampaignsDays?: number;
+        warmupEnabled?: boolean;
+        warmupDay1To3Limit?: number;
+        warmupDay4To7Limit?: number;
+      }> = { ...input };
       if (input.defaultWorkDays) {
         updateInput.defaultWorkDays = JSON.stringify(input.defaultWorkDays);
       }

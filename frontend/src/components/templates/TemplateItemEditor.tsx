@@ -27,9 +27,10 @@ interface TemplateItemEditorProps {
   total: number;
   onMoveUp: () => void;
   onMoveDown: () => void;
+  hideMoveButtons?: boolean;
 }
 
-export function TemplateItemEditor({ templateId, item, index, total, onMoveUp, onMoveDown }: TemplateItemEditorProps) {
+export function TemplateItemEditor({ templateId, item, index, total, onMoveUp, onMoveDown, hideMoveButtons = false }: TemplateItemEditorProps) {
   const isText = item.type === 'TEXT';
   const [content, setContent] = useState(item.content || '');
   const [localError, setLocalError] = useState<string | null>(null);
@@ -129,12 +130,14 @@ export function TemplateItemEditor({ templateId, item, index, total, onMoveUp, o
             </Typography>
           </Box>
           <Stack direction="row" spacing={0.5} alignItems="center">
-            <TemplateItemDragHandle
-              onMoveUp={onMoveUp}
-              onMoveDown={onMoveDown}
-              disableUp={index === 0}
-              disableDown={index === total - 1}
-            />
+            {!hideMoveButtons && total > 1 && (
+              <TemplateItemDragHandle
+                onMoveUp={onMoveUp}
+                onMoveDown={onMoveDown}
+                disableUp={index === 0}
+                disableDown={index === total - 1}
+              />
+            )}
             <Tooltip title="Удалить элемент">
               <IconButton 
                 size="small" 

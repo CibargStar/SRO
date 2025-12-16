@@ -57,7 +57,7 @@ import {
   CampaignStatusBadge,
   CampaignProgress as CampaignProgressBlock,
 } from '@/components/campaigns';
-import type { ListMessagesQuery, ListLogsQuery, CampaignStatus } from '@/types/campaign';
+import type { ListMessagesQuery, ListLogsQuery, CampaignStatus, Campaign } from '@/types/campaign';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -517,39 +517,43 @@ export function CampaignDetailsPage() {
           <Stack spacing={3}>
             <CampaignProgressBlock
               campaign={campaign}
-              progress={progress}
+              progress={progress ?? undefined}
               isLoading={campaignLoading}
             />
             <CampaignDetails
-              campaign={progress ? { ...campaign, ...progress } : campaign}
+              campaign={campaign}
               isLoading={campaignLoading}
             />
           </Stack>
         </TabPanel>
 
         <TabPanel value={tabValue} index={1}>
-          <CampaignMessages
-            campaignId={campaignId!}
-            messages={messagesData?.data || []}
-            totalCount={messagesData?.pagination.total || 0}
-            isLoading={messagesLoading}
-            query={messagesQuery}
-            onQueryChange={setMessagesQuery}
-            onRefresh={refetchMessages}
-          />
+          {campaignId && (
+            <CampaignMessages
+              campaignId={campaignId}
+              messages={messagesData?.data || []}
+              totalCount={messagesData?.pagination.total || 0}
+              isLoading={messagesLoading}
+              query={messagesQuery}
+              onQueryChange={setMessagesQuery}
+              onRefresh={refetchMessages}
+            />
+          )}
         </TabPanel>
 
         <TabPanel value={tabValue} index={2}>
-          <CampaignLogs
-            campaignId={campaignId!}
-            logs={logsData?.data || []}
-            totalCount={logsData?.pagination.total || 0}
-            totalPages={logsData?.pagination.totalPages || 1}
-            isLoading={logsLoading}
-            query={logsQuery}
-            onQueryChange={setLogsQuery}
-            onRefresh={refetchLogs}
-          />
+          {campaignId && (
+            <CampaignLogs
+              campaignId={campaignId}
+              logs={logsData?.data || []}
+              totalCount={logsData?.pagination.total || 0}
+              totalPages={logsData?.pagination.totalPages || 1}
+              isLoading={logsLoading}
+              query={logsQuery}
+              onQueryChange={setLogsQuery}
+              onRefresh={refetchLogs}
+            />
+          )}
         </TabPanel>
 
         <TabPanel value={tabValue} index={3}>

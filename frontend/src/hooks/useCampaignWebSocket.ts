@@ -1,12 +1,19 @@
 import { useEffect, useRef } from 'react';
 import { wsService } from '@/utils/websocket';
+import type {
+  CampaignProgressPayload,
+  CampaignStatusPayload,
+  CampaignMessagePayload,
+  CampaignErrorPayload,
+  CampaignCompletedPayload,
+} from '@/types/websocket';
 
 type Handlers = {
-  onProgress?: (data: any) => void;
-  onStatus?: (data: any) => void;
-  onMessage?: (data: any) => void;
-  onError?: (data: any) => void;
-  onCompleted?: (data: any) => void;
+  onProgress?: (data: CampaignProgressPayload) => void;
+  onStatus?: (data: CampaignStatusPayload) => void;
+  onMessage?: (data: CampaignMessagePayload) => void;
+  onError?: (data: CampaignErrorPayload) => void;
+  onCompleted?: (data: CampaignCompletedPayload) => void;
 };
 
 /**

@@ -90,7 +90,7 @@ export function CampaignLogs({
     onQueryChange({ ...query, page: newPage });
   };
 
-  const handleLevelChange = (event: any) => {
+  const handleLevelChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     onQueryChange({
       ...query,

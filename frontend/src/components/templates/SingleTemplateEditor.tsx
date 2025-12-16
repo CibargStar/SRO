@@ -75,6 +75,7 @@ export function SingleTemplateEditor({ template }: SingleTemplateEditorProps) {
           total={items.length}
           onMoveUp={() => {}}
           onMoveDown={() => {}}
+          hideMoveButtons={true}
         />
       ))}
     </Box>

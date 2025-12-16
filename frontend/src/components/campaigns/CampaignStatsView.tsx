@@ -165,6 +165,12 @@ export function CampaignStatsView({ stats, isLoading }: CampaignStatsViewProps) 
     return `${hours} ч ${mins} мин`;
   };
 
+  const formatDurationFromSeconds = (seconds: number | null): string => {
+    if (!seconds) return '—';
+    const minutes = Math.floor(seconds / 60);
+    return formatDuration(minutes);
+  };
+
   return (
     <Box>
       {/* Основные показатели */}
@@ -199,8 +205,8 @@ export function CampaignStatsView({ stats, isLoading }: CampaignStatsViewProps) 
         <Grid item xs={6} sm={3}>
           <StatCard
             title="Время выполнения"
-            value={formatDuration(stats.durationMinutes)}
-            subtitle={stats.averageContactsPerMinute != null ? `${stats.averageContactsPerMinute.toFixed(1)} контакт/мин` : undefined}
+            value={formatDurationFromSeconds(stats.duration)}
+            subtitle={stats.avgContactTime != null ? `${Math.round(stats.avgContactTime)} сек/контакт` : undefined}
             icon={<TimerIcon sx={{ fontSize: 32 }} />}
             color="#818cf8"
           />
@@ -216,7 +222,7 @@ export function CampaignStatsView({ stats, isLoading }: CampaignStatsViewProps) 
             </Typography>
             
             {/* WhatsApp */}
-            {stats.whatsAppStats && (
+            {stats.byMessenger?.whatsapp && stats.byMessenger.whatsapp.total > 0 && (
               <Box sx={{ mb: 3 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                   <WhatsAppIcon sx={{ color: '#25D366' }} />
@@ -225,7 +231,7 @@ export function CampaignStatsView({ stats, isLoading }: CampaignStatsViewProps) 
                 <Stack direction="row" spacing={1} flexWrap="wrap">
                   <Chip
                     size="small"
-                    label={`Отправлено: ${stats.whatsAppStats.sent ?? 0}`}
+                    label={`Отправлено: ${stats.byMessenger.whatsapp.sent ?? 0}`}
                     sx={{
                       backgroundColor: 'rgba(76, 175, 80, 0.2)',
                       color: '#4caf50',
@@ -234,7 +240,7 @@ export function CampaignStatsView({ stats, isLoading }: CampaignStatsViewProps) 
                   />
                   <Chip
                     size="small"
-                    label={`Ошибки: ${stats.whatsAppStats.failed ?? 0}`}
+                    label={`Ошибки: ${stats.byMessenger.whatsapp.failed ?? 0}`}
                     sx={{
                       backgroundColor: 'rgba(244, 67, 54, 0.2)',
                       color: '#f44336',
@@ -243,7 +249,7 @@ export function CampaignStatsView({ stats, isLoading }: CampaignStatsViewProps) 
                   />
                   <Chip
                     size="small"
-                    label={`Пропущено: ${stats.whatsAppStats.skipped ?? 0}`}
+                    label={`Пропущено: ${stats.byMessenger.whatsapp.skipped ?? 0}`}
                     sx={{
                       backgroundColor: 'rgba(255, 152, 0, 0.2)',
                       color: '#ff9800',
@@ -255,7 +261,7 @@ export function CampaignStatsView({ stats, isLoading }: CampaignStatsViewProps) 
             )}
 
             {/* Telegram */}
-            {stats.telegramStats && (
+            {stats.byMessenger?.telegram && stats.byMessenger.telegram.total > 0 && (
               <Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                   <TelegramIcon sx={{ color: '#0088cc' }} />
@@ -264,7 +270,7 @@ export function CampaignStatsView({ stats, isLoading }: CampaignStatsViewProps) 
                 <Stack direction="row" spacing={1} flexWrap="wrap">
                   <Chip
                     size="small"
-                    label={`Отправлено: ${stats.telegramStats.sent ?? 0}`}
+                    label={`Отправлено: ${stats.byMessenger.telegram.sent ?? 0}`}
                     sx={{
                       backgroundColor: 'rgba(76, 175, 80, 0.2)',
                       color: '#4caf50',
@@ -273,7 +279,7 @@ export function CampaignStatsView({ stats, isLoading }: CampaignStatsViewProps) 
                   />
                   <Chip
                     size="small"
-                    label={`Ошибки: ${stats.telegramStats.failed ?? 0}`}
+                    label={`Ошибки: ${stats.byMessenger.telegram.failed ?? 0}`}
                     sx={{
                       backgroundColor: 'rgba(244, 67, 54, 0.2)',
                       color: '#f44336',
@@ -282,7 +288,7 @@ export function CampaignStatsView({ stats, isLoading }: CampaignStatsViewProps) 
                   />
                   <Chip
                     size="small"
-                    label={`Пропущено: ${stats.telegramStats.skipped ?? 0}`}
+                    label={`Пропущено: ${stats.byMessenger.telegram.skipped ?? 0}`}
                     sx={{
                       backgroundColor: 'rgba(255, 152, 0, 0.2)',
                       color: '#ff9800',
@@ -342,7 +348,7 @@ export function CampaignStatsView({ stats, isLoading }: CampaignStatsViewProps) 
         </Grid>
 
         {/* Статистика по профилям */}
-        {stats.profileStats && stats.profileStats.length > 0 && (
+        {stats.byProfile && stats.byProfile.length > 0 && (
           <Grid item xs={12}>
             <Paper sx={{ p: 2.5, backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '16px', border: 'none' }}>
               <Typography variant="h6" gutterBottom sx={{ color: '#f5f5f5', fontWeight: 500 }}>
@@ -355,6 +361,9 @@ export function CampaignStatsView({ stats, isLoading }: CampaignStatsViewProps) 
                     <TableRow>
                       <TableCell sx={{ color: 'rgba(255, 255, 255, 0.7)', fontWeight: 500, borderColor: 'rgba(255, 255, 255, 0.08)' }}>
                         Профиль
+                      </TableCell>
+                      <TableCell align="right" sx={{ color: 'rgba(255, 255, 255, 0.7)', fontWeight: 500, borderColor: 'rgba(255, 255, 255, 0.08)' }}>
+                        Назначено
                       </TableCell>
                       <TableCell align="right" sx={{ color: 'rgba(255, 255, 255, 0.7)', fontWeight: 500, borderColor: 'rgba(255, 255, 255, 0.08)' }}>
                         Обработано
@@ -371,7 +380,7 @@ export function CampaignStatsView({ stats, isLoading }: CampaignStatsViewProps) 
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {stats.profileStats.map((profile) => (
+                    {stats.byProfile.map((profile) => (
                       <TableRow 
                         key={profile.profileId} 
                         hover
@@ -385,12 +394,13 @@ export function CampaignStatsView({ stats, isLoading }: CampaignStatsViewProps) 
                         }}
                       >
                         <TableCell sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>{profile.profileName}</TableCell>
-                        <TableCell align="right" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>{profile.processed}</TableCell>
+                        <TableCell align="right" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>{profile.assignedCount}</TableCell>
+                        <TableCell align="right" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>{profile.processedCount}</TableCell>
                         <TableCell align="right">
-                          <Typography sx={{ color: '#4caf50' }}>{profile.success}</Typography>
+                          <Typography sx={{ color: '#4caf50' }}>{profile.successCount}</Typography>
                         </TableCell>
                         <TableCell align="right">
-                          <Typography sx={{ color: '#f44336' }}>{profile.failed}</Typography>
+                          <Typography sx={{ color: '#f44336' }}>{profile.failedCount}</Typography>
                         </TableCell>
                         <TableCell align="right">
                           <Chip

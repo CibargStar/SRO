@@ -84,7 +84,7 @@ export function WizardStep2_SelectTemplate({ templatesLoading, filteredTemplates
           ))}
         </Grid>
       )}
-      {(errors as any)?.templateId && (
+      {errors.templateId && (
         <Alert 
           severity="error" 
           sx={{ 
@@ -95,7 +95,7 @@ export function WizardStep2_SelectTemplate({ templatesLoading, filteredTemplates
             border: '1px solid rgba(244, 67, 54, 0.2)',
           }}
         >
-          {(errors as any)?.templateId?.message}
+          {errors.templateId.message}
         </Alert>
       )}
     </Box>

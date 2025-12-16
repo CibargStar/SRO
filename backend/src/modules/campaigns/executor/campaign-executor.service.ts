@@ -136,10 +136,10 @@ export class CampaignExecutorService extends EventEmitter {
   ): Promise<void> {
     const campaign = await this.campaignRepository.findById(campaignId);
     if (!campaign) {
-      throw new Error('Campaign not found');
+      throw new Error(`Campaign not found: ${campaignId}`);
     }
     if (campaign.status !== 'QUEUED' && campaign.status !== 'RUNNING') {
-      throw new Error(`Campaign not runnable: ${campaign.status}`);
+      throw new Error(`Campaign not runnable: ${campaignId} is in status ${campaign.status}`);
     }
 
     const previousStatus = campaign.status;
@@ -169,10 +169,14 @@ export class CampaignExecutorService extends EventEmitter {
                 profileId: cp.profileId,
                 userId: cp.profile.userId,
               });
-              await this.profilesService!.startProfile(
-                cp.profileId,
-                cp.profile.userId
-              );
+              if (this.profilesService) {
+                await this.profilesService.startProfile(
+                  cp.profileId,
+                  cp.profile.userId
+                );
+              } else {
+                throw new Error('ProfilesService is not available');
+              }
               
               // Небольшая задержка для инициализации профиля
               await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -359,10 +363,10 @@ export class CampaignExecutorService extends EventEmitter {
   ): Promise<void> {
     const campaign = await this.campaignRepository.findById(campaignId);
     if (!campaign) {
-      throw new Error('Campaign not found');
+      throw new Error(`Campaign not found: ${campaignId}`);
     }
     if (campaign.status !== 'PAUSED') {
-      throw new Error(`Campaign not paused: ${campaign.status}`);
+      throw new Error(`Campaign not paused: ${campaignId} is in status ${campaign.status}`);
     }
 
     await this.campaignRepository.update(campaignId, { status: 'RUNNING' });
@@ -759,9 +763,10 @@ export class CampaignExecutorService extends EventEmitter {
     
     // Уведомление об ошибке
     if (this.notificationDispatcher) {
+      const dispatcher = this.notificationDispatcher;
       this.campaignRepository.findById(campaignId).then((campaign) => {
-        if (campaign) {
-          this.notificationDispatcher!.notifyCampaignError(
+        if (campaign && dispatcher) {
+          dispatcher.notifyCampaignError(
             userId,
             campaignId,
             campaign.name,

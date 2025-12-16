@@ -345,6 +345,8 @@ export interface CampaignProgress {
  */
 export interface CampaignStats {
   campaignId: string;
+  name: string;
+  status: string;
   
   // Общая статистика
   totalContacts: number;
@@ -353,41 +355,61 @@ export interface CampaignStats {
   failedContacts: number;
   skippedContacts: number;
   
-  // Проценты
+  // Процентные показатели
+  progress: number;
   successRate: number;
   failureRate: number;
   skipRate: number;
   
+  // Временные метрики
+  startedAt: string | null;
+  completedAt: string | null;
+  duration: number | null; // в секундах
+  avgContactTime: number | null; // среднее время на контакт в секундах
+  
   // Статистика по мессенджерам
-  whatsAppStats: {
-    sent: number;
-    failed: number;
-    skipped: number;
-  };
-  telegramStats: {
-    sent: number;
-    failed: number;
-    skipped: number;
+  byMessenger: {
+    whatsapp: {
+      total: number;
+      sent: number;
+      failed: number;
+      skipped: number;
+      successRate: number;
+    };
+    telegram: {
+      total: number;
+      sent: number;
+      failed: number;
+      skipped: number;
+      successRate: number;
+    };
+    unknown: {
+      total: number;
+      sent: number;
+      failed: number;
+      skipped: number;
+      successRate: number;
+    };
   };
   
   // Статистика по профилям
-  profileStats: Array<{
+  byProfile: Array<{
     profileId: string;
     profileName: string;
-    processed: number;
-    success: number;
-    failed: number;
+    assignedCount: number;
+    processedCount: number;
+    successCount: number;
+    failedCount: number;
+    progress: number;
     successRate: number;
   }>;
   
-  // Время выполнения
-  durationMinutes: number | null;
-  averageContactsPerMinute: number | null;
-  
-  // Ошибки (топ причин)
+  // Ошибки
+  errorCount: number;
   topErrors: Array<{
     error: string;
     count: number;
+    percentage: number;
   }>;
 }
 
@@ -567,30 +589,24 @@ export interface LogsListResponse {
  * Результат валидации кампании
  */
 export interface CampaignValidationResult {
-  isValid: boolean;
+  valid: boolean;
   errors: string[];
   warnings: string[];
   contactsCount: number;
-  profilesStatus: Array<{
-    profileId: string;
-    profileName: string;
-    isAvailable: boolean;
-    reason?: string;
-  }>;
+  profilesValid: boolean;
+  templateValid: boolean;
+  groupValid: boolean;
 }
 
 /**
  * Результат расчёта контактов
  */
 export interface CalculatedContacts {
-  totalContacts: number;
-  validContacts: number;
-  invalidContacts: number;
+  clientIds: string[];
+  totalCount: number;
   byMessenger: {
-    whatsApp: number;
+    whatsapp: number;
     telegram: number;
-    both: number;
-    none: number;
   };
 }
 

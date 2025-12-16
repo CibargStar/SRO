@@ -168,7 +168,10 @@ export function CreateCampaignPage() {
       if (!isStepValid) {
         // Берем первую ошибку из нужных полей
         const firstError = fieldsToValidate
-          .map((field) => (errors as any)[field]?.message as string | undefined)
+          .map((field) => {
+            const fieldError = errors[field];
+            return fieldError?.message as string | undefined;
+          })
           .find(Boolean);
         setStepError(firstError || 'Заполните обязательные поля на этом шаге.');
         return;
@@ -191,6 +194,13 @@ export function CreateCampaignPage() {
 
   const handleCreateCampaign = () => {
     const data = watchedValues;
+    
+    // Валидация обязательных полей
+    if (!data.profileIds || data.profileIds.length === 0) {
+      setStepError('Необходимо выбрать хотя бы один профиль');
+      setActiveStep(3); // Переходим на шаг выбора профилей
+      return;
+    }
     
     // Преобразуем в формат API
     const input: CreateCampaignInput = {

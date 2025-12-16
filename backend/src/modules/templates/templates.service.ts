@@ -86,6 +86,65 @@ export interface TemplateWithItems extends Template {
 }
 
 // ============================================
+// Типы для API ответов
+// ============================================
+
+interface TemplateApiResponse {
+  id: string;
+  userId: string;
+  categoryId: string;
+  name: string;
+  description: string | null;
+  type: TemplateType;
+  messengerTarget: MessengerTarget;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  category?: TemplateCategory | null;
+  items: TemplateItemApiResponse[];
+  _count?: {
+    items: number;
+  };
+}
+
+interface TemplateItemApiResponse {
+  id: string;
+  templateId: string;
+  orderIndex: number;
+  type: TemplateItemType;
+  content: string | null;
+  fileName: string | null;
+  filePath: string | null;
+  fileUrl: string | null;
+  fileSize: number | null;
+  mimeType: string | null;
+  fileType: FileType | null;
+  delayAfterMs: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface TemplateListItemApiResponse {
+  id: string;
+  userId: string;
+  categoryId: string;
+  name: string;
+  description: string | null;
+  type: TemplateType;
+  messengerTarget: MessengerTarget;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  category?: {
+    id: string;
+    name: string;
+  } | null;
+  _count?: {
+    items: number;
+  };
+}
+
+// ============================================
 // Сервис
 // ============================================
 
@@ -221,7 +280,7 @@ export class TemplatesService {
   /**
    * Создание шаблона
    */
-  async createTemplate(userId: string, input: CreateTemplateInput): Promise<TemplateWithItems> {
+  async createTemplate(userId: string, input: CreateTemplateInput): Promise<TemplateApiResponse> {
     // Проверка существования категории
     const category = await this.categoryRepository.findById(input.categoryId);
     if (!category) {
@@ -264,69 +323,10 @@ export class TemplatesService {
     return this.mapTemplateToApi(result);
   }
 
-  // ============================================
-  // Типы для API ответов
-  // ============================================
-
-  interface TemplateApiResponse {
-    id: string;
-    userId: string;
-    categoryId: string;
-    name: string;
-    description: string | null;
-    type: TemplateType;
-    messengerTarget: MessengerTarget;
-    isActive: boolean;
-    createdAt: Date;
-    updatedAt: Date;
-    category?: TemplateCategory | null;
-    items: TemplateItemApiResponse[];
-    _count?: {
-      items: number;
-    };
-  }
-
-  interface TemplateItemApiResponse {
-    id: string;
-    templateId: string;
-    orderIndex: number;
-    type: TemplateItemType;
-    content: string | null;
-    fileName: string | null;
-    filePath: string | null;
-    fileUrl: string | null;
-    fileSize: number | null;
-    mimeType: string | null;
-    fileType: FileType | null;
-    delayAfterMs: number;
-    createdAt: Date;
-    updatedAt: Date;
-  }
-
-  interface TemplateListItemApiResponse {
-    id: string;
-    userId: string;
-    categoryId: string;
-    name: string;
-    description: string | null;
-    type: TemplateType;
-    messengerTarget: MessengerTarget;
-    isActive: boolean;
-    createdAt: Date;
-    updatedAt: Date;
-    category?: {
-      id: string;
-      name: string;
-    } | null;
-    _count?: {
-      items: number;
-    };
-  }
-
   /**
    * Маппинг Template из Prisma в формат API (для совместимости с frontend)
    */
-  private mapTemplateToApi(template: TemplateWithItems): TemplateApiResponse {
+  private mapTemplateToApi(template: Template & { items: TemplateItem[]; category: TemplateCategory; _count?: { items: number } }): TemplateApiResponse {
     return {
       id: template.id,
       userId: template.userId,
@@ -477,7 +477,7 @@ export class TemplatesService {
     // Удаление неактивных кампаний, использующих шаблон
     // Это необходимо, так как templateId не может быть null из-за ограничения внешнего ключа
     // Удаляем кампании в статусах: DRAFT, COMPLETED, CANCELLED, ERROR
-    const inactiveStatuses = ['DRAFT', 'COMPLETED', 'CANCELLED', 'ERROR'];
+    const inactiveStatuses: Array<'DRAFT' | 'COMPLETED' | 'CANCELLED' | 'ERROR'> = ['DRAFT', 'COMPLETED', 'CANCELLED', 'ERROR'];
     let totalInactiveCount = 0;
     
     for (const status of inactiveStatuses) {
