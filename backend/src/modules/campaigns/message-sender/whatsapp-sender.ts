@@ -333,10 +333,21 @@ export class WhatsAppSender {
    */
   private resolveFilePath(filePath: string): string {
     if (path.isAbsolute(filePath)) {
+      logger.debug('File path is already absolute', { filePath });
       return filePath;
     }
     const uploadsDir = path.join(process.cwd(), 'uploads', 'templates');
-    return path.resolve(uploadsDir, filePath);
+    const resolvedPath = path.resolve(uploadsDir, filePath);
+    
+    logger.debug('Resolved file path', {
+      originalPath: filePath,
+      processCwd: process.cwd(),
+      uploadsDir,
+      resolvedPath,
+      pathHasSpaces: resolvedPath.includes(' '),
+    });
+    
+    return resolvedPath;
   }
 
   /**
@@ -345,8 +356,19 @@ export class WhatsAppSender {
   private async checkFileExists(filePath: string): Promise<boolean> {
     try {
       await fs.access(filePath);
+      logger.debug('File exists', { filePath });
       return true;
-    } catch {
+    } catch (error) {
+      // Детальное логирование для диагностики
+      const stats = await fs.stat(path.dirname(filePath)).catch(() => null);
+      logger.warn('File not found', {
+        filePath,
+        dirExists: stats !== null,
+        dirPath: path.dirname(filePath),
+        fileName: path.basename(filePath),
+        error: error instanceof Error ? error.message : 'Unknown error',
+        processCwd: process.cwd(),
+      });
       return false;
     }
   }
@@ -638,15 +660,46 @@ export class WhatsAppSender {
    */
   private async sendFileMessage(page: Page, attachmentPath: string, phone?: string, profileId?: string): Promise<void> {
     try {
+      logger.info('Starting file send', {
+        attachmentPath,
+        phone,
+        profileId,
+        processCwd: process.cwd(),
+      });
+
       const absolutePath = this.resolveFilePath(attachmentPath);
 
+      let finalPath = absolutePath;
+      
       if (!await this.checkFileExists(absolutePath)) {
-        throw new Error(`File not found: ${absolutePath}`);
+        // Проверяем альтернативные пути (на случай если process.cwd() указывает не туда)
+        const alternativePaths = [
+          path.join(process.cwd(), 'backend', 'uploads', 'templates', attachmentPath),
+          path.resolve(process.cwd(), 'uploads', 'templates', attachmentPath),
+        ];
+        
+        let foundPath: string | null = null;
+        for (const altPath of alternativePaths) {
+          try {
+            await fs.access(altPath);
+            foundPath = altPath;
+            logger.info('File found at alternative path', { original: absolutePath, found: altPath });
+            break;
+          } catch {
+            continue;
+          }
+        }
+        
+        if (!foundPath) {
+          throw new Error(`File not found: ${absolutePath}. Checked paths: ${[absolutePath, ...alternativePaths].join(', ')}. Make sure files are uploaded to uploads/templates/ directory.`);
+        }
+        
+        finalPath = foundPath;
       }
 
-      const fileType = this.getFileType(absolutePath);
+      const fileType = this.getFileType(finalPath);
       
-      logger.debug('Sending WhatsApp file', { absolutePath, fileType, phone, profileId });
+      logger.debug('Sending WhatsApp file', { absolutePath: finalPath, fileType, phone, profileId });
 
       // Проверяем что мы в правильном чате (без переоткрытия - чат уже открыт в sendMessage)
       if (phone) {
@@ -662,7 +715,7 @@ export class WhatsAppSender {
       
       // Используем FileChooser метод - он перехватывает диалог ДО его открытия
       // page.waitForFileChooser() запускается ПЕРЕД кликом, что предотвращает появление проводника
-      await this.sendFileViaFileChooser(page, absolutePath, fileType);
+      await this.sendFileViaFileChooser(page, finalPath, fileType);
 
       // Ждем загрузки превью
       await this.delay(2000);
