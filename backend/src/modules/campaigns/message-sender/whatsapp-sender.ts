@@ -572,7 +572,13 @@ export class WhatsAppSender {
     const checkInterval = 200;
     
     while (Date.now() - startTime < timeout) {
-      const menuVisible = await page.evaluate(() => {
+      // Проверяем, что страница не закрыта
+      if (page.isClosed()) {
+        logger.warn('Page closed while waiting for menu', { elapsed: Date.now() - startTime });
+        return false;
+      }
+
+      const menuInfo = await page.evaluate(() => {
         // Проверяем наличие меню через различные селекторы
         const menuSelectors = [
           '[role="menu"]',
@@ -583,30 +589,79 @@ export class WhatsAppSender {
           'div[aria-label="Photos & videos"]',
         ];
         
+        const foundElements: Array<{ selector: string; visible: boolean; ariaLabel: string | null }> = [];
+        
         for (const selector of menuSelectors) {
           const element = document.querySelector(selector);
           if (element) {
             const isVisible = (element as HTMLElement).offsetParent !== null;
+            const ariaLabel = element.getAttribute('aria-label');
+            foundElements.push({ selector, visible: isVisible, ariaLabel });
             if (isVisible) {
-              return true;
+              return { found: true, elements: foundElements };
             }
           }
         }
         
         // Проверяем наличие любого видимого menuitem
         const menuItems = Array.from(document.querySelectorAll('[role="menuitem"]'));
+        const visibleItems: Array<{ ariaLabel: string; visible: boolean }> = [];
+        
         for (const item of menuItems) {
-          if ((item as HTMLElement).offsetParent !== null) {
-            return true;
+          const isVisible = (item as HTMLElement).offsetParent !== null;
+          const ariaLabel = item.getAttribute('aria-label') ?? '';
+          visibleItems.push({ ariaLabel, visible: isVisible });
+          if (isVisible) {
+            return { found: true, elements: foundElements, visibleItems };
           }
         }
         
-        return false;
+        // Также проверяем все элементы с aria-label, которые могут быть меню
+        const allAriaLabels = Array.from(document.querySelectorAll('[aria-label]'));
+        const ariaLabelItems: string[] = [];
+        for (const el of allAriaLabels) {
+          const label = el.getAttribute('aria-label');
+          if (label && (label.includes('Документ') || label.includes('Document') || 
+              label.includes('Фото') || label.includes('Photo'))) {
+            const isVisible = (el as HTMLElement).offsetParent !== null;
+            if (isVisible) {
+              ariaLabelItems.push(label);
+            }
+          }
+        }
+        
+        return { 
+          found: false, 
+          elements: foundElements, 
+          visibleItems,
+          ariaLabelItems,
+          menuItemsCount: menuItems.length,
+          allAriaLabelsCount: allAriaLabels.length
+        };
+      }).catch((err) => {
+        logger.debug('Error checking menu visibility', { error: err instanceof Error ? err.message : String(err) });
+        return { found: false, error: String(err) };
       });
       
-      if (menuVisible) {
-        logger.debug('Attachment menu appeared', { elapsed: Date.now() - startTime });
+      if (menuInfo.found) {
+        logger.debug('Attachment menu appeared', { 
+          elapsed: Date.now() - startTime,
+          elements: menuInfo.elements?.length || 0
+        });
         return true;
+      }
+      
+      // Логируем детали, если меню не найдено (только каждые 1 секунду, чтобы не спамить)
+      if ((Date.now() - startTime) % 1000 < checkInterval) {
+        logger.debug('Menu not found yet', { 
+          elapsed: Date.now() - startTime,
+          menuInfo: menuInfo.error ? { error: menuInfo.error } : {
+            elementsFound: menuInfo.elements?.length || 0,
+            visibleItems: menuInfo.visibleItems?.length || 0,
+            ariaLabelItems: menuInfo.ariaLabelItems?.length || 0,
+            menuItemsCount: menuInfo.menuItemsCount || 0
+          }
+        });
       }
       
       await this.delay(checkInterval);
@@ -631,7 +686,9 @@ export class WhatsAppSender {
     // Ожидаем появления меню перед попыткой найти пункт
     const menuAppeared = await this.waitForAttachmentMenu(page, 5000);
     if (!menuAppeared) {
-      logger.warn('Menu did not appear, but continuing with search', { fileType });
+      logger.warn('Menu did not appear in waitForAttachmentMenu, but continuing with search', { fileType });
+      // Даем еще немного времени - возможно меню появляется с задержкой
+      await this.delay(500);
     }
 
     // Способ 1: Ищем через селекторы с retry
@@ -639,27 +696,59 @@ export class WhatsAppSender {
       ? SELECTORS.menuItemDocument 
       : SELECTORS.menuItemPhoto;
 
-    const maxRetries = 3;
+    const maxRetries = 5; // Увеличиваем количество попыток
     for (let retry = 0; retry < maxRetries; retry++) {
       if (retry > 0) {
         logger.debug(`Retry ${retry} of ${maxRetries - 1} for finding menu item`, { fileType });
-        await this.delay(300);
+        await this.delay(400); // Увеличиваем задержку между попытками
+      }
+
+      // Проверяем, что страница не закрыта
+      if (page.isClosed()) {
+        logger.error('Page closed during menu item search', { fileType, retry });
+        throw new Error('Page closed during menu item search');
       }
 
       logger.debug('Trying selectors method', { selectors: menuSelectors, fileType, retry });
       for (const selector of menuSelectors) {
         try {
-          // Используем waitForSelector с коротким timeout для каждого селектора
+          // Используем waitForSelector с более длинным timeout
           const element = await page.waitForSelector(selector, { 
-            timeout: 1000,
+            timeout: 2000, // Увеличиваем timeout
             visible: true 
           }).catch(() => null);
           
           if (element) {
-            const isVisible = await element.isIntersectingViewport().catch(() => false);
-            logger.debug('Found element via selector', { selector, fileType, isVisible, retry });
+            // Проверяем видимость несколькими способами
+            const [isIntersecting, offsetParent, display] = await Promise.all([
+              element.isIntersectingViewport().catch(() => false),
+              page.evaluate((el) => (el as HTMLElement).offsetParent !== null, element).catch(() => false),
+              page.evaluate((el) => {
+                const style = window.getComputedStyle(el as HTMLElement);
+                return style.display !== 'none' && style.visibility !== 'hidden';
+              }, element).catch(() => false)
+            ]);
+            
+            const isVisible = isIntersecting || offsetParent || display;
+            logger.debug('Found element via selector', { 
+              selector, 
+              fileType, 
+              isVisible, 
+              isIntersecting,
+              offsetParent,
+              display,
+              retry 
+            });
             
             if (isVisible) {
+              // Прокручиваем элемент в видимую область, если нужно
+              try {
+                await element.scrollIntoViewIfNeeded?.().catch(() => {});
+              } catch {
+                // Игнорируем ошибки прокрутки
+              }
+              
+              await this.delay(100); // Небольшая задержка перед кликом
               await element.click();
               logger.info('Clicked menu item via selector', { selector, fileType, retry });
               await this.delay(200); // Небольшая задержка после клика
@@ -680,32 +769,96 @@ export class WhatsAppSender {
       logger.debug('Trying evaluate method', { ariaLabels, fileType, retry });
       const evaluateResult = await page.evaluate((labels: string[]) => {
         try {
-          // Ищем по aria-label
-          for (const label of labels) {
-            const el = document.querySelector(`[aria-label="${label}"]`);
-            if (el) {
-              const isVisible = (el as HTMLElement).offsetParent !== null;
-              if (isVisible) {
-                (el as HTMLElement).click();
-                return { success: true, method: 'aria-label', label };
+          // Сначала собираем все возможные элементы с aria-label
+          const allElements = Array.from(document.querySelectorAll('[aria-label]'));
+          const candidates: Array<{ element: HTMLElement; ariaLabel: string; visible: boolean; methods: string[] }> = [];
+          
+          for (const el of allElements) {
+            const ariaLabel = el.getAttribute('aria-label') ?? '';
+            if (!ariaLabel) continue;
+            
+            const htmlEl = el as HTMLElement;
+            const offsetParentVisible = htmlEl.offsetParent !== null;
+            const computedStyle = window.getComputedStyle(htmlEl);
+            const styleVisible = computedStyle.display !== 'none' && computedStyle.visibility !== 'hidden';
+            const isVisible = offsetParentVisible || styleVisible;
+            
+            const methods: string[] = [];
+            if (offsetParentVisible) methods.push('offsetParent');
+            if (styleVisible) methods.push('computedStyle');
+            
+            // Проверяем, подходит ли элемент по aria-label
+            for (const label of labels) {
+              if (ariaLabel === label || ariaLabel.includes(label) || label.includes(ariaLabel)) {
+                candidates.push({ element: htmlEl, ariaLabel, visible: isVisible, methods });
+                if (isVisible) {
+                  // Пробуем кликнуть сразу, если видимый
+                  try {
+                    htmlEl.scrollIntoView({ block: 'center', behavior: 'instant' });
+                    htmlEl.click();
+                    return { success: true, method: 'aria-label-exact', label: ariaLabel, visibilityMethods: methods };
+                  } catch (err) {
+                    // Продолжаем поиск, если клик не удался
+                  }
+                }
               }
             }
           }
           
-          // Fallback: ищем menuitem с нужным текстом
+          // Если не нашли точное совпадение, ищем menuitem
           const menuItems = Array.from(document.querySelectorAll('[role="menuitem"]'));
-          const foundItems: Array<{ ariaLabel: string; visible: boolean }> = [];
+          const foundItems: Array<{ ariaLabel: string; visible: boolean; methods: string[] }> = [];
           
           for (const item of menuItems) {
             const ariaLabel = item.getAttribute('aria-label') ?? '';
-            const isVisible = (item as HTMLElement).offsetParent !== null;
-            foundItems.push({ ariaLabel, visible: isVisible });
+            const htmlItem = item as HTMLElement;
+            const offsetParentVisible = htmlItem.offsetParent !== null;
+            const computedStyle = window.getComputedStyle(htmlItem);
+            const styleVisible = computedStyle.display !== 'none' && computedStyle.visibility !== 'hidden';
+            const isVisible = offsetParentVisible || styleVisible;
             
-            if (isVisible) {
+            const methods: string[] = [];
+            if (offsetParentVisible) methods.push('offsetParent');
+            if (styleVisible) methods.push('computedStyle');
+            
+            foundItems.push({ ariaLabel, visible: isVisible, methods });
+            
+            if (isVisible && ariaLabel) {
               for (const label of labels) {
-                if (ariaLabel.includes(label) || ariaLabel === label) {
-                  (item as HTMLElement).click();
-                  return { success: true, method: 'menuitem', label: ariaLabel };
+                if (ariaLabel.includes(label) || ariaLabel === label || label.includes(ariaLabel)) {
+                  try {
+                    htmlItem.scrollIntoView({ block: 'center', behavior: 'instant' });
+                    htmlItem.click();
+                    return { success: true, method: 'menuitem', label: ariaLabel, visibilityMethods: methods };
+                  } catch (err) {
+                    // Продолжаем поиск
+                  }
+                }
+              }
+            }
+          }
+          
+          // Также ищем по тексту содержимого
+          for (const label of labels) {
+            const textElements = Array.from(document.querySelectorAll('*')).filter(el => {
+              const text = el.textContent?.trim() ?? '';
+              return text === label || text.includes(label);
+            });
+            
+            for (const textEl of textElements) {
+              const htmlEl = textEl as HTMLElement;
+              const offsetParentVisible = htmlEl.offsetParent !== null;
+              const computedStyle = window.getComputedStyle(htmlEl);
+              const styleVisible = computedStyle.display !== 'none' && computedStyle.visibility !== 'hidden';
+              const isVisible = offsetParentVisible || styleVisible;
+              
+              if (isVisible) {
+                try {
+                  htmlEl.scrollIntoView({ block: 'center', behavior: 'instant' });
+                  htmlEl.click();
+                  return { success: true, method: 'text-content', label };
+                } catch (err) {
+                  // Продолжаем
                 }
               }
             }
@@ -714,8 +867,11 @@ export class WhatsAppSender {
           return { 
             success: false, 
             error: 'No matching menu item found', 
-            foundItems,
-            labels 
+            candidates: candidates.map(c => ({ ariaLabel: c.ariaLabel, visible: c.visible, methods: c.methods })),
+            foundItems: foundItems.map(f => ({ ariaLabel: f.ariaLabel, visible: f.visible, methods: f.methods })),
+            labels,
+            allElementsCount: allElements.length,
+            menuItemsCount: menuItems.length
           };
         } catch (err) {
           return { success: false, error: String(err) };
@@ -727,7 +883,8 @@ export class WhatsAppSender {
           clicked: evaluateResult.label, 
           method: evaluateResult.method,
           fileType,
-          retry
+          retry,
+          visibilityMethods: evaluateResult.visibilityMethods
         });
         await this.delay(200); // Небольшая задержка после клика
         return true;
@@ -738,17 +895,50 @@ export class WhatsAppSender {
         logger.debug('Menu item not found on retry, will retry', { 
           fileType, 
           retry,
-          evaluateResult: evaluateResult.error || evaluateResult
+          error: evaluateResult.error,
+          candidatesCount: evaluateResult.candidates?.length || 0,
+          foundItemsCount: evaluateResult.foundItems?.length || 0,
+          allElementsCount: evaluateResult.allElementsCount || 0,
+          menuItemsCount: evaluateResult.menuItemsCount || 0
         });
+        
+        // Логируем найденные элементы для диагностики (только на первой попытке)
+        if (retry === 0 && evaluateResult.candidates && evaluateResult.candidates.length > 0) {
+          logger.debug('Found candidates (first 5)', { 
+            candidates: evaluateResult.candidates.slice(0, 5)
+          });
+        }
+        if (retry === 0 && evaluateResult.foundItems && evaluateResult.foundItems.length > 0) {
+          logger.debug('Found menu items (first 5)', { 
+            foundItems: evaluateResult.foundItems.slice(0, 5)
+          });
+        }
       }
     }
 
-    // Все попытки исчерпаны
+    // Все попытки исчерпаны - логируем детальную информацию
+    const finalEvaluateResult = await page.evaluate((labels: string[]) => {
+      const allElements = Array.from(document.querySelectorAll('[aria-label]'));
+      const menuItems = Array.from(document.querySelectorAll('[role="menuitem"]'));
+      return {
+        allAriaLabels: allElements.map(el => ({
+          label: el.getAttribute('aria-label'),
+          visible: (el as HTMLElement).offsetParent !== null
+        })),
+        menuItems: menuItems.map(item => ({
+          label: item.getAttribute('aria-label'),
+          visible: (item as HTMLElement).offsetParent !== null,
+          text: item.textContent?.trim()
+        }))
+      };
+    }, ariaLabels).catch(() => ({ error: 'Page closed or error' }));
+
     logger.error('Could not find menu item after all retries', { 
       fileType, 
       ariaLabels,
       maxRetries,
-      url: page.url()
+      url: page.url(),
+      finalState: finalEvaluateResult
     });
     return false;
   }
