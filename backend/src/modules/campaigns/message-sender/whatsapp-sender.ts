@@ -1033,86 +1033,185 @@ export class WhatsAppSender {
 
   /**
    * Отправка файла с гарантированным MIME-типом
-   * Используем FileChooser для перехвата диалога (предотвращает открытие проводника),
-   * но загружаем файл через DataTransfer с правильным MIME-типом
+   * Стратегия: загружаем файл НАПРЯМУЮ в input без клика на пункт меню
+   * Это предотвращает открытие диалога выбора файла во всех браузерах
    */
   private async sendFileViaFileChooser(
     page: Page, 
     absolutePath: string, 
     fileType: 'image' | 'video' | 'document'
   ): Promise<void> {
-    // Кликаем на кнопку прикрепления (+)
-    const attachClicked = await this.clickAttachButton(page);
-    if (!attachClicked) {
-      throw new Error('Could not click attach button');
-    }
-    await this.delay(500);
-
     // Читаем файл и готовим данные с правильным MIME-типом ЗАРАНЕЕ
     const mimeType = this.getMimeType(absolutePath);
     const fileName = path.basename(absolutePath);
     const fileBuffer = await fs.readFile(absolutePath);
     const base64Data = fileBuffer.toString('base64');
 
-    logger.debug('Prepared file for upload', { absolutePath, fileName, mimeType, fileType });
+    logger.info('Starting file upload', { absolutePath, fileName, mimeType, fileType });
 
-    // Запускаем waitForFileChooser ПЕРЕД кликом на пункт меню
-    // Это перехватывает диалог выбора файла и предотвращает открытие проводника
-    const fileChooserPromise = page.waitForFileChooser({ timeout: 10000 }).catch((err) => {
-      logger.debug('FileChooser wait failed', { error: err instanceof Error ? err.message : String(err) });
-      return null;
-    });
+    // Кликаем на кнопку прикрепления (+) - это откроет меню с input элементами
+    const attachClicked = await this.clickAttachButton(page);
+    if (!attachClicked) {
+      throw new Error('Could not click attach button');
+    }
+    await this.delay(500);
 
-    // Кликаем на пункт меню (Document / Photo & Video)
+    // СТРАТЕГИЯ 1: Загружаем файл НАПРЯМУЮ через input БЕЗ клика на пункт меню
+    // Это предотвращает открытие диалога выбора файла
+    // Находим нужный input и устанавливаем файл через DataTransfer
+    const directUploadSuccess = await this.uploadFileDirectlyToInput(page, base64Data, fileName, mimeType, fileType);
+    
+    if (directUploadSuccess) {
+      logger.info('File uploaded directly to input (no dialog)', { fileName, mimeType });
+      return;
+    }
+
+    logger.debug('Direct input upload failed, trying with menu click', { fileName });
+
+    // СТРАТЕГИЯ 2: Если прямая загрузка не сработала - кликаем на пункт меню
+    // но перехватываем FileChooser чтобы предотвратить открытие проводника
+    const fileChooserPromise = page.waitForFileChooser({ timeout: 5000 }).catch(() => null);
+    
     await this.clickMenuItem(page, fileType);
-
-    // Ждем FileChooser
+    
     const fileChooser = await fileChooserPromise;
 
     if (fileChooser) {
-      // FileChooser перехвачен - используем его, но с нашим методом установки MIME-типа
-      logger.debug('FileChooser intercepted, uploading with MIME type', { fileName, mimeType });
-      
-      // Загружаем файл через DataTransfer с правильным MIME-типом
-      // Это устанавливает файл в input[type="file"] с корректным типом
-      const uploaded = await this.uploadFileWithMimeType(page, base64Data, fileName, mimeType, fileType);
-      
-      if (uploaded) {
-        logger.debug('File uploaded via MIME type method after FileChooser intercept', { fileName, mimeType });
-        return;
-      }
-      
-      // Если метод с MIME-типом не сработал, используем стандартный FileChooser.accept()
-      // как fallback (может вызвать ошибку "файл не поддерживается" в некоторых случаях)
-      logger.warn('MIME type method failed, falling back to FileChooser.accept()', { absolutePath });
+      // FileChooser перехвачен - используем его accept() с путем к файлу
+      // Это единственный надежный способ "закрыть" FileChooser
+      logger.debug('FileChooser intercepted, using accept()', { absolutePath });
       try {
         await fileChooser.accept([absolutePath]);
-        logger.debug('File uploaded via FileChooser.accept() fallback', { absolutePath });
+        logger.info('File uploaded via FileChooser.accept()', { absolutePath, fileName });
         return;
       } catch (error) {
-        logger.error('FileChooser.accept() also failed', { 
-          error: error instanceof Error ? error.message : String(error),
-          absolutePath 
+        logger.warn('FileChooser.accept() failed', { 
+          error: error instanceof Error ? error.message : String(error) 
         });
       }
-    } else {
-      // FileChooser не появился - пробуем загрузить напрямую через input
-      logger.debug('FileChooser not available, trying direct input upload', { absolutePath });
-      await this.delay(500);
     }
 
-    // Fallback: загружаем через uploadFileToInput (использует uploadFileWithMimeType внутри)
-    const fileUploaded = await this.uploadFileToInput(page, absolutePath, fileType);
+    // СТРАТЕГИЯ 3: Fallback - пробуем загрузить через input после клика на меню
+    await this.delay(500);
+    const fallbackSuccess = await this.uploadFileWithMimeType(page, base64Data, fileName, mimeType, fileType);
     
-    if (!fileUploaded) {
-      throw new Error(
-        `Could not upload file. File: ${absolutePath}, Type: ${fileType}. ` +
-        `FileChooser: ${fileChooser ? 'intercepted but upload failed' : 'not available'}. ` +
-        `Make sure the file exists and is accessible.`
-      );
+    if (fallbackSuccess) {
+      logger.info('File uploaded via fallback MIME type method', { fileName, mimeType });
+      return;
     }
-    
-    logger.debug('File uploaded successfully', { absolutePath, fileType });
+
+    throw new Error(
+      `Could not upload file. File: ${absolutePath}, Type: ${fileType}. ` +
+      `All upload strategies failed. FileChooser: ${fileChooser ? 'intercepted' : 'not available'}.`
+    );
+  }
+
+  /**
+   * Загрузка файла напрямую в input БЕЗ клика на пункт меню
+   * Находит правильный input по атрибуту accept и устанавливает файл
+   */
+  private async uploadFileDirectlyToInput(
+    page: Page,
+    base64Data: string,
+    fileName: string,
+    mimeType: string,
+    fileType: 'image' | 'video' | 'document'
+  ): Promise<boolean> {
+    try {
+      const result = await page.evaluate(
+        (b64: string, name: string, mime: string, fType: string) => {
+          try {
+            // Ищем все file inputs на странице
+            const fileInputs = Array.from(document.querySelectorAll('input[type="file"]'));
+            
+            if (fileInputs.length === 0) {
+              return { success: false, error: 'No file inputs found', inputCount: 0 };
+            }
+
+            // Находим подходящий input по атрибуту accept
+            let targetInput: HTMLInputElement | null = null;
+            
+            for (const input of fileInputs) {
+              const htmlInput = input as HTMLInputElement;
+              const accept = htmlInput.getAttribute('accept') || '';
+              
+              // Для документов ищем input с accept="*" или application/*
+              // Для изображений/видео ищем input с accept="image/*" или "video/*"
+              if (fType === 'document') {
+                if (accept === '*' || accept.includes('*') || accept.includes('application') || accept === '') {
+                  targetInput = htmlInput;
+                  break;
+                }
+              } else {
+                if (accept.includes('image') || accept.includes('video') || accept === '*') {
+                  targetInput = htmlInput;
+                  break;
+                }
+              }
+            }
+
+            // Если не нашли по accept - берем последний input
+            if (!targetInput) {
+              targetInput = fileInputs[fileInputs.length - 1] as HTMLInputElement;
+            }
+
+            // Конвертируем base64 в ArrayBuffer
+            const binaryString = atob(b64);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i);
+            }
+
+            // Создаём File объект с правильным MIME-типом
+            const file = new File([bytes.buffer], name, { type: mime });
+
+            // Создаём DataTransfer и добавляем файл
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+
+            // Устанавливаем файлы в input
+            targetInput.files = dataTransfer.files;
+            
+            // Диспатчим события
+            targetInput.dispatchEvent(new Event('change', { bubbles: true }));
+            targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+            return { 
+              success: true, 
+              inputCount: fileInputs.length,
+              acceptAttr: targetInput.getAttribute('accept') || 'none'
+            };
+          } catch (err) {
+            return { success: false, error: String(err), inputCount: 0 };
+          }
+        },
+        base64Data,
+        fileName,
+        mimeType,
+        fileType
+      );
+
+      if (result.success) {
+        logger.debug('Direct input upload succeeded', { 
+          fileName, 
+          mimeType, 
+          inputCount: result.inputCount,
+          acceptAttr: result.acceptAttr 
+        });
+        return true;
+      } else {
+        logger.debug('Direct input upload failed', { 
+          error: result.error, 
+          inputCount: result.inputCount 
+        });
+        return false;
+      }
+    } catch (error) {
+      logger.debug('Error in uploadFileDirectlyToInput', { 
+        error: error instanceof Error ? error.message : String(error) 
+      });
+      return false;
+    }
   }
 
   /**
