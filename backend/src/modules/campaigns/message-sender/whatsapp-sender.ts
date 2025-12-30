@@ -565,7 +565,60 @@ export class WhatsAppSender {
 
 
   /**
+   * Ожидание появления меню вложений после клика на кнопку "+"
+   */
+  private async waitForAttachmentMenu(page: Page, timeout: number = 5000): Promise<boolean> {
+    const startTime = Date.now();
+    const checkInterval = 200;
+    
+    while (Date.now() - startTime < timeout) {
+      const menuVisible = await page.evaluate(() => {
+        // Проверяем наличие меню через различные селекторы
+        const menuSelectors = [
+          '[role="menu"]',
+          '[role="menuitem"]',
+          'div[aria-label="Документ"]',
+          'div[aria-label="Document"]',
+          'div[aria-label="Фото и видео"]',
+          'div[aria-label="Photos & videos"]',
+        ];
+        
+        for (const selector of menuSelectors) {
+          const element = document.querySelector(selector);
+          if (element) {
+            const isVisible = (element as HTMLElement).offsetParent !== null;
+            if (isVisible) {
+              return true;
+            }
+          }
+        }
+        
+        // Проверяем наличие любого видимого menuitem
+        const menuItems = Array.from(document.querySelectorAll('[role="menuitem"]'));
+        for (const item of menuItems) {
+          if ((item as HTMLElement).offsetParent !== null) {
+            return true;
+          }
+        }
+        
+        return false;
+      });
+      
+      if (menuVisible) {
+        logger.debug('Attachment menu appeared', { elapsed: Date.now() - startTime });
+        return true;
+      }
+      
+      await this.delay(checkInterval);
+    }
+    
+    logger.warn('Attachment menu did not appear within timeout', { timeout });
+    return false;
+  }
+
+  /**
    * Клик на пункт меню вложений (Документ или Фото)
+   * Добавлено ожидание появления меню и retry логика
    */
   private async clickMenuItem(page: Page, fileType: 'image' | 'video' | 'document'): Promise<boolean> {
     // Определяем aria-label в зависимости от типа файла
@@ -575,87 +628,126 @@ export class WhatsAppSender {
 
     logger.debug('Looking for menu item', { fileType, ariaLabels, url: page.url() });
 
-    // Способ 1: Ищем через селекторы
+    // Ожидаем появления меню перед попыткой найти пункт
+    const menuAppeared = await this.waitForAttachmentMenu(page, 5000);
+    if (!menuAppeared) {
+      logger.warn('Menu did not appear, but continuing with search', { fileType });
+    }
+
+    // Способ 1: Ищем через селекторы с retry
     const menuSelectors = fileType === 'document' 
       ? SELECTORS.menuItemDocument 
       : SELECTORS.menuItemPhoto;
 
-    logger.debug('Trying selectors method', { selectors: menuSelectors, fileType });
-    for (const selector of menuSelectors) {
-      try {
-        const element = await page.$(selector);
-        if (element) {
-          const isVisible = await element.isIntersectingViewport().catch(() => false);
-          logger.debug('Found element via selector', { selector, fileType, isVisible });
-          await element.click();
-          logger.info('Clicked menu item via selector', { selector, fileType });
-          await this.delay(200); // Небольшая задержка после клика
-          return true;
-        }
-      } catch (error) {
-        logger.debug('Selector click failed', { 
-          selector, 
-          error: error instanceof Error ? error.message : String(error) 
-        });
-        continue;
+    const maxRetries = 3;
+    for (let retry = 0; retry < maxRetries; retry++) {
+      if (retry > 0) {
+        logger.debug(`Retry ${retry} of ${maxRetries - 1} for finding menu item`, { fileType });
+        await this.delay(300);
       }
-    }
 
-    // Способ 2: Ищем через evaluate по aria-label
-    logger.debug('Trying evaluate method', { ariaLabels, fileType });
-    const evaluateResult = await page.evaluate((labels: string[]) => {
-      try {
-        // Ищем по aria-label
-        for (const label of labels) {
-          const el = document.querySelector(`[aria-label="${label}"]`);
-          if (el) {
-            (el as HTMLElement).click();
-            return { success: true, method: 'aria-label', label };
-          }
-        }
-        
-        // Fallback: ищем menuitem с нужным текстом
-        const menuItems = Array.from(document.querySelectorAll('[role="menuitem"]'));
-        const foundItems: Array<{ ariaLabel: string; visible: boolean }> = [];
-        
-        for (const item of menuItems) {
-          const ariaLabel = item.getAttribute('aria-label') ?? '';
-          const isVisible = (item as HTMLElement).offsetParent !== null;
-          foundItems.push({ ariaLabel, visible: isVisible });
+      logger.debug('Trying selectors method', { selectors: menuSelectors, fileType, retry });
+      for (const selector of menuSelectors) {
+        try {
+          // Используем waitForSelector с коротким timeout для каждого селектора
+          const element = await page.waitForSelector(selector, { 
+            timeout: 1000,
+            visible: true 
+          }).catch(() => null);
           
-          for (const label of labels) {
-            if (ariaLabel.includes(label) || ariaLabel === label) {
-              (item as HTMLElement).click();
-              return { success: true, method: 'menuitem', label: ariaLabel };
+          if (element) {
+            const isVisible = await element.isIntersectingViewport().catch(() => false);
+            logger.debug('Found element via selector', { selector, fileType, isVisible, retry });
+            
+            if (isVisible) {
+              await element.click();
+              logger.info('Clicked menu item via selector', { selector, fileType, retry });
+              await this.delay(200); // Небольшая задержка после клика
+              return true;
             }
           }
+        } catch (error) {
+          logger.debug('Selector click failed', { 
+            selector, 
+            error: error instanceof Error ? error.message : String(error),
+            retry
+          });
+          continue;
         }
-        
-        return { 
-          success: false, 
-          error: 'No matching menu item found', 
-          foundItems,
-          labels 
-        };
-      } catch (err) {
-        return { success: false, error: String(err) };
       }
-    }, ariaLabels);
 
-    if (evaluateResult.success) {
-      logger.info('Clicked menu item via evaluate', { 
-        clicked: evaluateResult.label, 
-        method: evaluateResult.method,
-        fileType 
-      });
-      await this.delay(200); // Небольшая задержка после клика
-      return true;
+      // Способ 2: Ищем через evaluate по aria-label (с retry)
+      logger.debug('Trying evaluate method', { ariaLabels, fileType, retry });
+      const evaluateResult = await page.evaluate((labels: string[]) => {
+        try {
+          // Ищем по aria-label
+          for (const label of labels) {
+            const el = document.querySelector(`[aria-label="${label}"]`);
+            if (el) {
+              const isVisible = (el as HTMLElement).offsetParent !== null;
+              if (isVisible) {
+                (el as HTMLElement).click();
+                return { success: true, method: 'aria-label', label };
+              }
+            }
+          }
+          
+          // Fallback: ищем menuitem с нужным текстом
+          const menuItems = Array.from(document.querySelectorAll('[role="menuitem"]'));
+          const foundItems: Array<{ ariaLabel: string; visible: boolean }> = [];
+          
+          for (const item of menuItems) {
+            const ariaLabel = item.getAttribute('aria-label') ?? '';
+            const isVisible = (item as HTMLElement).offsetParent !== null;
+            foundItems.push({ ariaLabel, visible: isVisible });
+            
+            if (isVisible) {
+              for (const label of labels) {
+                if (ariaLabel.includes(label) || ariaLabel === label) {
+                  (item as HTMLElement).click();
+                  return { success: true, method: 'menuitem', label: ariaLabel };
+                }
+              }
+            }
+          }
+          
+          return { 
+            success: false, 
+            error: 'No matching menu item found', 
+            foundItems,
+            labels 
+          };
+        } catch (err) {
+          return { success: false, error: String(err) };
+        }
+      }, ariaLabels);
+
+      if (evaluateResult.success) {
+        logger.info('Clicked menu item via evaluate', { 
+          clicked: evaluateResult.label, 
+          method: evaluateResult.method,
+          fileType,
+          retry
+        });
+        await this.delay(200); // Небольшая задержка после клика
+        return true;
+      }
+
+      // Если не нашли на этой попытке, логируем для диагностики
+      if (retry < maxRetries - 1) {
+        logger.debug('Menu item not found on retry, will retry', { 
+          fileType, 
+          retry,
+          evaluateResult: evaluateResult.error || evaluateResult
+        });
+      }
     }
 
-    logger.error('Could not find menu item', { 
+    // Все попытки исчерпаны
+    logger.error('Could not find menu item after all retries', { 
       fileType, 
       ariaLabels,
-      evaluateResult: evaluateResult.error || evaluateResult,
+      maxRetries,
       url: page.url()
     });
     return false;
@@ -1099,7 +1191,10 @@ export class WhatsAppSender {
       throw new Error(errorMsg);
     }
     logger.debug('Attach button clicked successfully', { fileType });
-    await this.delay(500);
+    
+    // Увеличиваем задержку для стабильности при параллельной работе нескольких браузеров
+    // Меню может появляться с задержкой, особенно при нагрузке
+    await this.delay(800);
 
     // КРИТИЧНО: Запускаем waitForFileChooser СТРОГО ДО клика на пункт меню!
     // Это перехватывает диалог выбора файла и предотвращает открытие проводника Windows.
@@ -1108,6 +1203,7 @@ export class WhatsAppSender {
     
     // КРИТИЧНО: Кликаем на пункт меню и СРАЗУ проверяем результат
     // Если клик не прошел - FileChooser не появится, и мы не должны ждать его
+    // clickMenuItem теперь сам ждет появления меню и делает retry
     logger.debug('Step 3: Clicking menu item with FileChooser interception', { fileType });
     
     // Запускаем клик и перехват "одновременно", но проверяем результат клика
