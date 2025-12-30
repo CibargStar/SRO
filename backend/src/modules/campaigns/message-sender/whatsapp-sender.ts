@@ -39,14 +39,24 @@ const SELECTORS = {
     'button[aria-label="Прикрепить"]',
     'button[aria-label="Attach"]',
   ],
+  // Меню вложений (после клика на +)
+  attachMenu: [
+    'div[role="application"]', // Новый формат WhatsApp (2024+)
+    '[role="menu"]',
+    '[role="listbox"]',
+    'div[role="dialog"]',
+    'div[data-testid="menu"]',
+  ],
   // Пункты меню вложений (после клика на +)
   menuItemDocument: [
+    // Старый формат
     'div[aria-label="Документ"]',
     'div[aria-label="Document"]',
     '[role="menuitem"][aria-label="Документ"]',
     '[role="menuitem"][aria-label="Document"]',
   ],
   menuItemPhoto: [
+    // Старый формат
     'div[aria-label="Фото и видео"]',
     'div[aria-label="Photos & videos"]',
     '[role="menuitem"][aria-label="Фото и видео"]',
@@ -460,7 +470,27 @@ export class WhatsAppSender {
       return false;
     }
     
-    // Ищем кнопку через селекторы
+    // Способ 1: Ищем через селекторы и используем page.click() для надежности
+    for (const selector of SELECTORS.attachButton) {
+      try {
+        // Используем page.click() вместо element.click() - более надежно
+        await page.click(selector).catch(() => null);
+        
+        // Проверяем, что клик сработал - ждем небольшую задержку
+        await this.delay(100);
+        
+        // Проверяем, что элемент все еще существует (не был удален после клика)
+        const element = await page.$(selector);
+        if (element) {
+          logger.debug('Clicked attach button via page.click', { selector });
+          return true;
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    // Способ 2: Ищем через селекторы и кликаем через element
     for (const selector of SELECTORS.attachButton) {
       try {
         const element = await page.$(selector);
@@ -478,11 +508,23 @@ export class WhatsAppSender {
             
             const buttonEl = button.asElement();
             if (buttonEl) {
+              // Прокручиваем в видимую область перед кликом
+              await page.evaluate((el) => {
+                (el as HTMLElement).scrollIntoView({ block: 'center', behavior: 'instant' });
+              }, buttonEl).catch(() => {});
+              await this.delay(50);
+              
               await (buttonEl as unknown as { click(): Promise<void> }).click();
               logger.debug('Clicked attach button via span parent', { selector });
               return true;
             }
           } else {
+            // Прокручиваем в видимую область перед кликом
+            await page.evaluate((el) => {
+              (el as HTMLElement).scrollIntoView({ block: 'center', behavior: 'instant' });
+            }, element).catch(() => {});
+            await this.delay(50);
+            
             await element.click();
             logger.debug('Clicked attach button', { selector });
             return true;
@@ -493,7 +535,7 @@ export class WhatsAppSender {
       }
     }
 
-    // Fallback: ищем через evaluate
+    // Способ 3: Fallback через evaluate с более надежным кликом
     const clicked = await page.evaluate(() => {
       const icons = ['plus', 'plus-rounded', 'attach'];
       for (const iconName of icons) {
@@ -505,6 +547,16 @@ export class WhatsAppSender {
             if (!element || element.tagName === 'BODY') { break; }
           }
           if (element) {
+            // Прокручиваем в видимую область
+            element.scrollIntoView({ block: 'center', behavior: 'instant' });
+            // Используем dispatchEvent для более надежного клика
+            const clickEvent = new MouseEvent('click', {
+              bubbles: true,
+              cancelable: true,
+              view: window,
+            });
+            element.dispatchEvent(clickEvent);
+            // Также вызываем обычный click
             element.click();
             return true;
           }
@@ -512,6 +564,10 @@ export class WhatsAppSender {
       }
       return false;
     });
+
+    if (clicked) {
+      logger.debug('Clicked attach button via evaluate fallback');
+    }
 
     return clicked;
   }
@@ -539,8 +595,9 @@ export class WhatsAppSender {
       : SELECTORS.menuItemPhoto;
     
     // Расширенный список языков для поиска (разные браузеры могут иметь разные языки)
+    // ВАЖНО: для "Документ" используем только точные совпадения!
     const ariaLabels = fileType === 'document' 
-      ? ['Документ', 'Document', 'Documento', 'Dokument', 'Dokumentum', 'Dokumentas', 'Dokumenti']
+      ? ['Документ', 'Document'] // Только основные варианты для точного совпадения
       : ['Фото и видео', 'Photos & videos', 'Photos', 'Photo & video', 'Foto e video', 'Fotos y videos'];
 
     // Ключевые слова для поиска по тексту
@@ -548,12 +605,14 @@ export class WhatsAppSender {
       ? ['document', 'документ', 'dokument', 'documento']
       : ['photo', 'video', 'фото', 'видео', 'foto', 'video'];
 
-    logger.debug('Searching for menu item element', { fileType, ariaLabels, textKeywords });
+    logger.debug('Searching for menu item element', { fileType, ariaLabels, textKeywords, timeout });
 
     let lastDiagnosticTime = 0;
     const diagnosticInterval = 2000; // Диагностика каждые 2 секунды
+    let attemptCount = 0;
 
     while (Date.now() - startTime < timeout) {
+      attemptCount++;
       if (page.isClosed()) {
         logger.warn('Page closed during menu item search');
         return null;
@@ -561,27 +620,44 @@ export class WhatsAppSender {
 
       // Диагностика: логируем все элементы меню для отладки
       const now = Date.now();
+      const elapsed = now - startTime;
       if (now - lastDiagnosticTime >= diagnosticInterval) {
         lastDiagnosticTime = now;
         try {
           const diagnosticInfo = await page.evaluate(() => {
-            const menuItems = Array.from(document.querySelectorAll('[role="menuitem"], div[role="button"], button'));
-            return menuItems.map(item => {
-              const htmlItem = item as HTMLElement;
-              return {
-                tagName: htmlItem.tagName,
-                ariaLabel: htmlItem.getAttribute('aria-label') ?? '',
-                textContent: (htmlItem.textContent ?? '').trim().substring(0, 50),
-                isVisible: htmlItem.offsetParent !== null,
-                dataIcon: htmlItem.getAttribute('data-icon') ?? '',
-                role: htmlItem.getAttribute('role') ?? '',
-              };
-            }).filter(item => item.isVisible);
+            // Ищем меню контейнер (включая новый формат)
+            const menuContainers = Array.from(document.querySelectorAll('div[role="application"], [role="menu"], [role="listbox"], div[role="dialog"]'));
+            const menuItems = Array.from(document.querySelectorAll('li[role="button"], [role="menuitem"], div[role="button"], button'));
+            return {
+              menuContainers: menuContainers.map(item => {
+                const htmlItem = item as HTMLElement;
+                return {
+                  tagName: htmlItem.tagName,
+                  role: htmlItem.getAttribute('role') ?? '',
+                  isVisible: htmlItem.offsetParent !== null,
+                };
+              }).filter(item => item.isVisible),
+              menuItems: menuItems.map(item => {
+                const htmlItem = item as HTMLElement;
+                return {
+                  tagName: htmlItem.tagName,
+                  ariaLabel: htmlItem.getAttribute('aria-label') ?? '',
+                  textContent: (htmlItem.textContent ?? '').trim().substring(0, 50),
+                  isVisible: htmlItem.offsetParent !== null,
+                  dataIcon: htmlItem.getAttribute('data-icon') ?? '',
+                  role: htmlItem.getAttribute('role') ?? '',
+                };
+              }).filter(item => item.isVisible),
+            };
           });
           logger.debug('Menu items diagnostic', { 
             fileType, 
-            foundItems: diagnosticInfo.length,
-            items: diagnosticInfo 
+            elapsed: `${elapsed}ms`,
+            attempts: attemptCount,
+            menuContainers: diagnosticInfo.menuContainers.length,
+            foundItems: diagnosticInfo.menuItems.length,
+            containers: diagnosticInfo.menuContainers,
+            items: diagnosticInfo.menuItems 
           });
         } catch (error) {
           logger.debug('Diagnostic failed', { error: error instanceof Error ? error.message : 'Unknown' });
@@ -686,36 +762,220 @@ export class WhatsAppSender {
         return menuItem;
       }
 
-      // Способ 5: Поиск по тексту внутри элементов (для случаев, когда aria-label отсутствует)
+      // Способ 5: Поиск нового формата WhatsApp (li[role="button"] с текстом в span)
+      const newFormatElement = await page.evaluateHandle((labels: string[]) => {
+        // Ищем все li[role="button"] элементы (новый формат WhatsApp)
+        const menuButtons = Array.from(document.querySelectorAll('li[role="button"]'));
+        
+        // Сначала ищем точные совпадения
+        const exactMatches: Array<{ element: Element; label: string }> = [];
+        const partialMatches: Array<{ element: Element; label: string }> = [];
+        
+        for (const li of menuButtons) {
+          const htmlLi = li as HTMLElement;
+          if (htmlLi.offsetParent === null) {
+            continue; // Пропускаем невидимые
+          }
+          
+          // Проверяем, что это действительно меню прикрепления (есть контейнер с role="application")
+          const parent = htmlLi.closest('div[role="application"], [role="menu"], [role="listbox"]');
+          if (!parent) {
+            continue; // Пропускаем элементы вне меню прикрепления
+          }
+          
+          // Ищем текст во всех span внутри li
+          // Важно: ищем span с текстом, который точно совпадает с искомыми метками
+          const spans = li.querySelectorAll('span');
+          let foundText = '';
+          let foundExactMatch = false;
+          
+          // Сначала проверяем точные совпадения в каждом span
+          for (let i = 0; i < spans.length; i++) {
+            const span = spans[i] as HTMLElement;
+            const text = (span.textContent ?? '').trim();
+            
+            // Проверяем точное совпадение с каждой меткой
+            for (const label of labels) {
+              const normalizedText = text.toLowerCase().trim();
+              const normalizedLabel = label.toLowerCase().trim();
+              
+              // Точное совпадение - это то, что нам нужно!
+              if (normalizedText === normalizedLabel) {
+                foundText = text;
+                foundExactMatch = true;
+                exactMatches.push({ element: li, label });
+                break; // Нашли точное совпадение, выходим из циклов
+              }
+            }
+            
+            if (foundExactMatch) {
+              break; // Уже нашли точное совпадение
+            }
+            
+            // Если точного совпадения нет, сохраняем самый длинный текст для частичного совпадения
+            if (text.length > foundText.length) {
+              foundText = text;
+            }
+          }
+          
+          // Если нашли точное совпадение, пропускаем частичные проверки
+          if (foundExactMatch) {
+            continue;
+          }
+          
+          if (!foundText) {
+            continue; // Пропускаем элементы без текста
+          }
+          
+          // Проверяем частичные совпадения только если точного не было
+          for (const label of labels) {
+            const normalizedFound = foundText.toLowerCase().trim();
+            const normalizedLabel = label.toLowerCase().trim();
+            
+            // Частичное совпадение (только для длинных меток, чтобы избежать ложных срабатываний)
+            // НО: для "Документ" и "Document" используем только точное совпадение!
+            if (normalizedLabel === 'документ' || normalizedLabel === 'document') {
+              // Для "Документ" и "Document" не используем частичные совпадения
+              continue;
+            }
+            
+            if (normalizedFound.includes(normalizedLabel) && normalizedLabel.length >= 5) {
+              // Используем частичное совпадение только для длинных меток (>= 5 символов)
+              partialMatches.push({ element: li, label });
+            }
+          }
+        }
+        
+        // Возвращаем точное совпадение, если есть
+        // Приоритет: сначала "Документ"/"Document", потом другие
+        if (exactMatches.length > 0) {
+          // Ищем совпадение с "Документ" или "Document" в первую очередь
+          const documentMatch = exactMatches.find(m => 
+            m.label.toLowerCase() === 'документ' || m.label.toLowerCase() === 'document'
+          );
+          if (documentMatch) {
+            return documentMatch.element;
+          }
+          // Если не нашли "Документ", возвращаем первое точное совпадение
+          return exactMatches[0].element;
+        }
+        
+        // Иначе возвращаем первое частичное совпадение (но только если это не "Документ")
+        if (partialMatches.length > 0) {
+          // Для "Документ" не используем частичные совпадения - это критично!
+          const nonDocumentMatches = partialMatches.filter(m => 
+            m.label.toLowerCase() !== 'документ' && m.label.toLowerCase() !== 'document'
+          );
+          if (nonDocumentMatches.length > 0) {
+            return nonDocumentMatches[0].element;
+          }
+        }
+        
+        return null;
+      }, ariaLabels);
+
+      const newFormatEl = newFormatElement.asElement() as ElementHandle<Element> | null;
+      if (newFormatEl) {
+        // Логируем найденный элемент для отладки
+        const foundText = await page.evaluate((el) => {
+          const spans = el.querySelectorAll('span');
+          let text = '';
+          for (let i = 0; i < spans.length; i++) {
+            const span = spans[i] as HTMLElement;
+            const spanText = (span.textContent ?? '').trim();
+            if (spanText.length > text.length) {
+              text = spanText;
+            }
+          }
+          return text;
+        }, newFormatEl).catch(() => 'unknown');
+        
+        logger.debug('Found menu item via new WhatsApp format (li[role="button"])', { 
+          fileType, 
+          foundText,
+          expectedLabels: ariaLabels,
+          warning: foundText.toLowerCase().includes('опрос') ? 'WARNING: Found "Опрос" instead of "Документ"!' : undefined
+        });
+        
+        // Дополнительная проверка: если нашли "Опрос" вместо "Документ", это ошибка!
+        if (fileType === 'document' && foundText.toLowerCase().includes('опрос')) {
+          logger.error('CRITICAL: Found "Опрос" instead of "Документ"! This should not happen.', {
+            fileType,
+            foundText,
+            expectedLabels: ariaLabels
+          });
+          // Продолжаем поиск дальше, не возвращаем неправильный элемент
+          // Это позволит попробовать другие способы поиска
+        } else {
+          return newFormatEl;
+        }
+      }
+
+      // Способ 6: Поиск по тексту внутри элементов (для случаев, когда aria-label отсутствует)
       const textSearchElement = await page.evaluateHandle((keywords: string[]) => {
         // Ищем все видимые кликабельные элементы в меню
-        const allElements = Array.from(document.querySelectorAll('[role="menuitem"], div[role="button"], button, div'));
+        const allElements = Array.from(document.querySelectorAll('[role="menuitem"], li[role="button"], div[role="button"], button, div'));
+        
+        const exactMatches: Element[] = [];
+        const partialMatches: Element[] = [];
+        
         for (const el of allElements) {
           const htmlEl = el as HTMLElement;
           if (htmlEl.offsetParent === null) {
             continue; // Пропускаем невидимые
           }
           
-          const text = (htmlEl.textContent ?? '').toLowerCase();
-          const ariaLabel = (htmlEl.getAttribute('aria-label') ?? '').toLowerCase();
-          const combinedText = `${text} ${ariaLabel}`;
+          // Проверяем, что это действительно элемент меню (не кнопка закрытия и т.д.)
+          const parent = htmlEl.closest('[role="application"], [role="menu"], [role="listbox"], div[role="dialog"]');
+          if (!parent) {
+            continue; // Пропускаем элементы вне меню
+          }
+          
+          const text = (htmlEl.textContent ?? '').toLowerCase().trim();
+          const ariaLabel = (htmlEl.getAttribute('aria-label') ?? '').toLowerCase().trim();
+          const combinedText = `${text} ${ariaLabel}`.trim();
           
           for (const keyword of keywords) {
-            if (combinedText.includes(keyword.toLowerCase())) {
-              // Проверяем, что это действительно элемент меню (не кнопка закрытия и т.д.)
-              const parent = htmlEl.closest('[role="menu"], [role="listbox"], div[role="dialog"]');
-              if (parent) {
-                return el;
-              }
+            const normalizedKeyword = keyword.toLowerCase().trim();
+            
+            // Точное совпадение (приоритет) - проверяем отдельно текст и aria-label
+            if (text === normalizedKeyword || ariaLabel === normalizedKeyword) {
+              exactMatches.push(el);
+              break; // Нашли точное совпадение
+            }
+            // Частичное совпадение (только если точного нет и ключевое слово >= 3 символов)
+            else if (normalizedKeyword.length >= 3 && combinedText.includes(normalizedKeyword)) {
+              partialMatches.push(el);
             }
           }
         }
+        
+        // Возвращаем точное совпадение, если есть
+        if (exactMatches.length > 0) {
+          return exactMatches[0];
+        }
+        
+        // Иначе возвращаем первое частичное совпадение
+        if (partialMatches.length > 0) {
+          return partialMatches[0];
+        }
+        
         return null;
       }, textKeywords);
 
       const textElement = textSearchElement.asElement() as ElementHandle<Element> | null;
       if (textElement) {
-        logger.debug('Found menu item via text search', { fileType, textKeywords });
+        // Логируем найденный элемент для отладки
+        const foundText = await page.evaluate((el) => {
+          const htmlEl = el as HTMLElement;
+          return (htmlEl.textContent ?? '').trim().substring(0, 50);
+        }, textElement).catch(() => 'unknown');
+        
+        logger.debug('Found menu item via text search', { 
+          fileType, 
+          foundText,
+          expectedKeywords: textKeywords 
+        });
         return textElement;
       }
 
@@ -929,13 +1189,65 @@ export class WhatsAppSender {
       throw new Error('Could not click attach button');
     }
     
-    // Небольшая задержка для появления меню
-    await this.delay(500);
+    // ШАГ 1.5: Ждем появления меню перед поиском элементов
+    logger.debug('Step 1.5: Waiting for menu to appear');
+    let menuAppeared = false;
+    
+    // Способ 1: Ждем появления контейнера меню
+    for (const menuSelector of SELECTORS.attachMenu) {
+      try {
+        await page.waitForSelector(menuSelector, { timeout: 3000, visible: true }).catch(() => null);
+        const menuExists = await page.$(menuSelector);
+        if (menuExists) {
+          const isVisible = await page.evaluate((el) => {
+            const htmlEl = el as HTMLElement;
+            if (!htmlEl) { return false; }
+            const style = window.getComputedStyle(htmlEl);
+            return htmlEl.offsetParent !== null && 
+                   style.display !== 'none' && 
+                   style.visibility !== 'hidden';
+          }, menuExists).catch(() => false);
+          if (isVisible) {
+            menuAppeared = true;
+            logger.debug('Menu container appeared', { selector: menuSelector });
+            break;
+          }
+        }
+      } catch {
+        continue;
+      }
+    }
+    
+    // Способ 2: Ждем появления элементов меню напрямую (более надежно)
+    if (!menuAppeared) {
+      logger.debug('Menu container not found, waiting for menu items directly');
+      const menuItemsAppeared = await page.waitForFunction(
+        () => {
+          const menuItems = document.querySelectorAll('[role="menuitem"]');
+          return menuItems.length > 0;
+        },
+        { timeout: 5000 }
+      ).catch(() => null);
+      
+      if (menuItemsAppeared) {
+        menuAppeared = true;
+        logger.debug('Menu items appeared directly');
+      }
+    }
+    
+    // Дополнительная задержка для загрузки элементов меню (особенно важно для медленных браузеров)
+    if (menuAppeared) {
+      await this.delay(1000); // Увеличено до 1 секунды для надежности
+      logger.debug('Menu appeared, waiting for items to be ready');
+    } else {
+      logger.warn('Menu container not found, but continuing with longer delay', { fileType });
+      await this.delay(2000); // Увеличена задержка, если меню не найдено
+    }
 
     // ШАГ 2: Найти элемент меню (БЕЗ клика)
     // Это критично - мы должны найти элемент ДО запуска waitForFileChooser
-    logger.debug('Step 2: Finding menu item element', { fileType });
-    const menuElement = await this.findMenuItemElement(page, fileType, 10000);
+    logger.debug('Step 2: Finding menu item element', { fileType, menuAppeared });
+    const menuElement = await this.findMenuItemElement(page, fileType, 15000); // Увеличено с 10 до 15 секунд
     
     if (!menuElement) {
       // Если элемент не найден, пробуем закрыть меню и попробовать снова
@@ -950,10 +1262,56 @@ export class WhatsAppSender {
       if (!retryAttachClicked) {
         throw new Error('Could not click attach button on retry');
       }
-      await this.delay(800);
+      
+      // Ждем появления меню при повторной попытке
+      logger.debug('Retry: Waiting for menu to appear');
+      let retryMenuAppeared = false;
+      
+      // Способ 1: Ждем контейнер меню
+      for (const menuSelector of SELECTORS.attachMenu) {
+        try {
+          await page.waitForSelector(menuSelector, { timeout: 3000, visible: true }).catch(() => null);
+          const menuExists = await page.$(menuSelector);
+          if (menuExists) {
+            const isVisible = await page.evaluate((el) => {
+              const htmlEl = el as HTMLElement;
+              if (!htmlEl) { return false; }
+              const style = window.getComputedStyle(htmlEl);
+              return htmlEl.offsetParent !== null && 
+                     style.display !== 'none' && 
+                     style.visibility !== 'hidden';
+            }, menuExists).catch(() => false);
+            if (isVisible) {
+              retryMenuAppeared = true;
+              logger.debug('Menu container appeared on retry', { selector: menuSelector });
+              break;
+            }
+          }
+        } catch {
+          continue;
+        }
+      }
+      
+      // Способ 2: Ждем элементы меню напрямую
+      if (!retryMenuAppeared) {
+        const menuItemsAppeared = await page.waitForFunction(
+          () => {
+            const menuItems = document.querySelectorAll('[role="menuitem"]');
+            return menuItems.length > 0;
+          },
+          { timeout: 5000 }
+        ).catch(() => null);
+        
+        if (menuItemsAppeared) {
+          retryMenuAppeared = true;
+          logger.debug('Menu items appeared on retry');
+        }
+      }
+      
+      await this.delay(retryMenuAppeared ? 1200 : 2500); // Увеличена задержка
       
       // Повторяем поиск элемента
-      const retryMenuElement = await this.findMenuItemElement(page, fileType, 10000);
+      const retryMenuElement = await this.findMenuItemElement(page, fileType, 15000); // Увеличено с 10 до 15 секунд
       if (!retryMenuElement) {
         throw new Error(`Menu item for ${fileType} not found after retry`);
       }
