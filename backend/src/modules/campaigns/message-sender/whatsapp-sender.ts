@@ -538,16 +538,54 @@ export class WhatsAppSender {
       ? SELECTORS.menuItemDocument 
       : SELECTORS.menuItemPhoto;
     
+    // Расширенный список языков для поиска (разные браузеры могут иметь разные языки)
     const ariaLabels = fileType === 'document' 
-      ? ['Документ', 'Document']
-      : ['Фото и видео', 'Photos & videos', 'Photos'];
+      ? ['Документ', 'Document', 'Documento', 'Dokument', 'Dokumentum', 'Dokumentas', 'Dokumenti']
+      : ['Фото и видео', 'Photos & videos', 'Photos', 'Photo & video', 'Foto e video', 'Fotos y videos'];
 
-    logger.debug('Searching for menu item element', { fileType, ariaLabels });
+    // Ключевые слова для поиска по тексту
+    const textKeywords = fileType === 'document'
+      ? ['document', 'документ', 'dokument', 'documento']
+      : ['photo', 'video', 'фото', 'видео', 'foto', 'video'];
+
+    logger.debug('Searching for menu item element', { fileType, ariaLabels, textKeywords });
+
+    let lastDiagnosticTime = 0;
+    const diagnosticInterval = 2000; // Диагностика каждые 2 секунды
 
     while (Date.now() - startTime < timeout) {
       if (page.isClosed()) {
         logger.warn('Page closed during menu item search');
         return null;
+      }
+
+      // Диагностика: логируем все элементы меню для отладки
+      const now = Date.now();
+      if (now - lastDiagnosticTime >= diagnosticInterval) {
+        lastDiagnosticTime = now;
+        try {
+          const diagnosticInfo = await page.evaluate(() => {
+            const menuItems = Array.from(document.querySelectorAll('[role="menuitem"], div[role="button"], button'));
+            return menuItems.map(item => {
+              const htmlItem = item as HTMLElement;
+              return {
+                tagName: htmlItem.tagName,
+                ariaLabel: htmlItem.getAttribute('aria-label') ?? '',
+                textContent: (htmlItem.textContent ?? '').trim().substring(0, 50),
+                isVisible: htmlItem.offsetParent !== null,
+                dataIcon: htmlItem.getAttribute('data-icon') ?? '',
+                role: htmlItem.getAttribute('role') ?? '',
+              };
+            }).filter(item => item.isVisible);
+          });
+          logger.debug('Menu items diagnostic', { 
+            fileType, 
+            foundItems: diagnosticInfo.length,
+            items: diagnosticInfo 
+          });
+        } catch (error) {
+          logger.debug('Diagnostic failed', { error: error instanceof Error ? error.message : 'Unknown' });
+        }
       }
 
       // Способ 1: Поиск через селекторы
@@ -575,7 +613,7 @@ export class WhatsAppSender {
         }
       }
 
-      // Способ 2: Поиск через aria-label
+      // Способ 2: Поиск через aria-label (точное совпадение)
       for (const label of ariaLabels) {
         try {
           const element = await page.$(`[aria-label="${label}"]`);
@@ -590,7 +628,7 @@ export class WhatsAppSender {
             }, element).catch(() => false);
             
             if (isVisible) {
-              logger.debug('Found menu item via aria-label', { label, fileType });
+              logger.debug('Found menu item via aria-label (exact)', { label, fileType });
               return element;
             }
           }
@@ -599,7 +637,31 @@ export class WhatsAppSender {
         }
       }
 
-      // Способ 3: Поиск menuitem с подходящим aria-label
+      // Способ 3: Поиск через aria-label (частичное совпадение)
+      for (const label of ariaLabels) {
+        try {
+          const element = await page.$(`[aria-label*="${label}"]`);
+          if (element) {
+            const isVisible = await page.evaluate((el) => {
+              const htmlEl = el as HTMLElement;
+              if (!htmlEl) { return false; }
+              const style = window.getComputedStyle(htmlEl);
+              return htmlEl.offsetParent !== null && 
+                     style.display !== 'none' && 
+                     style.visibility !== 'hidden';
+            }, element).catch(() => false);
+            
+            if (isVisible) {
+              logger.debug('Found menu item via aria-label (partial)', { label, fileType });
+              return element;
+            }
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      // Способ 4: Поиск menuitem с подходящим aria-label
       const menuItemElement = await page.evaluateHandle((labels: string[]) => {
         const menuItems = Array.from(document.querySelectorAll('[role="menuitem"]'));
         for (const item of menuItems) {
@@ -624,10 +686,66 @@ export class WhatsAppSender {
         return menuItem;
       }
 
+      // Способ 5: Поиск по тексту внутри элементов (для случаев, когда aria-label отсутствует)
+      const textSearchElement = await page.evaluateHandle((keywords: string[]) => {
+        // Ищем все видимые кликабельные элементы в меню
+        const allElements = Array.from(document.querySelectorAll('[role="menuitem"], div[role="button"], button, div'));
+        for (const el of allElements) {
+          const htmlEl = el as HTMLElement;
+          if (htmlEl.offsetParent === null) {
+            continue; // Пропускаем невидимые
+          }
+          
+          const text = (htmlEl.textContent ?? '').toLowerCase();
+          const ariaLabel = (htmlEl.getAttribute('aria-label') ?? '').toLowerCase();
+          const combinedText = `${text} ${ariaLabel}`;
+          
+          for (const keyword of keywords) {
+            if (combinedText.includes(keyword.toLowerCase())) {
+              // Проверяем, что это действительно элемент меню (не кнопка закрытия и т.д.)
+              const parent = htmlEl.closest('[role="menu"], [role="listbox"], div[role="dialog"]');
+              if (parent) {
+                return el;
+              }
+            }
+          }
+        }
+        return null;
+      }, textKeywords);
+
+      const textElement = textSearchElement.asElement() as ElementHandle<Element> | null;
+      if (textElement) {
+        logger.debug('Found menu item via text search', { fileType, textKeywords });
+        return textElement;
+      }
+
       await this.delay(checkInterval);
     }
 
-    logger.warn('Menu item element not found within timeout', { fileType, timeout });
+    // Финальная диагностика перед возвратом null
+    try {
+      const finalDiagnostic = await page.evaluate(() => {
+        const menuItems = Array.from(document.querySelectorAll('[role="menuitem"], div[role="button"], button'));
+        return menuItems.map(item => {
+          const htmlItem = item as HTMLElement;
+          return {
+            tagName: htmlItem.tagName,
+            ariaLabel: htmlItem.getAttribute('aria-label') ?? '',
+            textContent: (htmlItem.textContent ?? '').trim().substring(0, 50),
+            isVisible: htmlItem.offsetParent !== null,
+          };
+        }).filter(item => item.isVisible);
+      });
+      logger.warn('Menu item element not found within timeout - final diagnostic', { 
+        fileType, 
+        timeout,
+        foundItems: finalDiagnostic.length,
+        items: finalDiagnostic 
+      });
+    } catch {
+      logger.warn('Menu item element not found within timeout', { fileType, timeout });
+    }
+
     return null;
   }
 
