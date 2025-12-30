@@ -153,18 +153,40 @@ export class TelegramSender {
       // Открываем чат с номером (передаём profileId для кэширования)
       await this.openChat(page, input.phone, input.profileId);
 
+      // ВАЖНО: Перед отправкой текста еще раз проверяем, что чат открыт правильно
+      const normalizedPhone = input.phone.replace(/[^\d]/g, '');
+      const isChatOpen = await this.verifyChatOpened(page, normalizedPhone);
+      if (!isChatOpen) {
+        logger.warn('Chat verification failed before text send, reopening', { phone: normalizedPhone });
+        await this.openChat(page, input.phone, input.profileId);
+      }
+
       // Отправляем сообщение
       if (input.text) {
         await this.sendTextMessage(page, input.text);
         // Проверяем, что сообщение действительно отправлено
         const isSent = await this.verifyMessageSent(page, input.text);
         if (!isSent) {
+          // Перед ошибкой проверяем, что мы все еще в правильном чате
+          const isStillOpen = await this.verifyChatOpened(page, normalizedPhone);
+          if (!isStillOpen) {
+            throw new Error(`Message verification failed - chat changed. Expected phone: ${normalizedPhone}, URL: ${page.url()}`);
+          }
           throw new Error('Message was not sent - verification failed');
         }
       }
 
       // Отправляем вложения, если есть
       if (input.attachments && input.attachments.length > 0) {
+        // ВАЖНО: Перед отправкой файла проверяем, что чат все еще открыт с нужным номером
+        const normalizedPhone = input.phone.replace(/[^\d]/g, '');
+        const isChatStillOpen = await this.verifyChatOpened(page, normalizedPhone);
+        if (!isChatStillOpen) {
+          logger.warn('Chat changed before file send, reopening', { phone: normalizedPhone });
+          // Переоткрываем чат перед отправкой файла
+          await this.openChat(page, input.phone, input.profileId);
+        }
+
         for (const attachment of input.attachments) {
           await this.sendFileMessage(page, attachment, input.phone, input.profileId);
           // Небольшая задержка между файлами
@@ -405,8 +427,70 @@ export class TelegramSender {
   }
 
   /**
+   * Проверка, что чат действительно открыт с нужным номером
+   * Проверяет URL и наличие поля ввода
+   * ВАЖНО: Если URL содержит username (например, #@Kloverton), это означает что открыт другой чат
+   */
+  private async verifyChatOpened(page: Page, normalizedPhone: string): Promise<boolean> {
+    try {
+      // Проверяем URL - должен содержать номер или tgaddr с номером
+      const currentUrl = page.url();
+      
+      // ВАЖНО: Если URL содержит username (формат #@username), это означает что открыт другой чат
+      // Нужно переоткрыть с номером
+      if (currentUrl.includes('#@')) {
+        logger.warn('Chat opened with username instead of phone, need to reopen', { 
+          currentUrl, 
+          expectedPhone: normalizedPhone 
+        });
+        return false;
+      }
+      
+      // Проверяем, содержит ли URL номер телефона
+      const urlContainsPhone = currentUrl.includes(normalizedPhone) || 
+                               currentUrl.includes(`tgaddr=tg%3A%2F%2Fresolve%3Fphone%3D${normalizedPhone}`);
+      
+      // Проверяем наличие поля ввода
+      const inputExists = await page.$(TELEGRAM_SELECTORS.MESSAGE_INPUT);
+      
+      if (!inputExists) {
+        return false;
+      }
+
+      // Если URL не содержит номер и не содержит tgaddr - возможно открыт другой чат
+      // В этом случае нужно переоткрыть
+      if (!urlContainsPhone && !currentUrl.includes('tgaddr')) {
+        logger.warn('Chat may be opened with wrong contact', { 
+          currentUrl, 
+          expectedPhone: normalizedPhone 
+        });
+        return false;
+      }
+
+      // Если URL содержит tgaddr, но не содержит номер - возможно Telegram еще обрабатывает
+      // Но если прошло достаточно времени, это может быть ошибка
+      if (currentUrl.includes('tgaddr') && !urlContainsPhone) {
+        // Даем Telegram время обработать параметр
+        // Но если это повторная проверка, считаем что чат не открыт правильно
+        logger.debug('URL contains tgaddr but not phone, may be processing', { 
+          currentUrl, 
+          expectedPhone: normalizedPhone 
+        });
+        // Возвращаем true только если поле ввода есть (возможно Telegram обрабатывает)
+        return true;
+      }
+
+      return true;
+    } catch (error) {
+      logger.warn('Error verifying chat opened', { error });
+      return false;
+    }
+  }
+
+  /**
    * Открытие чата по номеру через прямую ссылку
    * Проверяет, не открыт ли уже чат с этим номером - если да, не перезагружает страницу
+   * ВАЖНО: Всегда проверяет, что чат действительно открыт с нужным номером
    */
   private async openChat(page: Page, phone: string, profileId?: string): Promise<void> {
     try {
@@ -423,54 +507,38 @@ export class TelegramSender {
         throw new Error('Page is closed');
       }
 
-      // Проверяем, не открыт ли уже чат с этим номером
-      // ВАЖНО: После ошибки на предыдущем контакте кэш уже сброшен, 
-      // поэтому для нового контакта чат будет переоткрыт
+      // ВАЖНО: Всегда проверяем, что чат действительно открыт с нужным номером
+      // Даже если кэш говорит, что чат открыт, проверяем URL и поле ввода
       const cachedPhone = profileId ? this.currentOpenChat.get(profileId) : null;
       
       if (cachedPhone === normalizedPhone) {
-        // Чат уже открыт с этим номером - проверяем что поле ввода доступно
-        logger.debug('Chat already open for this phone, checking input field', { phone: normalizedPhone, profileId });
+        // Кэш говорит, что чат открыт - проверяем что это действительно так
+        logger.debug('Chat cached for this phone, verifying', { phone: normalizedPhone, profileId });
         
-        try {
-          // Проверяем что поле ввода есть
-          const inputExists = await page.$(TELEGRAM_SELECTORS.MESSAGE_INPUT);
-          if (inputExists) {
-            // Проверяем, что мы действительно в чате (нет ошибок на странице)
-            const hasErrors = await this.checkUserNotFound(page);
-            if (!hasErrors) {
-              logger.debug('Chat verified, using existing session', { phone: normalizedPhone });
-              await this.delay(200);
-              return;
-            }
+        const isChatOpen = await this.verifyChatOpened(page, normalizedPhone);
+        if (isChatOpen) {
+          // Проверяем, что мы действительно в чате (нет ошибок на странице)
+          const hasErrors = await this.checkUserNotFound(page);
+          if (!hasErrors) {
+            logger.debug('Chat verified, using existing session', { phone: normalizedPhone });
+            await this.delay(200);
+            return;
           }
-          // Поле ввода не найдено или есть ошибки - нужно переоткрыть чат
-          logger.debug('Chat verification failed, reopening', { phone: normalizedPhone });
-          // Сбрасываем кэш
-          if (profileId) {
-            this.currentOpenChat.delete(profileId);
-          }
-        } catch {
-          // Ошибка проверки - переоткроем чат
-          logger.debug('Chat check error, reopening', { phone: normalizedPhone });
-          // Сбрасываем кэш
-          if (profileId) {
-            this.currentOpenChat.delete(profileId);
-          }
+        }
+        // Чат не открыт правильно или есть ошибки - нужно переоткрыть
+        logger.debug('Chat verification failed, reopening', { phone: normalizedPhone });
+        // Сбрасываем кэш
+        if (profileId) {
+          this.currentOpenChat.delete(profileId);
         }
       }
 
-      // Проверяем текущее состояние страницы
-      const currentUrl = page.url();
-      
-      // Если страница не на Telegram Web или содержит tgaddr (предыдущий запрос на чат),
-      // сначала загружаем базовый URL для "чистого" состояния
-      if (!currentUrl.includes('web.telegram.org') || currentUrl.includes('tgaddr')) {
-        logger.debug('Resetting page to base Telegram URL', { currentUrl });
-        await page.goto('https://web.telegram.org/k', { waitUntil: 'networkidle2', timeout: 30000 });
-        // Даем время для инициализации Telegram Web
-        await this.delay(2000);
-      }
+      // ВАЖНО: Всегда сбрасываем страницу к базовому URL перед открытием нового чата
+      // Это гарантирует, что мы не останемся в старом чате
+      logger.debug('Resetting page to base Telegram URL before opening new chat', { phone: normalizedPhone });
+      await page.goto('https://web.telegram.org/k', { waitUntil: 'networkidle2', timeout: 30000 });
+      // Даем время для инициализации Telegram Web
+      await this.delay(2000);
 
       // URL для открытия чата в Telegram Web через прямую ссылку
       // Формат: https://web.telegram.org/k/#?tgaddr=tg%3A%2F%2Fresolve%3Fphone%3D{номер}
@@ -491,18 +559,35 @@ export class TelegramSender {
 
       // Дополнительное ожидание для обработки hash-параметров Telegram Web
       // Telegram Web обрабатывает hash-параметры асинхронно через JavaScript
-      // Но не ждем слишком долго - уведомление об ошибке может появиться быстро
-      await this.delay(1000);
+      await this.delay(2000);
 
-      // Проверяем, что URL действительно изменился (хотя бы содержит номер)
-      const finalUrl = page.url();
-      if (!finalUrl.includes(normalizedPhone) && !finalUrl.includes('tgaddr')) {
-        logger.warn('URL may not have changed after navigation', { 
+      // ВАЖНО: Проверяем, что чат действительно открыт с нужным номером
+      // Проверяем URL несколько раз, так как Telegram может обработать параметры не сразу
+      let chatVerified = false;
+      const maxVerificationAttempts = 5;
+      for (let attempt = 0; attempt < maxVerificationAttempts; attempt++) {
+        if (attempt > 0) {
+          await this.delay(1000);
+        }
+        
+        chatVerified = await this.verifyChatOpened(page, normalizedPhone);
+        if (chatVerified) {
+          break;
+        }
+      }
+
+      if (!chatVerified) {
+        const finalUrl = page.url();
+        logger.warn('Chat verification failed after navigation', { 
           expected: chatUrl, 
           actual: finalUrl,
           phone: normalizedPhone 
         });
-        // Не бросаем ошибку, так как Telegram Web может обработать параметр позже
+        // Сбрасываем кэш
+        if (profileId) {
+          this.currentOpenChat.delete(profileId);
+        }
+        throw new Error(`Failed to open chat with phone ${normalizedPhone}. URL: ${finalUrl}`);
       }
 
       // Проверяем наличие ошибок сразу после навигации
@@ -569,15 +654,31 @@ export class TelegramSender {
         throw new Error(`Failed to find message input field: ${errorMsg}`);
       }
 
+      // Финальная проверка: убеждаемся, что чат действительно открыт с нужным номером
+      const finalVerification = await this.verifyChatOpened(page, normalizedPhone);
+      if (!finalVerification) {
+        const finalUrl = page.url();
+        logger.error('Final chat verification failed', { 
+          phone: normalizedPhone,
+          finalUrl 
+        });
+        // Сбрасываем кэш
+        if (profileId) {
+          this.currentOpenChat.delete(profileId);
+        }
+        throw new Error(`Chat verification failed. Expected phone: ${normalizedPhone}, URL: ${finalUrl}`);
+      }
+
       // Небольшая задержка для стабилизации интерфейса
       await this.delay(1000);
 
-      // Сохраняем в кэш
+      // Сохраняем в кэш ТОЛЬКО если чат действительно открыт правильно
       if (profileId) {
         this.currentOpenChat.set(profileId, normalizedPhone);
       }
 
-      logger.debug('Telegram chat opened', { phone: normalizedPhone, finalUrl, profileId });
+      const finalUrl = page.url();
+      logger.debug('Telegram chat opened and verified', { phone: normalizedPhone, finalUrl, profileId });
     } catch (error) {
       // ВСЕГДА сбрасываем кэш при любой ошибке
       if (profileId) {
@@ -629,32 +730,53 @@ export class TelegramSender {
 
   /**
    * Проверка, что сообщение действительно отправлено
+   * Ищет сообщение в области чата, а не во всем body
    */
   private async verifyMessageSent(page: Page, text: string): Promise<boolean> {
     try {
       // Ждем появления сообщения в чате
-      const maxWaitTime = 5000; // 5 секунд максимум
-      const checkInterval = 200; // проверяем каждые 200мс
-      const maxChecks = maxWaitTime / checkInterval;
+      const maxWaitTime = 8000; // Увеличиваем до 8 секунд
+      const checkInterval = 300; // проверяем каждые 300мс
+      const maxChecks = Math.ceil(maxWaitTime / checkInterval);
+
+      // Берем первые 30 символов для поиска (более надежно)
+      const searchText = text.substring(0, 30).trim();
 
       for (let i = 0; i < maxChecks; i++) {
-        // Ищем сообщение по тексту в DOM
-        const messageExists = await page.evaluate((searchText) => {
-          // Код выполняется в браузерном контексте через Puppeteer, поэтому document доступен
+        // Ищем сообщение по тексту в области чата
+        const messageExists = await page.evaluate((searchTextLower) => {
+          // Ищем в области сообщений чата (более точно, чем весь body)
           // @ts-expect-error - document доступен в браузерном контексте Puppeteer
-          const allText = document.body.innerText || '';
-          return allText.includes(searchText.substring(0, 50));
-        }, text);
+          const messageContainers = document.querySelectorAll(
+            '[class*="message"], [class*="bubble"], [class*="text"], [class*="content"]'
+          );
+          
+          // Проверяем каждый контейнер сообщения
+          for (const container of Array.from(messageContainers)) {
+            const containerText = (container.textContent || '').toLowerCase().trim();
+            if (containerText.includes(searchTextLower)) {
+              return true;
+            }
+          }
+          
+          // Fallback: проверяем весь body, но только если не нашли в контейнерах
+          // @ts-expect-error
+          const bodyText = (document.body.innerText || '').toLowerCase();
+          return bodyText.includes(searchTextLower);
+        }, searchText.toLowerCase());
 
         if (messageExists) {
-          logger.debug('Message verified as sent', { textLength: text.length });
+          logger.debug('Message verified as sent', { textLength: text.length, searchText });
           return true;
         }
 
         await this.delay(checkInterval);
       }
 
-      logger.warn('Message verification failed - message not found in chat', { textLength: text.length });
+      logger.warn('Message verification failed - message not found in chat', { 
+        textLength: text.length,
+        searchText 
+      });
       return false;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
@@ -976,12 +1098,17 @@ export class TelegramSender {
         fileExists 
       });
 
-      // Проверяем что мы в правильном чате (без переоткрытия - чат уже открыт в sendMessage)
+      // ВАЖНО: Проверяем что мы в правильном чате перед отправкой файла
       if (phone) {
         const normalizedPhone = phone.replace(/[^\d]/g, '');
-        const cachedPhone = profileId ? this.currentOpenChat.get(profileId) : null;
-        if (cachedPhone !== normalizedPhone) {
-          logger.warn('Chat may have changed, but continuing with file send', { phone: normalizedPhone, cachedPhone });
+        const isChatOpen = await this.verifyChatOpened(page, normalizedPhone);
+        if (!isChatOpen) {
+          logger.warn('Chat not open with correct phone, reopening before file send', { 
+            phone: normalizedPhone,
+            currentUrl: page.url()
+          });
+          // Переоткрываем чат перед отправкой файла
+          await this.openChat(page, phone, profileId);
         }
       }
 
