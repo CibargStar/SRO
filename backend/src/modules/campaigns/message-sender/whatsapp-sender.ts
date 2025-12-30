@@ -1032,77 +1032,76 @@ export class WhatsAppSender {
   }
 
   /**
-   * Отправка файла с гарантированным MIME-типом
-   * Стратегия: загружаем файл НАПРЯМУЮ в input без клика на пункт меню
-   * Это предотвращает открытие диалога выбора файла во всех браузерах
+   * Отправка файла через FileChooser.accept() - ЕДИНСТВЕННЫЙ надежный способ
+   * 
+   * ВАЖНО: DataTransfer метод НЕ работает для отправки в WhatsApp!
+   * WhatsApp проверяет метаданные файла при отправке, и DataTransfer их не устанавливает правильно.
+   * Файл загружается (есть предпросмотр), но при отправке - ошибка "файл не поддерживается".
+   * 
+   * FileChooser.accept() - это единственный способ, который правильно устанавливает все метаданные.
+   * Чтобы предотвратить открытие диалога выбора файла - перехватываем FileChooser ДО клика.
    */
   private async sendFileViaFileChooser(
     page: Page, 
     absolutePath: string, 
     fileType: 'image' | 'video' | 'document'
   ): Promise<void> {
-    // Читаем файл и готовим данные с правильным MIME-типом ЗАРАНЕЕ
-    const mimeType = this.getMimeType(absolutePath);
     const fileName = path.basename(absolutePath);
-    const fileBuffer = await fs.readFile(absolutePath);
-    const base64Data = fileBuffer.toString('base64');
+    const mimeType = this.getMimeType(absolutePath);
 
-    logger.info('Starting file upload', { absolutePath, fileName, mimeType, fileType });
+    logger.info('Starting file upload via FileChooser', { absolutePath, fileName, mimeType, fileType });
 
-    // Кликаем на кнопку прикрепления (+) - это откроет меню с input элементами
+    // Кликаем на кнопку прикрепления (+)
     const attachClicked = await this.clickAttachButton(page);
     if (!attachClicked) {
       throw new Error('Could not click attach button');
     }
     await this.delay(500);
 
-    // СТРАТЕГИЯ 1: Загружаем файл НАПРЯМУЮ через input БЕЗ клика на пункт меню
-    // Это предотвращает открытие диалога выбора файла
-    // Находим нужный input и устанавливаем файл через DataTransfer
-    const directUploadSuccess = await this.uploadFileDirectlyToInput(page, base64Data, fileName, mimeType, fileType);
+    // КРИТИЧНО: Запускаем waitForFileChooser СТРОГО ДО клика на пункт меню!
+    // Это перехватывает диалог выбора файла и предотвращает открытие проводника Windows.
+    // Promise создается ДО клика и ждет появления FileChooser.
+    const fileChooserPromise = page.waitForFileChooser({ timeout: 10000 });
     
-    if (directUploadSuccess) {
-      logger.info('File uploaded directly to input (no dialog)', { fileName, mimeType });
-      return;
-    }
-
-    logger.debug('Direct input upload failed, trying with menu click', { fileName });
-
-    // СТРАТЕГИЯ 2: Если прямая загрузка не сработала - кликаем на пункт меню
-    // но перехватываем FileChooser чтобы предотвратить открытие проводника
-    const fileChooserPromise = page.waitForFileChooser({ timeout: 5000 }).catch(() => null);
+    // Теперь кликаем на пункт меню - FileChooser появится, но диалог НЕ откроется
+    // потому что мы уже ждем его через waitForFileChooser
+    logger.debug('Clicking menu item with FileChooser interception', { fileType });
     
-    await this.clickMenuItem(page, fileType);
-    
-    const fileChooser = await fileChooserPromise;
+    // Используем Promise.all чтобы клик и перехват происходили "одновременно"
+    // Это гарантирует, что FileChooser будет перехвачен до открытия диалога
+    const [fileChooser] = await Promise.all([
+      fileChooserPromise.catch((err) => {
+        logger.warn('FileChooser interception failed', { 
+          error: err instanceof Error ? err.message : String(err) 
+        });
+        return null;
+      }),
+      this.clickMenuItem(page, fileType),
+    ]);
 
     if (fileChooser) {
-      // FileChooser перехвачен - используем его accept() с путем к файлу
-      // Это единственный надежный способ "закрыть" FileChooser
-      logger.debug('FileChooser intercepted, using accept()', { absolutePath });
+      // FileChooser успешно перехвачен - используем accept() с путем к файлу
+      // Это ЕДИНСТВЕННЫЙ надежный способ загрузить файл в WhatsApp
+      logger.debug('FileChooser intercepted successfully, accepting file', { absolutePath });
       try {
         await fileChooser.accept([absolutePath]);
-        logger.info('File uploaded via FileChooser.accept()', { absolutePath, fileName });
+        logger.info('File uploaded successfully via FileChooser.accept()', { fileName, mimeType });
         return;
       } catch (error) {
-        logger.warn('FileChooser.accept() failed', { 
-          error: error instanceof Error ? error.message : String(error) 
+        logger.error('FileChooser.accept() failed', { 
+          error: error instanceof Error ? error.message : String(error),
+          absolutePath 
         });
+        throw new Error(`FileChooser.accept() failed: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
 
-    // СТРАТЕГИЯ 3: Fallback - пробуем загрузить через input после клика на меню
-    await this.delay(500);
-    const fallbackSuccess = await this.uploadFileWithMimeType(page, base64Data, fileName, mimeType, fileType);
-    
-    if (fallbackSuccess) {
-      logger.info('File uploaded via fallback MIME type method', { fileName, mimeType });
-      return;
-    }
-
+    // FileChooser не появился - это критическая ошибка
+    // Без FileChooser мы не можем надежно загрузить файл в WhatsApp
     throw new Error(
-      `Could not upload file. File: ${absolutePath}, Type: ${fileType}. ` +
-      `All upload strategies failed. FileChooser: ${fileChooser ? 'intercepted' : 'not available'}.`
+      `FileChooser was not intercepted. File: ${absolutePath}. ` +
+      `This is required for reliable file upload in WhatsApp. ` +
+      `Make sure the attach menu opened correctly.`
     );
   }
 
