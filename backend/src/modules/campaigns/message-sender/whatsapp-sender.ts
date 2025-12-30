@@ -1032,8 +1032,10 @@ export class WhatsAppSender {
   }
 
   /**
-   * Отправка файла через FileChooser с fallback на методы с правильным MIME-типом
-   * Приоритет: FileChooser -> uploadFileToInput (с MIME-типом) -> стандартный uploadFile
+   * Отправка файла с гарантированным MIME-типом
+   * ВАЖНО: НЕ используем FileChooser.accept() - он не устанавливает MIME-тип,
+   * что приводит к ошибке "файл не поддерживается" в WhatsApp.
+   * Вместо этого загружаем файл напрямую через input[type="file"] с правильным MIME-типом.
    */
   private async sendFileViaFileChooser(
     page: Page, 
@@ -1047,41 +1049,31 @@ export class WhatsAppSender {
     }
     await this.delay(500);
 
-    // Готовим перехват FileChooser и кликаем на пункт меню
-    const [fileChooser] = await Promise.all([
-      page.waitForFileChooser({ timeout: 5000 }).catch(() => null),
-      this.clickMenuItem(page, fileType),
-    ]);
+    // Кликаем на пункт меню (Document / Photo & Video)
+    // После клика появится input[type="file"] на странице
+    await this.clickMenuItem(page, fileType);
+    
+    // Небольшая задержка для появления input элемента
+    await this.delay(500);
 
-    let fileUploaded = false;
-
-    if (fileChooser) {
-      try {
-        await fileChooser.accept([absolutePath]);
-        logger.debug('File uploaded via FileChooser', { absolutePath, fileType });
-        fileUploaded = true;
-      } catch (error) {
-        logger.warn('FileChooser accept failed, trying MIME type method', { 
-          error: error instanceof Error ? error.message : String(error),
-          absolutePath 
-        });
-        // FileChooser может не установить правильный MIME-тип, пробуем метод с MIME-типом
-        await this.delay(500);
-        fileUploaded = await this.uploadFileToInput(page, absolutePath, fileType);
-      }
-    } else {
-      logger.debug('FileChooser not available, trying direct input upload with MIME type');
-      await this.delay(500);
-      // uploadFileToInput теперь использует метод с правильным MIME-типом
-      fileUploaded = await this.uploadFileToInput(page, absolutePath, fileType);
-    }
+    // ВСЕГДА используем метод с правильным MIME-типом
+    // uploadFileToInput использует uploadFileWithMimeType, который:
+    // 1. Читает файл в base64
+    // 2. Создает File объект с правильным MIME-типом
+    // 3. Устанавливает его в input через DataTransfer
+    // Это гарантирует, что WhatsApp получит файл с корректным типом
+    logger.debug('Uploading file with MIME type method', { absolutePath, fileType });
+    const fileUploaded = await this.uploadFileToInput(page, absolutePath, fileType);
     
     if (!fileUploaded) {
       throw new Error(
-        `Could not upload file via FileChooser or MIME type method. ` +
-        `File: ${absolutePath}, Type: ${fileType}`
+        `Could not upload file with MIME type method. ` +
+        `File: ${absolutePath}, Type: ${fileType}. ` +
+        `Make sure the file exists and is accessible.`
       );
     }
+    
+    logger.debug('File uploaded successfully with MIME type', { absolutePath, fileType });
   }
 
   /**
