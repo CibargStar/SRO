@@ -183,11 +183,26 @@ export class ProfileWorker {
               allTexts.push(item.content);
             } else if (item.type === 'FILE' && item.filePath) {
               allAttachments.push(item.filePath);
+              logger.debug('File attachment added to send list', {
+                filePath: item.filePath,
+                phone,
+                messageId: msg.id,
+              });
             }
           }
 
           // Объединяем все тексты в один (разделяем переносом строки)
           const combinedText = allTexts.length > 0 ? allTexts.join('\n') : undefined;
+
+          logger.debug('Preparing to send message with attachments', {
+            phone,
+            messageId: msg.id,
+            messenger,
+            hasText: !!combinedText,
+            textLength: combinedText?.length ?? 0,
+            attachmentsCount: allAttachments.length,
+            attachments: allAttachments,
+          });
 
           // Отправляем все элементы ОДНИМ вызовом sendMessage
           // Это предотвращает переключение чата между текстом и файлами
@@ -621,6 +636,18 @@ export class ProfileWorker {
     // Обрабатываем каждый элемент шаблона
     const processedItems: Array<{ type: 'TEXT' | 'FILE'; content?: string; filePath?: string }> = [];
 
+    logger.debug('Processing template items', {
+      totalItems: this.templateItems.length,
+      items: this.templateItems.map(item => ({
+        type: item.type,
+        hasContent: !!item.content,
+        hasFilePath: !!item.filePath,
+        filePath: item.filePath,
+        orderIndex: item.orderIndex,
+      })),
+      phone,
+    });
+
     for (const item of this.templateItems) {
       if (item.type === 'TEXT' && item.content) {
         // Обрабатываем TEXT элемент с подстановкой переменных
@@ -630,15 +657,36 @@ export class ProfileWorker {
             type: 'TEXT',
             content: processedContent,
           });
+          logger.debug('TEXT item processed', { orderIndex: item.orderIndex, contentLength: processedContent.length });
         }
-      } else if (item.type === 'FILE' && item.filePath && item.filePath.trim().length > 0) {
-        // FILE элемент - просто добавляем путь к файлу
-        processedItems.push({
-          type: 'FILE',
-          filePath: item.filePath,
-        });
+      } else if (item.type === 'FILE') {
+        // FILE элемент - проверяем и добавляем путь к файлу
+        if (item.filePath && item.filePath.trim().length > 0) {
+          processedItems.push({
+            type: 'FILE',
+            filePath: item.filePath,
+          });
+          logger.info('FILE item processed and added', { 
+            orderIndex: item.orderIndex, 
+            filePath: item.filePath,
+            phone 
+          });
+        } else {
+          logger.warn('FILE item skipped - filePath is empty or null', {
+            orderIndex: item.orderIndex,
+            filePath: item.filePath,
+            phone,
+          });
+        }
       }
     }
+
+    logger.debug('Template items processing completed', {
+      phone,
+      processedItemsCount: processedItems.length,
+      textItemsCount: processedItems.filter(i => i.type === 'TEXT').length,
+      fileItemsCount: processedItems.filter(i => i.type === 'FILE').length,
+    });
 
     return processedItems;
   }

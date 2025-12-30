@@ -154,18 +154,38 @@ export class WhatsAppSender {
       // Отправляем сообщение
       if (input.text) {
         await this.sendTextMessage(page, input.text);
+        // Проверяем отправку текста, но не блокируем отправку файлов при неудаче
         const isSent = await this.verifyMessageSent(page, input.text);
         if (!isSent) {
-          throw new Error('Message was not sent - verification failed');
+          logger.warn('Text message verification failed, but continuing with file attachments if any', {
+            phone: input.phone,
+            hasAttachments: !!(input.attachments && input.attachments.length > 0)
+          });
+          // НЕ бросаем ошибку здесь - продолжаем отправку файлов
         }
       }
 
       // Отправляем вложения
       if (input.attachments && input.attachments.length > 0) {
+        logger.info('Starting file attachments send', { 
+          attachmentsCount: input.attachments.length,
+          attachments: input.attachments,
+          phone: input.phone,
+          profileId: input.profileId
+        });
+        
         for (const attachment of input.attachments) {
+          logger.info('Sending file attachment', { attachment, phone: input.phone });
           await this.sendFileMessage(page, attachment, input.phone, input.profileId);
           await this.delay(1000);
         }
+        
+        logger.info('All file attachments sent', { 
+          attachmentsCount: input.attachments.length,
+          phone: input.phone 
+        });
+      } else {
+        logger.debug('No attachments to send', { phone: input.phone });
       }
 
       logger.info('WhatsApp message sent successfully', { phone: input.phone, profileId: input.profileId });
@@ -330,21 +350,39 @@ export class WhatsAppSender {
 
   /**
    * Преобразование пути в абсолютный
+   * Нормализует пути для кроссплатформенной совместимости
    */
   private resolveFilePath(filePath: string): string {
-    if (path.isAbsolute(filePath)) {
-      logger.debug('File path is already absolute', { filePath });
-      return filePath;
+    // Нормализуем путь (заменяем все слеши на системные)
+    const normalizedPath = filePath.replace(/[\\/]/g, path.sep);
+    
+    if (path.isAbsolute(normalizedPath)) {
+      logger.debug('File path is already absolute', { 
+        originalPath: filePath,
+        normalizedPath 
+      });
+      return normalizedPath;
     }
-    const uploadsDir = path.join(process.cwd(), 'uploads', 'templates');
-    const resolvedPath = path.resolve(uploadsDir, filePath);
+    
+    // Пробуем несколько вариантов базовой директории
+    const possibleBaseDirs = [
+      path.join(process.cwd(), 'uploads', 'templates'),
+      path.join(process.cwd(), 'backend', 'uploads', 'templates'),
+      path.resolve(process.cwd(), 'uploads', 'templates'),
+    ];
+    
+    // Используем первую директорию для разрешения пути
+    const uploadsDir = possibleBaseDirs[0];
+    const resolvedPath = path.resolve(uploadsDir, normalizedPath);
     
     logger.debug('Resolved file path', {
       originalPath: filePath,
+      normalizedPath,
       processCwd: process.cwd(),
       uploadsDir,
       resolvedPath,
       pathHasSpaces: resolvedPath.includes(' '),
+      pathSeparator: path.sep,
     });
     
     return resolvedPath;
@@ -672,26 +710,81 @@ export class WhatsAppSender {
       let finalPath = absolutePath;
       
       if (!await this.checkFileExists(absolutePath)) {
+        // Нормализуем исходный путь для поиска альтернатив
+        const normalizedAttachmentPath = attachmentPath.replace(/[\\/]/g, path.sep);
+        
         // Проверяем альтернативные пути (на случай если process.cwd() указывает не туда)
         const alternativePaths = [
+          path.join(process.cwd(), 'backend', 'uploads', 'templates', normalizedAttachmentPath),
+          path.resolve(process.cwd(), 'uploads', 'templates', normalizedAttachmentPath),
+          path.join(process.cwd(), 'uploads', 'templates', normalizedAttachmentPath),
+          // Пробуем также с исходным путем (на случай если он уже нормализован)
           path.join(process.cwd(), 'backend', 'uploads', 'templates', attachmentPath),
           path.resolve(process.cwd(), 'uploads', 'templates', attachmentPath),
         ];
         
+        // Убираем дубликаты
+        const uniquePaths = Array.from(new Set([absolutePath, ...alternativePaths]));
+        
+        logger.debug('File not found at primary path, checking alternatives', {
+          primaryPath: absolutePath,
+          alternatives: uniquePaths,
+          attachmentPath,
+          normalizedAttachmentPath,
+        });
+        
         let foundPath: string | null = null;
-        for (const altPath of alternativePaths) {
+        for (const altPath of uniquePaths) {
           try {
             await fs.access(altPath);
             foundPath = altPath;
-            logger.info('File found at alternative path', { original: absolutePath, found: altPath });
+            logger.info('File found at alternative path', { 
+              original: absolutePath, 
+              found: altPath,
+              attachmentPath 
+            });
             break;
-          } catch {
+          } catch (error) {
+            logger.debug('Alternative path check failed', { 
+              path: altPath, 
+              error: error instanceof Error ? error.message : 'Unknown' 
+            });
             continue;
           }
         }
         
         if (!foundPath) {
-          throw new Error(`File not found: ${absolutePath}. Checked paths: ${[absolutePath, ...alternativePaths].join(', ')}. Make sure files are uploaded to uploads/templates/ directory.`);
+          // Проверяем существование директорий для диагностики
+          const baseDirs = [
+            path.join(process.cwd(), 'uploads', 'templates'),
+            path.join(process.cwd(), 'backend', 'uploads', 'templates'),
+          ];
+          
+          const dirChecks = await Promise.all(
+            baseDirs.map(async (dir) => {
+              try {
+                const stats = await fs.stat(dir);
+                return { dir, exists: stats.isDirectory(), files: await fs.readdir(dir).catch(() => []) };
+              } catch {
+                return { dir, exists: false, files: [] };
+              }
+            })
+          );
+          
+          logger.error('File not found in any checked path', {
+            attachmentPath,
+            normalizedAttachmentPath,
+            checkedPaths: uniquePaths,
+            directoryChecks: dirChecks,
+            processCwd: process.cwd(),
+          });
+          
+          throw new Error(
+            `File not found: ${attachmentPath}. ` +
+            `Checked paths: ${uniquePaths.join(', ')}. ` +
+            `Make sure files are uploaded to uploads/templates/ directory. ` +
+            `Process CWD: ${process.cwd()}`
+          );
         }
         
         finalPath = foundPath;
