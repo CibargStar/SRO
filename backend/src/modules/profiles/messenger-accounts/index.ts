@@ -32,4 +32,5 @@ export {
   type UpdateMessengerAccountInput,
   type UpdateMessengerCheckConfigInput,
 } from './messenger-accounts.schemas';
+export { ensureMessengerServices } from './init-messenger-services';
 

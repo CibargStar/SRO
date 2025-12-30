@@ -54,12 +54,15 @@ yarn-error.log*
 .temp/
 .tmp/
 
-# Profiles directories
+# Profiles directories (Chrome profile data, NOT source code)
 # ВАЖНО: Профили хранятся в системной папке для обхода ограничения Windows (260 символов)
 # Windows: C:\SROProf
 # Linux/Mac: ~/.sroprof
-profiles/
-backend/profiles/
-prof/
-backend/prof/
+# Игнорируем только папки с данными профилей в корне проекта, НЕ исходный код модуля!
+/profiles/
+/backend/profiles/
+/backend/prof/
+/prof/
+# Явно разрешаем исходный код модуля profiles
+!backend/src/modules/profiles/
 
