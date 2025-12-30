@@ -1033,9 +1033,8 @@ export class WhatsAppSender {
 
   /**
    * Отправка файла с гарантированным MIME-типом
-   * ВАЖНО: НЕ используем FileChooser.accept() - он не устанавливает MIME-тип,
-   * что приводит к ошибке "файл не поддерживается" в WhatsApp.
-   * Вместо этого загружаем файл напрямую через input[type="file"] с правильным MIME-типом.
+   * Используем FileChooser для перехвата диалога (предотвращает открытие проводника),
+   * но загружаем файл через DataTransfer с правильным MIME-типом
    */
   private async sendFileViaFileChooser(
     page: Page, 
@@ -1049,31 +1048,71 @@ export class WhatsAppSender {
     }
     await this.delay(500);
 
-    // Кликаем на пункт меню (Document / Photo & Video)
-    // После клика появится input[type="file"] на странице
-    await this.clickMenuItem(page, fileType);
-    
-    // Небольшая задержка для появления input элемента
-    await this.delay(500);
+    // Читаем файл и готовим данные с правильным MIME-типом ЗАРАНЕЕ
+    const mimeType = this.getMimeType(absolutePath);
+    const fileName = path.basename(absolutePath);
+    const fileBuffer = await fs.readFile(absolutePath);
+    const base64Data = fileBuffer.toString('base64');
 
-    // ВСЕГДА используем метод с правильным MIME-типом
-    // uploadFileToInput использует uploadFileWithMimeType, который:
-    // 1. Читает файл в base64
-    // 2. Создает File объект с правильным MIME-типом
-    // 3. Устанавливает его в input через DataTransfer
-    // Это гарантирует, что WhatsApp получит файл с корректным типом
-    logger.debug('Uploading file with MIME type method', { absolutePath, fileType });
+    logger.debug('Prepared file for upload', { absolutePath, fileName, mimeType, fileType });
+
+    // Запускаем waitForFileChooser ПЕРЕД кликом на пункт меню
+    // Это перехватывает диалог выбора файла и предотвращает открытие проводника
+    const fileChooserPromise = page.waitForFileChooser({ timeout: 10000 }).catch((err) => {
+      logger.debug('FileChooser wait failed', { error: err instanceof Error ? err.message : String(err) });
+      return null;
+    });
+
+    // Кликаем на пункт меню (Document / Photo & Video)
+    await this.clickMenuItem(page, fileType);
+
+    // Ждем FileChooser
+    const fileChooser = await fileChooserPromise;
+
+    if (fileChooser) {
+      // FileChooser перехвачен - используем его, но с нашим методом установки MIME-типа
+      logger.debug('FileChooser intercepted, uploading with MIME type', { fileName, mimeType });
+      
+      // Загружаем файл через DataTransfer с правильным MIME-типом
+      // Это устанавливает файл в input[type="file"] с корректным типом
+      const uploaded = await this.uploadFileWithMimeType(page, base64Data, fileName, mimeType, fileType);
+      
+      if (uploaded) {
+        logger.debug('File uploaded via MIME type method after FileChooser intercept', { fileName, mimeType });
+        return;
+      }
+      
+      // Если метод с MIME-типом не сработал, используем стандартный FileChooser.accept()
+      // как fallback (может вызвать ошибку "файл не поддерживается" в некоторых случаях)
+      logger.warn('MIME type method failed, falling back to FileChooser.accept()', { absolutePath });
+      try {
+        await fileChooser.accept([absolutePath]);
+        logger.debug('File uploaded via FileChooser.accept() fallback', { absolutePath });
+        return;
+      } catch (error) {
+        logger.error('FileChooser.accept() also failed', { 
+          error: error instanceof Error ? error.message : String(error),
+          absolutePath 
+        });
+      }
+    } else {
+      // FileChooser не появился - пробуем загрузить напрямую через input
+      logger.debug('FileChooser not available, trying direct input upload', { absolutePath });
+      await this.delay(500);
+    }
+
+    // Fallback: загружаем через uploadFileToInput (использует uploadFileWithMimeType внутри)
     const fileUploaded = await this.uploadFileToInput(page, absolutePath, fileType);
     
     if (!fileUploaded) {
       throw new Error(
-        `Could not upload file with MIME type method. ` +
-        `File: ${absolutePath}, Type: ${fileType}. ` +
+        `Could not upload file. File: ${absolutePath}, Type: ${fileType}. ` +
+        `FileChooser: ${fileChooser ? 'intercepted but upload failed' : 'not available'}. ` +
         `Make sure the file exists and is accessible.`
       );
     }
     
-    logger.debug('File uploaded successfully with MIME type', { absolutePath, fileType });
+    logger.debug('File uploaded successfully', { absolutePath, fileType });
   }
 
   /**
