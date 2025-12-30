@@ -126,6 +126,9 @@ export function FileUploader({
       for (const file of validFiles) {
         try {
           await onUpload(file);
+          // Очищаем selectedFiles после успешной загрузки,
+          // т.к. файл теперь придет через existingFiles
+          setSelectedFiles([]);
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Не удалось загрузить файл';
           setUploadErrors(message);

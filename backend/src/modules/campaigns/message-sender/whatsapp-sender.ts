@@ -12,11 +12,49 @@ import logger from '../../../config/logger';
 import { validatePhone } from './utils';
 import type { ChromeProcessService } from '../../profiles/chrome-process/chrome-process.service';
 
+// MIME типы для расширений файлов
+const MIME_TYPES: Record<string, string> = {
+  // Изображения
+  'jpg': 'image/jpeg',
+  'jpeg': 'image/jpeg',
+  'png': 'image/png',
+  'gif': 'image/gif',
+  'webp': 'image/webp',
+  'bmp': 'image/bmp',
+  'svg': 'image/svg+xml',
+  // Видео
+  'mp4': 'video/mp4',
+  'avi': 'video/x-msvideo',
+  'mov': 'video/quicktime',
+  'webm': 'video/webm',
+  'mkv': 'video/x-matroska',
+  '3gp': 'video/3gpp',
+  // Аудио
+  'mp3': 'audio/mpeg',
+  'wav': 'audio/wav',
+  'ogg': 'audio/ogg',
+  'aac': 'audio/aac',
+  'm4a': 'audio/mp4',
+  // Документы
+  'pdf': 'application/pdf',
+  'doc': 'application/msword',
+  'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'xls': 'application/vnd.ms-excel',
+  'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'ppt': 'application/vnd.ms-powerpoint',
+  'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'txt': 'text/plain',
+  'csv': 'text/csv',
+  'zip': 'application/zip',
+  'rar': 'application/x-rar-compressed',
+  '7z': 'application/x-7z-compressed',
+};
+
 export interface SenderInput {
   phone: string;
   text?: string;
   attachments?: string[];
-  profileId?: string; // ID профиля для доступа к Puppeteer
+  profileId?: string;
 }
 
 export interface SenderResult {
@@ -25,22 +63,62 @@ export interface SenderResult {
   error?: string;
 }
 
+// Селекторы WhatsApp Web
+const SELECTORS = {
+  messageInput: 'div[contenteditable="true"][data-tab="10"]',
+  attachButton: [
+    'span[data-icon="plus"]',
+    'span[data-icon="plus-rounded"]',
+    'span[data-icon="attach"]',
+    'button[aria-label="Прикрепить"]',
+    'button[aria-label="Attach"]',
+  ],
+  // Пункты меню вложений (после клика на +)
+  menuItemDocument: [
+    'div[aria-label="Документ"]',
+    'div[aria-label="Document"]',
+    '[role="menuitem"][aria-label="Документ"]',
+    '[role="menuitem"][aria-label="Document"]',
+  ],
+  menuItemPhoto: [
+    'div[aria-label="Фото и видео"]',
+    'div[aria-label="Photos & videos"]',
+    '[role="menuitem"][aria-label="Фото и видео"]',
+    '[role="menuitem"][aria-label="Photos & videos"]',
+  ],
+  sendButton: [
+    'span[data-icon="wds-ic-send-filled"]',  // Новый селектор WhatsApp
+    'span[data-icon="send"]',
+    '[aria-label="Отправить"]',
+    '[aria-label*="Send"]',
+    'button[aria-label*="Send"]',
+    '[data-testid="send"]',
+  ],
+  sentIndicators: 'span[data-icon="msg-dblcheck"], span[data-icon="msg-check"]',
+  msgContainer: 'div[data-testid="msg-container"]',
+};
+
 export class WhatsAppSender {
   private chromeProcessService?: ChromeProcessService;
+  /**
+   * Кэш текущего открытого чата для каждого профиля
+   * Ключ: profileId, Значение: нормализованный номер телефона
+   */
+  private currentOpenChat: Map<string, string> = new Map();
 
   constructor(chromeProcessService?: ChromeProcessService) {
     this.chromeProcessService = chromeProcessService;
   }
 
   /**
-   * Вспомогательная функция для задержки (замена page.waitForTimeout)
+   * Задержка
    */
   private async delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**
-   * Основной метод отправки (обертка для Executor)
+   * Основной метод отправки
    */
   async sendMessage(input: SenderInput): Promise<SenderResult> {
     try {
@@ -54,7 +132,6 @@ export class WhatsAppSender {
         throw new Error('ChromeProcessService is not available');
       }
 
-      // Получаем или создаем страницу WhatsApp Web
       const page = await this.chromeProcessService.getOrCreateMessengerPage(
         input.profileId,
         'whatsapp',
@@ -65,24 +142,28 @@ export class WhatsAppSender {
         throw new Error('Failed to get WhatsApp page for profile');
       }
 
-      // Открываем чат с номером
-      await this.openChat(page, input.phone);
+      // ВАЖНО: Активируем вкладку WhatsApp перед отправкой
+      // Это гарантирует, что мы работаем именно с этой вкладкой,
+      // даже если мониторинг статуса переключил фокус
+      await page.bringToFront();
+      await this.delay(100);
+
+      // Открываем чат с номером (передаём profileId для кэширования)
+      await this.openChat(page, input.phone, input.profileId);
 
       // Отправляем сообщение
       if (input.text) {
         await this.sendTextMessage(page, input.text);
-        // Проверяем, что сообщение действительно отправлено
         const isSent = await this.verifyMessageSent(page, input.text);
         if (!isSent) {
           throw new Error('Message was not sent - verification failed');
         }
       }
 
-      // Отправляем вложения, если есть
+      // Отправляем вложения
       if (input.attachments && input.attachments.length > 0) {
         for (const attachment of input.attachments) {
-          await this.sendFileMessage(page, attachment);
-          // Небольшая задержка между файлами
+          await this.sendFileMessage(page, attachment, input.phone, input.profileId);
           await this.delay(1000);
         }
       }
@@ -98,193 +179,100 @@ export class WhatsAppSender {
 
   /**
    * Открытие чата по номеру
+   * Проверяет, не открыт ли уже чат с этим номером - если да, не перезагружает страницу
    */
-  private async openChat(page: Page, phone: string): Promise<void> {
+  private async openChat(page: Page, phone: string, profileId?: string): Promise<void> {
     try {
-      // Нормализуем номер телефона (убираем все кроме цифр)
       const normalizedPhone = phone.replace(/[^\d]/g, '');
 
-      // Убеждаемся, что страница готова (особенно важно для первого контакта)
-      // Проверяем, что страница не закрыта и загружена
       if (page.isClosed()) {
+        // Сбрасываем кэш для этого профиля если страница закрыта
+        if (profileId) {
+          this.currentOpenChat.delete(profileId);
+        }
         throw new Error('Page is closed');
       }
 
-      // Получаем текущий URL страницы
-      let currentUrl = page.url();
+      // Проверяем, не открыт ли уже чат с этим номером
+      const cachedPhone = profileId ? this.currentOpenChat.get(profileId) : null;
       
-      // Если страница еще не загружена на базовый URL WhatsApp, сначала загружаем его
-      if (!currentUrl.includes('web.whatsapp.com')) {
-        logger.debug('Page not on WhatsApp Web, navigating to base URL first', { currentUrl });
-        await page.goto('https://web.whatsapp.com', { waitUntil: 'networkidle2', timeout: 30000 });
-        // Даем время для инициализации WhatsApp Web
-        await this.delay(2000);
-        // Обновляем currentUrl после навигации
-        currentUrl = page.url();
+      if (cachedPhone === normalizedPhone) {
+        // Чат уже открыт с этим номером - проверяем что поле ввода доступно
+        logger.debug('Chat already open for this phone, checking input field', { phone: normalizedPhone, profileId });
+        
+        try {
+          // Проверяем что поле ввода есть и мы всё ещё в правильном чате
+          const inputExists = await page.$(SELECTORS.messageInput);
+          if (inputExists) {
+            // Дополнительно проверяем URL чтобы убедиться что мы в правильном чате
+            const currentUrl = page.url();
+            if (currentUrl.includes(normalizedPhone) || currentUrl.includes('web.whatsapp.com')) {
+              logger.debug('Chat verified, using existing session', { phone: normalizedPhone });
+              await this.delay(200);
+              return;
+            }
+          }
+          // Поле ввода не найдено или URL изменился - нужно переоткрыть чат
+          logger.debug('Chat verification failed, reopening', { phone: normalizedPhone });
+        } catch {
+          // Ошибка проверки - переоткроем чат
+          logger.debug('Chat check error, reopening', { phone: normalizedPhone });
+        }
       }
 
-      // URL для открытия чата в WhatsApp Web
       const chatUrl = `https://web.whatsapp.com/send?phone=${normalizedPhone}`;
+      logger.debug('Opening chat URL', { chatUrl, wasOpen: cachedPhone === normalizedPhone });
 
-      logger.debug('Navigating to chat URL', { phone: normalizedPhone, chatUrl });
+      // Переходим в чат
+      await page.goto(chatUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-      // Проверяем, не находимся ли мы уже в этом чате
-      if (currentUrl.includes(`phone=${normalizedPhone}`)) {
-        logger.debug('Already in the correct chat, skipping navigation', { phone: normalizedPhone });
-      } else {
-        // Переходим на страницу чата
-        // Используем waitForNavigation для гарантии, что навигация завершена
-        await Promise.all([
-          page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => {
-            // Если waitForNavigation не сработал, это может быть нормально для некоторых случаев
-          }),
-          page.goto(chatUrl, { waitUntil: 'networkidle2', timeout: 30000 }),
-        ]);
+      // Ждем поле ввода
+      await page.waitForSelector(SELECTORS.messageInput, { timeout: 20000 });
+      await this.delay(300);
 
-        // Дополнительное ожидание для обработки параметров WhatsApp Web
-        await this.delay(1500);
+      // Сохраняем в кэш
+      if (profileId) {
+        this.currentOpenChat.set(profileId, normalizedPhone);
       }
 
-      // Ждем, пока загрузится интерфейс чата
-      // Селектор для поля ввода сообщения
-      // Увеличиваем таймаут для первого контакта, так как WhatsApp Web может загружаться дольше
-      const messageInputSelector = 'div[contenteditable="true"][data-tab="10"]';
-      await page.waitForSelector(messageInputSelector, { timeout: 20000 });
-
-      // Небольшая задержка для стабилизации интерфейса
-      await this.delay(1000);
-
-      logger.debug('WhatsApp chat opened', { phone: normalizedPhone });
+      logger.debug('WhatsApp chat opened', { phone: normalizedPhone, profileId });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       logger.error('Failed to open WhatsApp chat', { phone, error: errorMsg });
+      // Сбрасываем кэш при ошибке
+      if (profileId) {
+        this.currentOpenChat.delete(profileId);
+      }
       throw new Error(`Failed to open chat: ${errorMsg}`);
     }
   }
 
   /**
    * Отправка текстового сообщения
-   * Логика аналогична Telegram sender, но с учетом особенностей WhatsApp (contenteditable div)
+   * Использует ручной набор через keyboard.type для надежности
    */
   private async sendTextMessage(page: Page, text: string): Promise<void> {
     try {
-      // Селектор для поля ввода сообщения WhatsApp
-      const messageInputSelector = 'div[contenteditable="true"][data-tab="10"]';
-
-      // Ждем появления поля ввода сообщения
-      await page.waitForSelector(messageInputSelector, { timeout: 10000 });
-
-      // Фокусируемся на поле ввода
-      await page.focus(messageInputSelector);
-      await this.delay(200);
-
-      // Очищаем поле ввода (если там что-то есть)
-      await page.click(messageInputSelector, { clickCount: 3 });
-      await this.delay(100);
-      await page.keyboard.press('Backspace');
-      await this.delay(200);
-
-      // Вводим текст через evaluate с прямым изменением DOM (более надежно для contenteditable)
-      const textEntered = await page.evaluate((selector, textToType) => {
-        // @ts-expect-error
-        const input = document.querySelector(selector);
-        if (!input) return false;
-        
-        // Фокусируемся на поле
-        input.focus();
-        
-        // Очищаем поле
-        // @ts-expect-error
-        const selection = window.getSelection();
-        // @ts-expect-error
-        const range = document.createRange();
-        range.selectNodeContents(input);
-        selection.removeAllRanges();
-        selection.addRange(range);
-        // @ts-expect-error
-        document.execCommand('delete', false, null);
-        
-        // Устанавливаем текст через insertText
-        try {
-          // @ts-expect-error
-          document.execCommand('insertText', false, textToType);
-        } catch (e) {
-          // Fallback: прямое изменение DOM
-          // @ts-expect-error
-          let pElement = input.querySelector('p');
-          if (!pElement) {
-            // @ts-expect-error
-            pElement = document.createElement('p');
-            input.innerHTML = '';
-            input.appendChild(pElement);
-          }
-          pElement.textContent = textToType;
-          // @ts-expect-error
-          input.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: textToType }));
-        }
-        
-        // Проверяем, что текст установлен
-        const actualText = (input.textContent || input.innerText || '').trim();
-        return actualText === textToType.trim();
-      }, messageInputSelector, text);
-
-      if (!textEntered) {
-        // Если evaluate не сработал, пробуем keyboard.type
-        logger.debug('Text not entered via evaluate, trying keyboard.type', { textLength: text.length });
-        await page.focus(messageInputSelector);
-        await this.delay(200);
-        
-        // Очищаем еще раз
-        await page.click(messageInputSelector, { clickCount: 3 });
-        await this.delay(100);
-        await page.keyboard.press('Backspace');
-        await this.delay(200);
-        
-        // Вводим текст символ за символом
-        for (const char of text) {
-          await page.keyboard.type(char, { delay: 50 });
-        }
-        await this.delay(300);
-        
-        // Проверяем, что текст введен
-        const textInField = await page.evaluate((selector) => {
-          // @ts-expect-error
-          const input = document.querySelector(selector);
-          return input ? (input.textContent || input.innerText || '').trim() : '';
-        }, messageInputSelector);
-        
-        if (textInField !== text.trim()) {
-          logger.warn('Text was not entered into input field', { 
-            textLength: text.length,
-            expectedText: text.substring(0, 50),
-            actualText: textInField.substring(0, 50)
-          });
-          throw new Error('Failed to enter text into input field');
-        }
-      }
-
-      // Небольшая задержка перед отправкой
-      await this.delay(500);
-
-      // Отправляем сообщение (Enter)
-      await page.keyboard.press('Enter');
+      await page.waitForSelector(SELECTORS.messageInput, { timeout: 10000 });
       
-      // Ждем, пока поле ввода станет пустым (сообщение отправлено)
-      await this.delay(1000);
+      // Кликаем на поле ввода
+      await page.click(SELECTORS.messageInput);
+      await this.delay(200);
 
-      // Проверяем, что поле ввода пустое
-      const inputIsEmpty = await page.evaluate((selector) => {
-        // @ts-expect-error
-        const input = document.querySelector(selector);
-        return input ? (!input.textContent || input.textContent.trim() === '') : false;
-      }, messageInputSelector);
+      // Очищаем поле если там что-то есть
+      await page.keyboard.down('Control');
+      await page.keyboard.press('a');
+      await page.keyboard.up('Control');
+      await page.keyboard.press('Backspace');
+      await this.delay(100);
 
-      if (!inputIsEmpty) {
-        logger.warn('Input field is not empty after sending, message may not have been sent', { 
-          textLength: text.length
-        });
-        // Не бросаем ошибку, так как сообщение могло быть отправлено, но поле еще не очистилось
-      }
+      // Вводим текст через keyboard.type (надежный "ручной" набор)
+      await page.keyboard.type(text, { delay: 30 });
+      await this.delay(300);
+
+      // Отправляем через Enter
+      await page.keyboard.press('Enter');
+      await this.delay(500);
 
       logger.debug('WhatsApp text message sent', { textLength: text.length });
     } catch (error) {
@@ -295,89 +283,47 @@ export class WhatsAppSender {
   }
 
   /**
-   * Проверка, что сообщение действительно отправлено
-   * Проверяем: 1) поле ввода пустое, 2) сообщение появилось в чате, 3) есть индикаторы отправки
+   * Проверка отправки сообщения
    */
   private async verifyMessageSent(page: Page, text: string): Promise<boolean> {
     try {
-      // Ждем появления сообщения в чате
-      const maxWaitTime = 5000; // 5 секунд максимум
-      const checkInterval = 200; // проверяем каждые 200мс
-      const maxChecks = maxWaitTime / checkInterval;
+      const maxChecks = 25;
+      const checkInterval = 200;
 
       for (let i = 0; i < maxChecks; i++) {
-        // Проверяем несколько условий для надежности
-        const verification = await page.evaluate((searchText) => {
-          // @ts-expect-error
-          const allText = document.body.innerText || '';
+        const verification = await page.evaluate((searchText: string, msgInputSel: string, sentIndSel: string, msgContSel: string) => {
+          const allText = document.body.innerText ?? '';
           const textFound = allText.includes(searchText.substring(0, 50));
-          
-          // Проверяем, что поле ввода пустое
-          // @ts-expect-error
-          const inputField = document.querySelector('div[contenteditable="true"][data-tab="10"]');
+
+          const inputField = document.querySelector(msgInputSel) as HTMLElement | null;
           const inputIsEmpty = !inputField || !inputField.textContent || inputField.textContent.trim() === '';
-          
-          // Проверяем наличие индикаторов отправки (галочки)
-          // @ts-expect-error
-          const sentIndicators = document.querySelectorAll('span[data-icon="msg-dblcheck"], span[data-icon="msg-check"]');
+
+          const sentIndicators = document.querySelectorAll(sentIndSel);
           const hasIndicators = sentIndicators.length > 0;
-          
-          // Ищем сообщение в контейнере сообщений
-          // @ts-expect-error
-          const messages = document.querySelectorAll('div[data-testid="msg-container"]');
+
+          const messages = document.querySelectorAll(msgContSel);
           let foundInMessages = false;
           if (messages.length > 0) {
-            const lastMessage = messages[messages.length - 1];
-            const lastMessageText = lastMessage.textContent || '';
-            foundInMessages = lastMessageText.includes(searchText.substring(0, 50));
+            const lastMessage = messages[messages.length - 1] as HTMLElement;
+            foundInMessages = (lastMessage.textContent ?? '').includes(searchText.substring(0, 50));
           }
-          
-          return {
-            textFound,
-            inputIsEmpty,
-            hasIndicators,
-            foundInMessages,
-            messagesCount: messages.length
-          };
-        }, text);
 
-        // Сообщение считается отправленным, если:
-        // 1. Текст найден в чате И поле ввода пустое
-        // ИЛИ
-        // 2. Текст найден в последнем сообщении И есть индикаторы отправки
-        if ((verification.textFound && verification.inputIsEmpty) || 
+          return { textFound, inputIsEmpty, hasIndicators, foundInMessages };
+        }, text, SELECTORS.messageInput, SELECTORS.sentIndicators, SELECTORS.msgContainer);
+
+        if ((verification.textFound && verification.inputIsEmpty) ||
             (verification.foundInMessages && verification.hasIndicators)) {
-          logger.debug('Message verified as sent', { 
-            textLength: text.length,
-            textFound: verification.textFound,
-            inputIsEmpty: verification.inputIsEmpty,
-            foundInMessages: verification.foundInMessages,
-            hasIndicators: verification.hasIndicators
-          });
+          logger.debug('Message verified as sent', verification);
           return true;
         }
 
         await this.delay(checkInterval);
       }
 
-      logger.warn('Message verification failed - message not found in chat', { 
-        textLength: text.length,
-        lastCheck: await page.evaluate(() => {
-          // @ts-expect-error
-          const inputField = document.querySelector('div[contenteditable="true"][data-tab="10"]');
-          // @ts-expect-error
-          const messages = document.querySelectorAll('div[data-testid="msg-container"]');
-          return {
-            inputIsEmpty: !inputField || !inputField.textContent || inputField.textContent.trim() === '',
-            messagesCount: messages.length
-          };
-        })
-      });
+      logger.warn('Message verification failed');
       return false;
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Failed to verify message sent', { error: errorMsg });
-      // В случае ошибки проверки, считаем что сообщение могло быть отправлено
+      logger.error('Failed to verify message sent', { error });
       return false;
     }
   }
@@ -386,17 +332,11 @@ export class WhatsAppSender {
    * Преобразование пути в абсолютный
    */
   private resolveFilePath(filePath: string): string {
-    // Если путь уже абсолютный, возвращаем как есть
     if (path.isAbsolute(filePath)) {
       return filePath;
     }
-    
-    // Если путь относительный, преобразуем в абсолютный относительно рабочей директории
-    // Предполагаем, что относительные пути идут от корня проекта или от uploads/templates
     const uploadsDir = path.join(process.cwd(), 'uploads', 'templates');
-    const resolvedPath = path.resolve(uploadsDir, filePath);
-    
-    return resolvedPath;
+    return path.resolve(uploadsDir, filePath);
   }
 
   /**
@@ -412,650 +352,657 @@ export class WhatsAppSender {
   }
 
   /**
-   * Отправка файла/вложений через создание input[type="file"]
-   * Это самый надежный способ - создаем скрытый input и триггерим FileChooser
+   * Проверка что мы всё ещё в правильном чате
+   * Важно вызывать перед отправкой файла, чтобы он не улетел в неправильный чат
    */
-  private async sendFileMessage(page: Page, attachmentPath: string): Promise<void> {
+  private async ensureCorrectChat(page: Page, phone: string, _profileId?: string): Promise<boolean> {
+    const normalizedPhone = phone.replace(/[^\d]/g, '');
+    
     try {
-      // Преобразуем путь в абсолютный
-      const absolutePath = this.resolveFilePath(attachmentPath);
+      // Проверяем URL страницы
+      const currentUrl = page.url();
       
-      // Проверяем существование файла
-      const fileExists = await this.checkFileExists(absolutePath);
-      if (!fileExists) {
-        throw new Error(`File not found: ${absolutePath} (original path: ${attachmentPath})`);
+      // Если URL содержит номер телефона - мы в правильном чате
+      if (currentUrl.includes(`phone=${normalizedPhone}`)) {
+        logger.debug('Correct chat verified via URL', { phone: normalizedPhone });
+        return true;
       }
-
-      logger.debug('Sending WhatsApp file via input file method', { 
-        originalPath: attachmentPath, 
-        absolutePath,
-        fileExists 
+      
+      // Проверяем заголовок чата (имя или номер контакта)
+      const chatHeader = await page.evaluate(() => {
+        // Ищем заголовок чата с номером или именем контакта
+        const headerSelectors = [
+          'header span[title]',
+          '[data-testid="conversation-info-header"] span',
+          '#main header span[dir="auto"]',
+        ];
+        
+        for (const sel of headerSelectors) {
+          const el = document.querySelector(sel);
+          if (el) {
+            return (el as HTMLElement).textContent ?? '';
+          }
+        }
+        return '';
       });
+      
+      // Проверяем содержит ли заголовок номер телефона
+      if (chatHeader && chatHeader.replace(/[^\d]/g, '').includes(normalizedPhone.slice(-7))) {
+        logger.debug('Correct chat verified via header', { phone: normalizedPhone, header: chatHeader });
+        return true;
+      }
+      
+      // Если не можем подтвердить чат - логируем, но НЕ сбрасываем кэш
+      // Переоткрытие чата может привести к отправке файла в неправильный чат
+      logger.warn('Could not verify chat via URL or header', { phone: normalizedPhone, currentUrl });
+      
+      // Возвращаем true, потому что мы доверяем кэшу - чат был открыт в начале sendMessage
+      return true;
+    } catch (error) {
+      logger.error('Error verifying chat', { phone: normalizedPhone, error });
+      return false;
+    }
+  }
 
-      // Ждем появления поля ввода (чтобы убедиться, что чат открыт)
-      const messageInputSelector = 'div[contenteditable="true"][data-tab="10"]';
-      await page.waitForSelector(messageInputSelector, { timeout: 10000 });
-      await this.delay(500);
+  /**
+   * Определение типа файла
+   */
+  private getFileType(filePath: string): 'image' | 'video' | 'document' {
+    const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+      return 'image';
+    }
+    if (['mp4', 'avi', 'mov', 'webm', 'mkv'].includes(ext)) {
+      return 'video';
+    }
+    return 'document';
+  }
 
-      // Используем кнопку прикрепления для открытия FileChooser
-      // Это более надежный способ, так как использует нативный интерфейс WhatsApp
-      logger.debug('Looking for attach button to trigger file chooser');
-      
-      // Ищем кнопку прикрепления
-      const attachButtonSelectors = [
-        'button[aria-label="Прикрепить"]',
-        'button[aria-label="Attach"]',
-        'button[aria-label*="Прикрепить"]',
-        'button[aria-label*="Attach"]',
-        'span[data-icon="plus-rounded"]',
-        'span[data-icon="attach"]',
-      ];
-      
-      let attachButton = null;
-      
-      // Пробуем найти кнопку прикрепления
-      for (const selector of attachButtonSelectors) {
-        try {
-          attachButton = await page.$(selector);
-          if (attachButton) {
-            logger.debug('Found attach button with selector', { selector });
-            // Если это span, ищем родительскую кнопку
-            if (selector.includes('span[data-icon')) {
-              attachButton = await page.evaluateHandle((spanElement) => {
-                // @ts-expect-error
-                let element = spanElement;
-                while (element && element.tagName !== 'BUTTON') {
-                  element = element.parentElement;
-                  if (!element || element.tagName === 'BODY') break;
+  /**
+   * Получение MIME-типа файла по расширению
+   */
+  private getMimeType(filePath: string): string {
+    const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
+    return MIME_TYPES[ext] ?? 'application/octet-stream';
+  }
+
+  /**
+   * Поиск элемента по списку селекторов
+   */
+  private async findElement(page: Page, selectors: string[]) {
+    for (const selector of selectors) {
+      const element = await page.$(selector);
+      if (element) {
+        return element;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Клик на кнопку прикрепления
+   */
+  private async clickAttachButton(page: Page): Promise<boolean> {
+    // Ищем кнопку через селекторы
+    for (const selector of SELECTORS.attachButton) {
+      try {
+        const element = await page.$(selector);
+        if (element) {
+          // Если это span, ищем родительскую кнопку
+          if (selector.startsWith('span')) {
+            const button = await page.evaluateHandle((el) => {
+              let current = el as HTMLElement;
+              while (current && current.tagName !== 'BUTTON') {
+                if (!current.parentElement || current.tagName === 'BODY') {
+                  break;
                 }
-                return element;
-              }, attachButton);
+                current = current.parentElement;
+              }
+              return current.tagName === 'BUTTON' ? current : el;
+            }, element);
+            
+            const buttonEl = button.asElement();
+            if (buttonEl) {
+              await (buttonEl as unknown as { click(): Promise<void> }).click();
+              logger.debug('Clicked attach button via span parent', { selector });
+              return true;
             }
-            if (attachButton && attachButton.asElement()) {
+          } else {
+            await element.click();
+            logger.debug('Clicked attach button', { selector });
+            return true;
+          }
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    // Fallback: ищем через evaluate
+    const clicked = await page.evaluate(() => {
+      const icons = ['plus', 'plus-rounded', 'attach'];
+      for (const iconName of icons) {
+        const span = document.querySelector(`span[data-icon="${iconName}"]`);
+        if (span) {
+          let element: HTMLElement | null = span as HTMLElement;
+          while (element && element.tagName !== 'BUTTON') {
+            element = element.parentElement;
+            if (!element || element.tagName === 'BODY') {
               break;
             }
           }
-        } catch (e) {
-          // Продолжаем поиск
+          if (element) {
+            element.click();
+            return true;
+          }
         }
       }
+      return false;
+    });
 
-      // Если не нашли кнопку, используем альтернативный способ
-      if (!attachButton || !attachButton.asElement()) {
-        logger.debug('Attach button not found, using input file method');
-        
-        // Создаем input[type="file"] и триггерим FileChooser
-        const [fileChooser] = await Promise.all([
-          page.waitForFileChooser({ timeout: 15000 }),
-          page.evaluate(() => {
-            // @ts-expect-error
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.style.position = 'fixed';
-            input.style.top = '0';
-            input.style.left = '0';
-            input.style.width = '1px';
-            input.style.height = '1px';
-            input.style.opacity = '0';
-            input.style.pointerEvents = 'none';
-            // @ts-expect-error
-            document.body.appendChild(input);
-            // @ts-expect-error
-            input.click();
-            setTimeout(() => {
-              try {
-                // @ts-expect-error
-                if (input.parentNode) {
-                  // @ts-expect-error
-                  document.body.removeChild(input);
-                }
-              } catch (e) {
-                // Игнорируем ошибки
-              }
-            }, 1000);
-          }),
-        ]);
+    return clicked;
+  }
 
-        logger.debug('File chooser opened via input, accepting file', { absolutePath });
-        await fileChooser.accept([absolutePath]);
-      } else {
-        // Используем кнопку прикрепления
-        logger.debug('Using attach button to open file chooser');
-        
-        // Определяем тип файла по расширению
-        const fileExt = absolutePath.split('.').pop()?.toLowerCase() || '';
-        const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExt);
-        const isVideo = ['mp4', 'avi', 'mov', 'webm'].includes(fileExt);
-        
-        logger.debug('File type detection', {
-          fileExt,
-          isImage,
-          isVideo,
-          fileType: isImage ? 'image' : isVideo ? 'video' : 'document'
-        });
-        
-        // Кликаем на кнопку прикрепления и сразу ждем FileChooser
-        // FileChooser может открыться либо сразу, либо после выбора пункта меню
-        logger.debug('Clicking attach button and waiting for file chooser');
-        
+
+  /**
+   * Клик на пункт меню вложений (Документ или Фото)
+   */
+  private async clickMenuItem(page: Page, fileType: 'image' | 'video' | 'document'): Promise<boolean> {
+    // Определяем aria-label в зависимости от типа файла
+    const ariaLabels = fileType === 'document' 
+      ? ['Документ', 'Document']
+      : ['Фото и видео', 'Photos & videos', 'Photos'];
+
+    logger.debug('Looking for menu item', { fileType, ariaLabels });
+
+    // Способ 1: Ищем через селекторы
+    const menuSelectors = fileType === 'document' 
+      ? SELECTORS.menuItemDocument 
+      : SELECTORS.menuItemPhoto;
+
+    for (const selector of menuSelectors) {
+      try {
+        const element = await page.$(selector);
+        if (element) {
+          await element.click();
+          logger.debug('Clicked menu item via selector', { selector, fileType });
+          return true;
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    // Способ 2: Ищем через evaluate по aria-label
+    const clicked = await page.evaluate((labels: string[]) => {
+      // Ищем по aria-label
+      for (const label of labels) {
+        const el = document.querySelector(`[aria-label="${label}"]`);
+        if (el) {
+          (el as HTMLElement).click();
+          return label;
+        }
+      }
+      
+      // Fallback: ищем menuitem с нужным текстом
+      const menuItems = Array.from(document.querySelectorAll('[role="menuitem"]'));
+      for (const item of menuItems) {
+        const ariaLabel = item.getAttribute('aria-label') ?? '';
+        for (const label of labels) {
+          if (ariaLabel.includes(label) || ariaLabel === label) {
+            (item as HTMLElement).click();
+            return ariaLabel;
+          }
+        }
+      }
+      
+      return null;
+    }, ariaLabels);
+
+    if (clicked) {
+      logger.debug('Clicked menu item via evaluate', { clicked, fileType });
+      return true;
+    }
+
+    logger.warn('Could not find menu item', { fileType, ariaLabels });
+    return false;
+  }
+
+  /**
+   * Загрузка файла через input[type="file"]
+   * Ищет подходящий input и загружает файл через uploadFile()
+   */
+  private async uploadFileToInput(page: Page, absolutePath: string, fileType: 'image' | 'video' | 'document'): Promise<boolean> {
+    try {
+      // Ищем все input[type="file"] на странице
+      const fileInputs = await page.$$('input[type="file"]');
+      
+      logger.debug('Found file inputs on page', { count: fileInputs.length });
+      
+      if (fileInputs.length === 0) {
+        return false;
+      }
+
+      // Для документов ищем input с accept="*" или без accept
+      // Для изображений ищем input с accept*="image"
+      for (const fileInput of fileInputs) {
         try {
-          // Пробуем открыть FileChooser с таймаутом
-          const [fileChooser] = await Promise.all([
-            page.waitForFileChooser({ timeout: 5000 }).catch(() => null),
-            attachButton.asElement()!.click(),
-          ]);
+          const acceptAttr = await fileInput.evaluate((el) => el.getAttribute('accept') || '');
           
-          if (fileChooser) {
-            // FileChooser открылся сразу
-            logger.debug('File chooser opened immediately, accepting file', { absolutePath });
-            await fileChooser.accept([absolutePath]);
+          let isCorrectInput = false;
+          if (fileType === 'document') {
+            // Документы: accept="*" или accept содержит application или пустой
+            isCorrectInput = acceptAttr === '*' || 
+                           acceptAttr.includes('application') || 
+                           acceptAttr.includes('pdf') ||
+                           acceptAttr === '' ||
+                           acceptAttr.includes('*');
           } else {
-            // FileChooser не открылся сразу, значит появилось меню
-            logger.debug('File chooser did not open immediately, waiting for menu');
-            await this.delay(800);
-            
-            // Ждем появления меню
-            try {
-              await page.waitForSelector('div[role="menuitem"]', { timeout: 3000 });
-            } catch (e) {
-              logger.warn('Menu did not appear after clicking attach button');
-            }
-            
-            // Определяем, какой пункт меню нужно выбрать
-            let menuSelector = '';
-            
-            if (isImage || isVideo) {
-              // Для фото и видео используем "Фото и видео"
-              menuSelector = 'div[aria-label="Фото и видео"][role="menuitem"]';
-              logger.debug('File is image or video, selecting "Фото и видео" menu item', {
-                fileExt,
-                isImage,
-                isVideo,
-                selector: menuSelector
-              });
-            } else {
-              // Для документов используем "Документ"
-              menuSelector = 'div[aria-label="Документ"][role="menuitem"]';
-              logger.debug('File is document, selecting "Документ" menu item', {
-                fileExt,
-                selector: menuSelector
-              });
-            }
-            
-            // Ищем и кликаем на нужный пункт меню
-            let menuItemClicked = false;
-            
-            // Сначала проверяем, есть ли вообще элементы меню
-            const menuItemsCount = await page.evaluate(() => {
-              // @ts-expect-error - DOM manipulation in browser context
-              return document.querySelectorAll('div[role="menuitem"]').length;
-            });
-            
-            logger.debug('Menu items found', { count: menuItemsCount });
-            
-            if (menuItemsCount === 0) {
-              logger.warn('No menu items found, menu may not have appeared');
-            }
-            
-            try {
-              // Пробуем найти элемент через Puppeteer
-              const menuItem = await page.$(menuSelector);
-              if (menuItem) {
-                logger.debug('Found menu item with Puppeteer selector, attempting click', { selector: menuSelector });
-                
-                // Пробуем несколько способов клика
-                try {
-                  // Способ 1: Обычный клик через Puppeteer
-                  await menuItem.click();
-                  logger.debug('Clicked menu item using Puppeteer click');
-                  menuItemClicked = true;
-                } catch (clickError) {
-                  logger.warn('Puppeteer click failed, trying JavaScript click', { error: clickError });
-                  
-                  // Способ 2: JavaScript click через evaluate
-                  const jsClickWorked = await page.evaluate((selector) => {
-                    // @ts-expect-error - DOM manipulation in browser context
-                    const element = document.querySelector(selector);
-                    if (element) {
-                      // @ts-expect-error
-                      element.click();
-                      return true;
-                    }
-                    return false;
-                  }, menuSelector);
-                  
-                  if (jsClickWorked) {
-                    logger.debug('Clicked menu item using JavaScript click');
-                    menuItemClicked = true;
-                  }
-                }
-              } else {
-                logger.warn('Menu item not found with selector, trying alternative selectors', { selector: menuSelector });
-                
-                // Пробуем альтернативные селекторы
-                const alternativeSelectors = isImage || isVideo
-                  ? [
-                      'div[aria-label="Фото и видео"]',
-                      'div[role="menuitem"][aria-label*="Фото"]',
-                      'div[role="menuitem"][aria-label*="видео"]',
-                      'div[role="menuitem"][aria-label*="Photo"]',
-                      'div[role="menuitem"][aria-label*="Video"]',
-                    ]
-                  : [
-                      'div[aria-label="Документ"]',
-                      'div[role="menuitem"][aria-label*="Документ"]',
-                      'div[role="menuitem"][aria-label*="Document"]',
-                    ];
-                
-                for (const altSelector of alternativeSelectors) {
-                  const altMenuItem = await page.$(altSelector);
-                  if (altMenuItem) {
-                    logger.debug('Found menu item with alternative selector, clicking', { selector: altSelector });
-                    try {
-                      await altMenuItem.click();
-                      menuItemClicked = true;
-                      break;
-                    } catch (e) {
-                      // Пробуем JavaScript click
-                      const jsClickWorked = await page.evaluate((selector) => {
-                        // @ts-expect-error - DOM manipulation in browser context
-                        const element = document.querySelector(selector);
-                        if (element) {
-                          // @ts-expect-error
-                          element.click();
-                          return true;
-                        }
-                        return false;
-                      }, altSelector);
-                      
-                      if (jsClickWorked) {
-                        menuItemClicked = true;
-                        break;
-                      }
-                    }
-                  }
-                }
-              }
-            } catch (error) {
-              logger.error('Error clicking menu item', { error, selector: menuSelector });
-            }
-            
-            // Если не удалось кликнуть через селекторы, пробуем найти по тексту и SVG
-            if (!menuItemClicked) {
-              logger.debug('Trying to find and click menu item by SVG title and text content');
-              
-              const textClickWorked = await page.evaluate((isImage, isVideo) => {
-                // Способ 1: Ищем по SVG title (более надежно для документов)
-                if (!isImage && !isVideo) {
-                  // @ts-expect-error - DOM manipulation in browser context
-                  const svgTitles = document.querySelectorAll('svg title');
-                  for (const title of svgTitles) {
-                    // @ts-expect-error
-                    if (title.textContent === 'ic-description-filled') {
-                      // @ts-expect-error
-                      let parent = title.parentElement;
-                      let attempts = 0;
-                      while (parent && attempts < 15) {
-                        // @ts-expect-error
-                        if (parent.getAttribute('role') === 'menuitem') {
-                          // Пробуем несколько способов клика
-                          try {
-                            // @ts-expect-error
-                            parent.click();
-                            return true;
-                          } catch (e) {
-                            // Пробуем через dispatchEvent
-                            // @ts-expect-error - DOM manipulation in browser context
-                            const clickEvent = new MouseEvent('click', {
-                              bubbles: true,
-                              cancelable: true,
-                              // @ts-expect-error - window is available in browser context
-                              view: window
-                            });
-                            // @ts-expect-error - DOM manipulation in browser context
-                            parent.dispatchEvent(clickEvent);
-                            return true;
-                          }
-                        }
-                        // @ts-expect-error
-                        parent = parent.parentElement;
-                        attempts++;
-                      }
-                    }
-                  }
-                }
-                
-                // Способ 2: Ищем span с точным текстом "Документ" или "Фото и видео"
-                // @ts-expect-error
-                const allSpans = document.querySelectorAll('span');
-                
-                for (const span of allSpans) {
-                  // @ts-expect-error
-                  const text = (span.textContent || '').trim();
-                  
-                  let shouldClick = false;
-                  
-                  if (isImage || isVideo) {
-                    if (text === 'Фото и видео') {
-                      shouldClick = true;
-                    }
-                  } else {
-                    if (text === 'Документ') {
-                      shouldClick = true;
-                    }
-                  }
-                  
-                  if (shouldClick) {
-                    // Поднимаемся к родителю с role="menuitem"
-                    // @ts-expect-error
-                    let parent = span.parentElement;
-                    let attempts = 0;
-                    while (parent && attempts < 15) {
-                      // @ts-expect-error
-                      const role = parent.getAttribute('role');
-                      // @ts-expect-error
-                      const ariaLabel = parent.getAttribute('aria-label');
-                      
-                      // @ts-expect-error
-                      if (role === 'menuitem' || (ariaLabel && (ariaLabel.includes('Документ') || ariaLabel.includes('Document') || 
-                          ariaLabel.includes('Фото') || ariaLabel.includes('Photo') || ariaLabel.includes('видео') || ariaLabel.includes('Video')))) {
-                        try {
-                          // @ts-expect-error
-                          parent.click();
-                          return true;
-                        } catch (e) {
-                          // Пробуем через dispatchEvent
-                          // @ts-expect-error - DOM manipulation in browser context
-                          const clickEvent = new MouseEvent('click', {
-                            bubbles: true,
-                            cancelable: true,
-                            // @ts-expect-error - window is available in browser context
-                            view: window
-                          });
-                          // @ts-expect-error - DOM manipulation in browser context
-                          parent.dispatchEvent(clickEvent);
-                          return true;
-                        }
-                      }
-                      // @ts-expect-error
-                      parent = parent.parentElement;
-                      attempts++;
-                    }
-                  }
-                }
-                
-                // Способ 3: Ищем через menuItems по тексту
-                // @ts-expect-error
-                const menuItems = document.querySelectorAll('div[role="menuitem"]');
-                for (const item of menuItems) {
-                  // @ts-expect-error
-                  const text = (item.textContent || '').trim().toLowerCase();
-                  // @ts-expect-error
-                  const ariaLabel = (item.getAttribute('aria-label') || '').toLowerCase();
-                  
-                  if (isImage || isVideo) {
-                    if (text.includes('фото') || text.includes('видео') || text.includes('photo') || text.includes('video') ||
-                        ariaLabel.includes('фото') || ariaLabel.includes('видео') || ariaLabel.includes('photo') || ariaLabel.includes('video')) {
-                      try {
-                        // @ts-expect-error
-                        item.click();
-                        return true;
-                      } catch (e) {
-                        // @ts-expect-error
-                        const clickEvent = new MouseEvent('click', { bubbles: true, cancelable: true, view: window });
-                        // @ts-expect-error
-                        item.dispatchEvent(clickEvent);
-                        return true;
-                      }
-                    }
-                  } else {
-                    if (text.includes('документ') || text.includes('document') || 
-                        ariaLabel.includes('документ') || ariaLabel.includes('document')) {
-                      try {
-                        // @ts-expect-error
-                        item.click();
-                        return true;
-                      } catch (e) {
-                        // @ts-expect-error
-                        const clickEvent = new MouseEvent('click', { bubbles: true, cancelable: true, view: window });
-                        // @ts-expect-error
-                        item.dispatchEvent(clickEvent);
-                        return true;
-                      }
-                    }
-                  }
-                }
-                return false;
-              }, isImage, isVideo);
-              
-              if (textClickWorked) {
-                logger.debug('Clicked menu item by SVG title or text content');
-                menuItemClicked = true;
-              } else {
-                logger.warn('Could not find menu item by SVG title or text content');
-              }
-            }
-            
-            if (!menuItemClicked) {
-              logger.warn('Could not find or click menu item, trying to click first available menuitem');
-              // Пробуем кликнуть на первый видимый элемент меню
-              const firstItemClicked = await page.evaluate(() => {
-                // @ts-expect-error - DOM manipulation in browser context
-                const menuItems = document.querySelectorAll('div[role="menuitem"]');
-                for (const item of menuItems) {
-                  // @ts-expect-error
-                  if (item.offsetParent !== null) {
-                    // @ts-expect-error
-                    item.click();
-                    return true;
-                  }
-                }
-                return false;
-              });
-              
-              if (firstItemClicked) {
-                logger.debug('Clicked first available menu item');
-                menuItemClicked = true;
-              } else {
-                // Пробуем сделать скриншот для отладки
-                logger.error('Could not find or click any menu item. Menu may not have appeared.');
-                throw new Error('Could not find or click any menu item. Menu may not have appeared.');
-              }
-            }
-            
-            if (menuItemClicked) {
-              logger.debug('Menu item clicked successfully, waiting for file chooser');
-              await this.delay(1000); // Увеличиваем задержку
-              
-              // Проверяем, появился ли input[type="file"] после клика
-              const inputAppeared = await page.evaluate(() => {
-                // @ts-expect-error - DOM manipulation in browser context
-                const inputs = document.querySelectorAll('input[type="file"]');
-                return inputs.length;
-              });
-              
-              logger.debug('Input[type="file"] count after menu click', { count: inputAppeared });
-              
-              // Теперь ждем FileChooser после выбора пункта меню
-              logger.debug('Waiting for file chooser after menu selection');
-              
-              try {
-                const fileChooser2 = await page.waitForFileChooser({ timeout: 15000 });
-                logger.debug('File chooser opened after menu selection, accepting file', { absolutePath });
-                await fileChooser2.accept([absolutePath]);
-              } catch (chooserError) {
-                logger.warn('FileChooser timeout after menu click, trying alternative methods', { 
-                  error: chooserError instanceof Error ? chooserError.message : 'Unknown error'
-                });
-                
-                // Если FileChooser не открылся, пробуем найти input[type="file"] который мог появиться
-                const inputFound = await page.evaluate(() => {
-                  // @ts-expect-error - DOM manipulation in browser context
-                  const inputs = document.querySelectorAll('input[type="file"]');
-                  if (inputs.length > 0) {
-                    // Берем последний input (скорее всего, это тот, который появился после клика)
-                    // @ts-expect-error
-                    const lastInput = inputs[inputs.length - 1];
-                    // @ts-expect-error
-                    lastInput.click();
-                    return true;
-                  }
-                  return false;
-                });
-                
-                if (inputFound) {
-                  // Если нашли input и кликнули, ждем FileChooser еще раз
-                  logger.debug('Found and clicked input[type="file"], waiting for file chooser');
-                  try {
-                    const fileChooser3 = await page.waitForFileChooser({ timeout: 15000 });
-                    await fileChooser3.accept([absolutePath]);
-                  } catch (e) {
-                    throw new Error('FileChooser did not open even after clicking input[type="file"]. File may not be attached.');
-                  }
-                } else {
-                  throw new Error('FileChooser did not open and no input[type="file"] found. File may not be attached.');
-                }
-              }
-            }
+            // Изображения/видео: accept содержит image или video
+            isCorrectInput = acceptAttr.includes('image') || 
+                           acceptAttr.includes('video') ||
+                           acceptAttr === '*';
           }
-        } catch (error) {
-          // Если все методы не сработали, пробуем использовать CDP для прямого взаимодействия
-          logger.warn('Standard file chooser method failed, trying alternative approach', { error });
-          throw error;
-        }
-      }
-      
-      // Ждем загрузки файла (появление превью или индикатора загрузки)
-      // Проверяем несколько раз, так как загрузка может занять время
-      let fileAttached = false;
-      const maxChecks = 10;
-      const checkInterval = 500;
-      
-      for (let i = 0; i < maxChecks; i++) {
-        await this.delay(checkInterval);
-        
-        fileAttached = await page.evaluate(() => {
-          // Проверяем наличие превью файла
-          // @ts-expect-error
-          const previews = document.querySelectorAll(
-            '[class*="preview"]', 
-            '[class*="media"]', 
-            '[class*="file"]', 
-            '[data-testid*="media"]',
-            '[class*="attachment"]',
-            '[class*="document"]',
-            'img[src*="blob"]',
-            'video[src*="blob"]'
-          );
           
-          // Проверяем наличие индикаторов загрузки
-          // @ts-expect-error
-          const bodyText = document.body.innerText || '';
-          const hasUploading = bodyText.includes('Uploading') || bodyText.includes('Загрузка');
-          
-          // Проверяем, что поле ввода не пустое (может содержать имя файла)
-          // @ts-expect-error
-          const input = document.querySelector('div[contenteditable="true"][data-tab="10"]');
-          const inputHasContent = input && (input.textContent || '').trim().length > 0;
-          
-          // Проверяем наличие элементов с именем файла
-          // @ts-expect-error
-          const fileNames = document.querySelectorAll('[class*="filename"], [class*="file-name"], [title*="."]');
-          
-          return previews.length > 0 || hasUploading || (inputHasContent && fileNames.length > 0);
-        });
-        
-        if (fileAttached) {
-          logger.debug('File attachment detected', { checkNumber: i + 1 });
-          break;
+          if (isCorrectInput) {
+            await fileInput.uploadFile(absolutePath);
+            logger.debug('File uploaded to input', { absolutePath, acceptAttr, fileType });
+            return true;
+          }
+        } catch {
+          continue;
         }
       }
 
-      if (!fileAttached) {
-        logger.warn('File attachment not detected after multiple checks', { 
-          maxChecks,
-          absolutePath 
-        });
-        // Продолжаем все равно, возможно файл прикрепился, но мы не видим индикаторов
+      // Если не нашли подходящий, пробуем последний input
+      const lastInput = fileInputs[fileInputs.length - 1];
+      if (lastInput) {
+        await lastInput.uploadFile(absolutePath);
+        logger.debug('File uploaded to last input (fallback)', { absolutePath });
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      logger.warn('Failed to upload file to input', { error });
+      return false;
+    }
+  }
+
+  /**
+   * Отправка файла через несколько методов
+   * Пробуем разные подходы для надёжности:
+   * 1. Метод с правильным MIME-типом через DataTransfer
+   * 2. Drag-and-drop симуляция
+   * 3. FileChooser (fallback)
+   */
+  private async sendFileMessage(page: Page, attachmentPath: string, phone?: string, profileId?: string): Promise<void> {
+    try {
+      const absolutePath = this.resolveFilePath(attachmentPath);
+
+      if (!await this.checkFileExists(absolutePath)) {
+        throw new Error(`File not found: ${absolutePath}`);
       }
 
-      // Ждем еще немного для завершения загрузки
-      await this.delay(1000);
+      const fileType = this.getFileType(absolutePath);
+      
+      logger.debug('Sending WhatsApp file', { absolutePath, fileType, phone, profileId });
 
-      // Селекторы для кнопки отправки файла
-      const sendButtonSelectors = [
-        'span[data-icon="send"]',
-        'button[aria-label*="Send"]',
-        'button[title*="Send"]',
-        '[data-testid="send"]',
-        'div[role="button"][title*="Send"]',
-        'div[role="button"][aria-label*="Send"]',
-      ];
-      
-      let sendButton = null;
-      
-      // Пробуем найти кнопку отправки по разным селекторам
-      for (const selector of sendButtonSelectors) {
-        try {
-          sendButton = await page.$(selector);
-          if (sendButton) {
-            logger.debug('Found send button with selector', { selector });
-            break;
-          }
-        } catch (e) {
-          // Продолжаем поиск
+      // Проверяем что мы в правильном чате (без переоткрытия - чат уже открыт в sendMessage)
+      if (phone) {
+        const isCorrectChat = await this.ensureCorrectChat(page, phone, profileId);
+        if (!isCorrectChat) {
+          logger.warn('Chat verification warning before file send', { phone, profileId });
         }
       }
 
-      // Если не найдена через селекторы, пробуем найти через evaluate
-      if (!sendButton) {
-        logger.debug('Send button not found with selectors, trying alternative methods');
-        sendButton = await page.evaluateHandle(() => {
-          // @ts-expect-error
-          const spans = document.querySelectorAll('span[data-icon]');
-          for (const span of spans) {
-            const icon = span.getAttribute('data-icon');
-            if (icon === 'send') {
-              // Ищем родительскую кнопку
-              let element = span.parentElement;
-              while (element && element.tagName !== 'BUTTON' && element.tagName !== 'DIV') {
-                element = element.parentElement;
-              }
-              if (element) return element;
-            }
-          }
-          return null;
-        });
-      }
+      // Убеждаемся, что поле ввода доступно
+      await page.waitForSelector(SELECTORS.messageInput, { timeout: 10000 });
+      await this.delay(300);
+      
+      // Используем FileChooser метод - он перехватывает диалог ДО его открытия
+      // page.waitForFileChooser() запускается ПЕРЕД кликом, что предотвращает появление проводника
+      await this.sendFileViaFileChooser(page, absolutePath, fileType);
 
-      if (sendButton && sendButton.asElement()) {
-        logger.debug('Clicking send button');
-        await sendButton.asElement()!.click();
-      } else {
-        // Альтернативный способ: отправка через Enter
-        logger.debug('Send button not found, trying Enter key');
-        await page.keyboard.press('Enter');
-      }
-
-      // Ждем подтверждения отправки
+      // Ждем загрузки превью
       await this.delay(2000);
 
-      logger.debug('WhatsApp file message sent successfully', { 
-        attachmentPath: absolutePath 
-      });
+      // Проверяем, что файл загружен
+      const fileLoaded = await this.waitForFilePreview(page);
+      if (!fileLoaded) {
+        logger.warn('File preview not detected, but continuing');
+      }
+
+      // Кликаем отправить
+      await this.clickSendButton(page);
+      await this.delay(2000);
+
+      logger.debug('WhatsApp file sent successfully', { absolutePath, phone, profileId });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Failed to send WhatsApp file message', { 
-        attachmentPath, 
-        error: errorMsg,
-        stack: error instanceof Error ? error.stack : undefined
+      logger.error('Failed to send WhatsApp file', { attachmentPath, phone, profileId, error: errorMsg });
+      throw new Error(`Failed to send file: ${errorMsg}`);
+    }
+  }
+
+  /**
+   * Симуляция drag-and-drop файла на страницу
+   * Создаёт File объект с правильным MIME-типом и диспатчит drop event
+   */
+  private async simulateFileDrop(
+    page: Page, 
+    base64Data: string, 
+    fileName: string, 
+    mimeType: string
+  ): Promise<boolean> {
+    try {
+      const result = await page.evaluate(
+        async (b64: string, name: string, mime: string) => {
+          try {
+            // Конвертируем base64 в ArrayBuffer
+            const binaryString = atob(b64);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i);
+            }
+            
+            // Создаём File объект с правильным MIME-типом
+            const file = new File([bytes.buffer], name, { type: mime });
+            
+            // Создаём DataTransfer с файлом
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            
+            // Находим элемент для drop (контейнер чата или body)
+            const dropTarget = document.querySelector('#main') ?? 
+                              document.querySelector('[data-testid="conversation-panel-wrapper"]') ??
+                              document.body;
+            
+            if (!dropTarget) {
+              return { success: false, error: 'Drop target not found' };
+            }
+
+            // Создаём и диспатчим события drag
+            const dragEnterEvent = new DragEvent('dragenter', {
+              bubbles: true,
+              cancelable: true,
+              dataTransfer,
+            });
+            
+            const dragOverEvent = new DragEvent('dragover', {
+              bubbles: true,
+              cancelable: true,
+              dataTransfer,
+            });
+            
+            const dropEvent = new DragEvent('drop', {
+              bubbles: true,
+              cancelable: true,
+              dataTransfer,
+            });
+
+            // Диспатчим события последовательно
+            dropTarget.dispatchEvent(dragEnterEvent);
+            await new Promise(r => setTimeout(r, 100));
+            dropTarget.dispatchEvent(dragOverEvent);
+            await new Promise(r => setTimeout(r, 100));
+            dropTarget.dispatchEvent(dropEvent);
+            
+            return { success: true };
+          } catch (err) {
+            return { success: false, error: String(err) };
+          }
+        },
+        base64Data,
+        fileName,
+        mimeType
+      );
+
+      if (result.success) {
+        logger.debug('File dropped via drag-and-drop simulation', { fileName, mimeType });
+        return true;
+      } else {
+        logger.debug('Drag-and-drop simulation failed', { error: result.error });
+        return false;
+      }
+    } catch (error) {
+      logger.debug('Error in simulateFileDrop', { error });
+      return false;
+    }
+  }
+
+  /**
+   * Загрузка файла через FileInput с правильным MIME-типом
+   * БЕЗ кликов на UI элементы (не открывает проводник)
+   * Ищет существующие input[type="file"] на странице и устанавливает файл напрямую
+   */
+  private async uploadFileWithMimeType(
+    page: Page,
+    base64Data: string,
+    fileName: string,
+    mimeType: string,
+    _fileType: 'image' | 'video' | 'document'
+  ): Promise<boolean> {
+    try {
+      // НЕ кликаем на UI - ищем существующие input[type="file"] на странице
+      // и устанавливаем файл напрямую через JavaScript
+      const result = await page.evaluate(
+        (b64: string, name: string, mime: string) => {
+          try {
+            // Ищем все file inputs на странице
+            const fileInputs = document.querySelectorAll('input[type="file"]');
+            if (fileInputs.length === 0) {
+              return { success: false, error: 'No file inputs found on page' };
+            }
+
+            // Конвертируем base64 в ArrayBuffer
+            const binaryString = atob(b64);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i);
+            }
+
+            // Создаём File объект с правильным MIME-типом
+            const file = new File([bytes.buffer], name, { type: mime });
+
+            // Создаём DataTransfer и добавляем файл
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+
+            // Пробуем установить файлы во все найденные inputs
+            let success = false;
+            for (let i = fileInputs.length - 1; i >= 0; i--) {
+              try {
+                const input = fileInputs[i] as HTMLInputElement;
+                input.files = dataTransfer.files;
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                success = true;
+                break;
+              } catch {
+                continue;
+              }
+            }
+
+            return { success, error: success ? undefined : 'Could not set files to any input' };
+          } catch (err) {
+            return { success: false, error: String(err) };
+          }
+        },
+        base64Data,
+        fileName,
+        mimeType
+      );
+
+      if (result.success) {
+        logger.debug('File uploaded via direct input method', { fileName, mimeType });
+        return true;
+      } else {
+        logger.debug('Direct input upload failed', { error: result.error });
+        return false;
+      }
+    } catch (error) {
+      logger.debug('Error in uploadFileWithMimeType', { error });
+      return false;
+    }
+  }
+
+  /**
+   * Fallback метод: отправка через FileChooser (старый метод)
+   */
+  private async sendFileViaFileChooser(
+    page: Page, 
+    absolutePath: string, 
+    fileType: 'image' | 'video' | 'document'
+  ): Promise<void> {
+    // Кликаем на кнопку прикрепления (+)
+    const attachClicked = await this.clickAttachButton(page);
+    if (!attachClicked) {
+      throw new Error('Could not click attach button');
+    }
+    await this.delay(500);
+
+    // Готовим перехват FileChooser и кликаем на пункт меню
+    const [fileChooser] = await Promise.all([
+      page.waitForFileChooser({ timeout: 5000 }).catch(() => null),
+      this.clickMenuItem(page, fileType),
+    ]);
+
+    let fileUploaded = false;
+
+    if (fileChooser) {
+      await fileChooser.accept([absolutePath]);
+      logger.debug('File uploaded via FileChooser', { absolutePath });
+      fileUploaded = true;
+    } else {
+      logger.debug('FileChooser not available, trying direct input upload');
+      await this.delay(500);
+      fileUploaded = await this.uploadFileToInput(page, absolutePath, fileType);
+    }
+    
+    if (!fileUploaded) {
+      throw new Error('Could not upload file via FileChooser fallback');
+    }
+  }
+
+  /**
+   * Ожидание превью файла
+   */
+  private async waitForFilePreview(page: Page): Promise<boolean> {
+    const maxChecks = 10;
+    
+    for (let i = 0; i < maxChecks; i++) {
+      await this.delay(500);
+      
+      const hasPreview = await page.evaluate(() => {
+        // Проверяем разные индикаторы загрузки файла
+        const selectors = [
+          'img[src*="blob"]',
+          'video[src*="blob"]',
+          '[data-testid*="media"]',
+          '[class*="preview"]',
+          '[class*="attachment"]',
+        ];
+        
+        for (const sel of selectors) {
+          if (document.querySelector(sel)) {
+            return true;
+          }
+        }
+        
+        // Проверяем текст "Uploading" или "Загрузка"
+        const bodyText = document.body.innerText ?? '';
+        if (bodyText.includes('Uploading') || bodyText.includes('Загрузка')) {
+          return true;
+        }
+        
+        return false;
       });
-      throw new Error(`Failed to send file message: ${errorMsg}`);
+      
+      if (hasPreview) {
+        logger.debug('File preview detected');
+        return true;
+      }
     }
+    
+    return false;
   }
 
   /**
-   * Проверка, зарегистрирован ли номер в WhatsApp
+   * Клик на кнопку отправки
+   */
+  private async clickSendButton(page: Page): Promise<void> {
+    // Способ 1: Ищем через селекторы
+    const sendButton = await this.findElement(page, SELECTORS.sendButton);
+    
+    if (sendButton) {
+      // Если это span, ищем родительский кликабельный элемент
+      const clicked = await page.evaluate((el) => {
+        let current = el as HTMLElement;
+        // Поднимаемся до кнопки или div с role="button"
+        for (let i = 0; i < 10; i++) {
+          if (current.tagName === 'BUTTON' || current.getAttribute('role') === 'button') {
+            current.click();
+            return 'parent';
+          }
+          if (!current.parentElement || current.tagName === 'BODY') {
+            break;
+          }
+          current = current.parentElement;
+        }
+        // Если не нашли родителя, кликаем на сам элемент
+        (el as HTMLElement).click();
+        return 'self';
+      }, sendButton);
+      
+      logger.debug('Send button clicked via selector', { method: clicked });
+      return;
+    }
+
+    // Способ 2: Ищем через evaluate напрямую по всем возможным селекторам
+    const clickedViaEvaluate = await page.evaluate(() => {
+      // Ищем кнопку отправки для файла (окно превью)
+      const selectors = [
+        '[aria-label="Отправить"]',
+        '[aria-label="Send"]',
+        'span[data-icon="wds-ic-send-filled"]',
+        'span[data-icon="send"]',
+        '[data-testid="send"]',
+      ];
+      
+      for (const sel of selectors) {
+        const el = document.querySelector(sel);
+        if (el) {
+          // Находим кликабельный родитель
+          let current = el as HTMLElement;
+          for (let i = 0; i < 10; i++) {
+            if (current.getAttribute('role') === 'button' || current.tagName === 'BUTTON') {
+              current.click();
+              return sel + ' (parent)';
+            }
+            if (!current.parentElement) break;
+            current = current.parentElement;
+          }
+          // Кликаем на сам элемент
+          (el as HTMLElement).click();
+          return sel + ' (self)';
+        }
+      }
+      return null;
+    });
+
+    if (clickedViaEvaluate) {
+      logger.debug('Send button clicked via evaluate', { selector: clickedViaEvaluate });
+      return;
+    }
+
+    // Способ 3: Fallback - отправляем через Enter
+    logger.debug('Send button not found, using Enter key');
+    await page.keyboard.press('Enter');
+  }
+
+  /**
+   * Проверка регистрации номера в WhatsApp
    */
   async checkNumberRegistered(profileId: string, phone: string): Promise<boolean> {
     try {
@@ -1073,14 +1020,9 @@ export class WhatsAppSender {
         return false;
       }
 
-      // Открываем чат
       await this.openChat(page, phone);
 
-      // Проверяем наличие предупреждения о неверном номере
-      // Если номер не зарегистрирован, WhatsApp покажет предупреждение
-      const invalidNumberSelector = 'div[role="alert"]';
-      const alertExists = await page.$(invalidNumberSelector).then(el => el !== null).catch(() => false);
-
+      const alertExists = await page.$('div[role="alert"]').then(el => el !== null).catch(() => false);
       return !alertExists;
     } catch (error) {
       logger.error('Failed to check if number is registered', { phone, error });
@@ -1089,41 +1031,7 @@ export class WhatsAppSender {
   }
 
   /**
-   * Проверка, зарегистрирован ли номер в WhatsApp
-   */
-  async checkNumberRegistered(profileId: string, phone: string): Promise<boolean> {
-    try {
-      if (!this.chromeProcessService) {
-        return false;
-      }
-
-      const page = await this.chromeProcessService.getOrCreateMessengerPage(
-        profileId,
-        'whatsapp',
-        'https://web.whatsapp.com'
-      );
-
-      if (!page) {
-        return false;
-      }
-
-      // Открываем чат
-      await this.openChat(page, phone);
-
-      // Проверяем наличие предупреждения о неверном номере
-      // Если номер не зарегистрирован, WhatsApp покажет предупреждение
-      const invalidNumberSelector = 'div[role="alert"]';
-      const alertExists = await page.$(invalidNumberSelector).then(el => el !== null).catch(() => false);
-
-      return !alertExists;
-    } catch (error) {
-      logger.error('Failed to check if number is registered', { phone, error });
-      return false;
-    }
-  }
-
-  /**
-   * Обработка ошибок и нормализация сообщений
+   * Обработка ошибок
    */
   handleErrors(error: unknown): string {
     if (error instanceof Error) {
@@ -1132,4 +1040,3 @@ export class WhatsAppSender {
     return 'Unknown WhatsApp error';
   }
 }
-

@@ -40,10 +40,29 @@ const TELEGRAM_SELECTORS = {
   SEND_BUTTON: '.btn-send, .send-button, button[aria-label*="Send"]',
   // Контейнер сообщений
   MESSAGES_CONTAINER: '.messages-container, .bubbles',
-  // Кнопка прикрепления файла (обновленные селекторы для Telegram Web K)
-  ATTACH_BUTTON: 'button[aria-label*="Attach"], button[aria-label*="Прикрепить"], .btn-attach, .attach-button, [data-testid="attach"], button[title*="Attach"], button[title*="Прикрепить"]',
+  // Кнопка прикрепления файла (Telegram Web K - точные селекторы)
+  ATTACH_BUTTON: [
+    '.btn-icon.btn-menu-toggle.attach-file',  // Основной селектор из DOM
+    '.attach-file',
+    'div.btn-icon.attach-file',
+    'button.attach-file',
+    '[class*="attach-file"]',
+  ],
+  // Пункты меню вложений (после клика на кнопку прикрепления)
+  MENU_ITEM_DOCUMENT: [
+    '.btn-menu-item span.i18n:has-text("Document")',
+    '.btn-menu-item:has(span:contains("Document"))',
+    '.btn-menu-item-text:contains("Document")',
+    'div.btn-menu-item:nth-child(2)',  // Document обычно второй пункт
+  ],
+  MENU_ITEM_PHOTO: [
+    '.btn-menu-item span.i18n:has-text("Photo")',
+    '.btn-menu-item:has(span:contains("Photo"))',
+    '.btn-menu-item-text:contains("Photo")',
+    'div.btn-menu-item:nth-child(1)',  // Photo or Video обычно первый пункт
+  ],
   // Кнопка отправки файла после загрузки
-  SEND_FILE_BUTTON: 'button[aria-label*="Send"], button[aria-label*="Отправить"], .btn-send, [data-testid="send"]',
+  SEND_FILE_BUTTON: '.btn-send, button[aria-label*="Send"], button[aria-label*="Отправить"], [data-testid="send"]',
   // Индикатор загрузки
   LOADING_INDICATOR: '.preloader-container, .loading-screen',
   // Premium ограничение - карточка с сообщением
@@ -82,6 +101,11 @@ const USER_NOT_FOUND_ERROR_TEXTS = [
 
 export class TelegramSender {
   private chromeProcessService?: ChromeProcessService;
+  /**
+   * Кэш текущего открытого чата для каждого профиля
+   * Ключ: profileId, Значение: нормализованный номер телефона
+   */
+  private currentOpenChat: Map<string, string> = new Map();
 
   constructor(chromeProcessService?: ChromeProcessService) {
     this.chromeProcessService = chromeProcessService;
@@ -120,8 +144,14 @@ export class TelegramSender {
         throw new Error('Failed to get Telegram page for profile');
       }
 
-      // Открываем чат с номером
-      await this.openChat(page, input.phone);
+      // ВАЖНО: Активируем вкладку Telegram перед отправкой
+      // Это гарантирует, что мы работаем именно с этой вкладкой,
+      // даже если мониторинг статуса переключил фокус
+      await page.bringToFront();
+      await this.delay(100);
+
+      // Открываем чат с номером (передаём profileId для кэширования)
+      await this.openChat(page, input.phone, input.profileId);
 
       // Отправляем сообщение
       if (input.text) {
@@ -136,7 +166,7 @@ export class TelegramSender {
       // Отправляем вложения, если есть
       if (input.attachments && input.attachments.length > 0) {
         for (const attachment of input.attachments) {
-          await this.sendFileMessage(page, attachment);
+          await this.sendFileMessage(page, attachment, input.phone, input.profileId);
           // Небольшая задержка между файлами
           await this.delay(1000);
         }
@@ -376,8 +406,9 @@ export class TelegramSender {
 
   /**
    * Открытие чата по номеру через прямую ссылку
+   * Проверяет, не открыт ли уже чат с этим номером - если да, не перезагружает страницу
    */
-  private async openChat(page: Page, phone: string): Promise<void> {
+  private async openChat(page: Page, phone: string, profileId?: string): Promise<void> {
     try {
       // Нормализуем номер телефона (убираем все кроме цифр)
       const normalizedPhone = phone.replace(/[^\d]/g, '');
@@ -385,13 +416,57 @@ export class TelegramSender {
       // Убеждаемся, что страница готова (особенно важно для первого контакта)
       // Проверяем, что страница не закрыта и загружена
       if (page.isClosed()) {
+        // Сбрасываем кэш для этого профиля если страница закрыта
+        if (profileId) {
+          this.currentOpenChat.delete(profileId);
+        }
         throw new Error('Page is closed');
       }
 
-      // Если страница еще не загружена на базовый URL Telegram, сначала загружаем его
+      // Проверяем, не открыт ли уже чат с этим номером
+      // ВАЖНО: После ошибки на предыдущем контакте кэш уже сброшен, 
+      // поэтому для нового контакта чат будет переоткрыт
+      const cachedPhone = profileId ? this.currentOpenChat.get(profileId) : null;
+      
+      if (cachedPhone === normalizedPhone) {
+        // Чат уже открыт с этим номером - проверяем что поле ввода доступно
+        logger.debug('Chat already open for this phone, checking input field', { phone: normalizedPhone, profileId });
+        
+        try {
+          // Проверяем что поле ввода есть
+          const inputExists = await page.$(TELEGRAM_SELECTORS.MESSAGE_INPUT);
+          if (inputExists) {
+            // Проверяем, что мы действительно в чате (нет ошибок на странице)
+            const hasErrors = await this.checkUserNotFound(page);
+            if (!hasErrors) {
+              logger.debug('Chat verified, using existing session', { phone: normalizedPhone });
+              await this.delay(200);
+              return;
+            }
+          }
+          // Поле ввода не найдено или есть ошибки - нужно переоткрыть чат
+          logger.debug('Chat verification failed, reopening', { phone: normalizedPhone });
+          // Сбрасываем кэш
+          if (profileId) {
+            this.currentOpenChat.delete(profileId);
+          }
+        } catch {
+          // Ошибка проверки - переоткроем чат
+          logger.debug('Chat check error, reopening', { phone: normalizedPhone });
+          // Сбрасываем кэш
+          if (profileId) {
+            this.currentOpenChat.delete(profileId);
+          }
+        }
+      }
+
+      // Проверяем текущее состояние страницы
       const currentUrl = page.url();
-      if (!currentUrl.includes('web.telegram.org')) {
-        logger.debug('Page not on Telegram Web, navigating to base URL first', { currentUrl });
+      
+      // Если страница не на Telegram Web или содержит tgaddr (предыдущий запрос на чат),
+      // сначала загружаем базовый URL для "чистого" состояния
+      if (!currentUrl.includes('web.telegram.org') || currentUrl.includes('tgaddr')) {
+        logger.debug('Resetting page to base Telegram URL', { currentUrl });
         await page.goto('https://web.telegram.org/k', { waitUntil: 'networkidle2', timeout: 30000 });
         // Даем время для инициализации Telegram Web
         await this.delay(2000);
@@ -436,12 +511,20 @@ export class TelegramSender {
       const userNotFound = await this.checkUserNotFound(page);
       if (userNotFound) {
         logger.warn('User not found error detected', { phone: normalizedPhone });
+        // ВАЖНО: Сбрасываем кэш, чтобы следующий контакт гарантированно переоткрыл чат
+        if (profileId) {
+          this.currentOpenChat.delete(profileId);
+        }
         throw new Error('USER_NOT_FOUND: Sorry, this user doesn\'t seem to exist');
       }
 
       const hasPremiumRestriction = await this.checkPremiumRestriction(page);
       if (hasPremiumRestriction) {
         logger.warn('Premium restriction detected', { phone: normalizedPhone });
+        // ВАЖНО: Сбрасываем кэш, чтобы следующий контакт гарантированно переоткрыл чат
+        if (profileId) {
+          this.currentOpenChat.delete(profileId);
+        }
         throw new Error('PREMIUM_RESTRICTION: Only Premium users can message this user');
       }
 
@@ -456,12 +539,20 @@ export class TelegramSender {
         const userNotFoundRetry = await this.checkUserNotFound(page);
         if (userNotFoundRetry) {
           logger.warn('User not found error detected on retry', { phone: normalizedPhone });
+          // ВАЖНО: Сбрасываем кэш
+          if (profileId) {
+            this.currentOpenChat.delete(profileId);
+          }
           throw new Error('USER_NOT_FOUND: Sorry, this user doesn\'t seem to exist');
         }
 
         const hasPremiumRestrictionRetry = await this.checkPremiumRestriction(page);
         if (hasPremiumRestrictionRetry) {
           logger.warn('Premium restriction detected on retry', { phone: normalizedPhone });
+          // ВАЖНО: Сбрасываем кэш
+          if (profileId) {
+            this.currentOpenChat.delete(profileId);
+          }
           throw new Error('PREMIUM_RESTRICTION: Only Premium users can message this user');
         }
 
@@ -471,14 +562,28 @@ export class TelegramSender {
           phone: normalizedPhone,
           error: errorMsg 
         });
+        // Сбрасываем кэш при ошибке
+        if (profileId) {
+          this.currentOpenChat.delete(profileId);
+        }
         throw new Error(`Failed to find message input field: ${errorMsg}`);
       }
 
       // Небольшая задержка для стабилизации интерфейса
       await this.delay(1000);
 
-      logger.debug('Telegram chat opened', { phone: normalizedPhone, finalUrl });
+      // Сохраняем в кэш
+      if (profileId) {
+        this.currentOpenChat.set(profileId, normalizedPhone);
+      }
+
+      logger.debug('Telegram chat opened', { phone: normalizedPhone, finalUrl, profileId });
     } catch (error) {
+      // ВСЕГДА сбрасываем кэш при любой ошибке
+      if (profileId) {
+        this.currentOpenChat.delete(profileId);
+      }
+      
       // Если это уже наши специфичные ошибки - пробрасываем дальше
       if (error instanceof Error && (
         error.message.includes('PREMIUM_RESTRICTION') || 
@@ -589,9 +694,268 @@ export class TelegramSender {
   }
 
   /**
+   * Определение типа файла по расширению
+   */
+  private getFileType(filePath: string): 'image' | 'video' | 'document' {
+    const ext = path.extname(filePath).toLowerCase();
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'];
+    const videoExtensions = ['.mp4', '.webm', '.avi', '.mov', '.mkv', '.flv', '.wmv'];
+    
+    if (imageExtensions.includes(ext)) {
+      return 'image';
+    } else if (videoExtensions.includes(ext)) {
+      return 'video';
+    }
+    return 'document';
+  }
+
+  /**
+   * Поиск кнопки прикрепления файла
+   */
+  private async findAttachButton(page: Page): Promise<import('puppeteer').ElementHandle<Element> | null> {
+    // Пробуем все селекторы из массива
+    for (const selector of TELEGRAM_SELECTORS.ATTACH_BUTTON) {
+      try {
+        const button = await page.$(selector);
+        if (button) {
+          logger.debug('Attach button found with selector', { selector });
+          return button;
+        }
+      } catch {
+        // Продолжаем с другими селекторами
+      }
+    }
+
+    // Fallback: ищем через evaluate
+    logger.debug('Attach button not found with predefined selectors, trying evaluate');
+    
+    const button = await page.$('[class*="attach"]');
+    if (button) {
+      // Проверяем, что это нужный элемент
+      const isCorrectElement = await page.evaluate((el) => {
+        return el.classList.contains('btn-icon') || 
+               el.classList.contains('btn-menu-toggle') || 
+               el.classList.contains('attach-file') ||
+               el.tagName === 'BUTTON';
+      }, button);
+      
+      if (isCorrectElement) {
+        logger.debug('Attach button found via fallback selector');
+        return button;
+      }
+    }
+    
+    // Еще один fallback - ищем через evaluate
+    const foundButton = await page.evaluateHandle(() => {
+      const elements = document.querySelectorAll('[class*="attach"]');
+      for (let i = 0; i < elements.length; i++) {
+        const el = elements[i];
+        if (el.classList.contains('btn-icon') || 
+            el.classList.contains('btn-menu-toggle') || 
+            el.classList.contains('attach-file') ||
+            el.tagName === 'BUTTON') {
+          return el;
+        }
+      }
+      return null;
+    });
+
+    const element = foundButton.asElement() as import('puppeteer').ElementHandle<Element> | null;
+    if (element) {
+      logger.debug('Attach button found via evaluate');
+      return element;
+    }
+
+    return null;
+  }
+
+  /**
+   * Клик по пункту меню (Document или Photo/Video)
+   * Использует правильные селекторы из DOM Telegram Web K
+   */
+  private async clickMenuItem(page: Page, fileType: 'image' | 'video' | 'document'): Promise<boolean> {
+    const isMedia = fileType === 'image' || fileType === 'video';
+    // Используем точные тексты из DOM: "Photo or Video" и "Document"
+    const targetTexts = isMedia 
+      ? ['Photo or Video', 'Photo', 'Photos & videos', 'Photos']
+      : ['Document', 'Documents'];
+    
+    logger.debug('Looking for menu item', { fileType, targetTexts });
+    
+    // Ждем появления меню
+    await this.delay(500);
+    
+    // Ищем пункт меню через evaluate
+    const clicked = await page.evaluate((texts: string[], isMediaType: boolean) => {
+      // Ищем открытое меню (может быть в разных местах)
+      const menuSelectors = [
+        '.btn-menu.top-left.active',
+        '.btn-menu.active',
+        '.btn-menu.top-left',
+        '.btn-menu',
+        '[class*="btn-menu"][class*="active"]',
+      ];
+      
+      let menu: Element | null = null;
+      for (const selector of menuSelectors) {
+        menu = document.querySelector(selector);
+        if (menu) {
+          break;
+        }
+      }
+      
+      if (!menu) {
+        return { success: false, reason: 'Menu not found' };
+      }
+      
+      // Ищем пункты меню
+      const menuItems = menu.querySelectorAll('.btn-menu-item');
+      if (menuItems.length === 0) {
+        return { success: false, reason: 'No menu items found' };
+      }
+      
+      // Способ 1: Ищем по тексту в .btn-menu-item-text или span.i18n
+      for (let i = 0; i < menuItems.length; i++) {
+        const item = menuItems[i];
+        const textElement = item.querySelector('.btn-menu-item-text, span.i18n');
+        const text = textElement?.textContent?.trim() ?? item.textContent?.trim() ?? '';
+        
+        // Проверяем все варианты текста
+        for (const targetText of texts) {
+          if (text.toLowerCase().includes(targetText.toLowerCase()) || 
+              targetText.toLowerCase().includes(text.toLowerCase())) {
+            (item as HTMLElement).click();
+            return { success: true, method: 'text', text };
+          }
+        }
+      }
+      
+      // Способ 2: Если не нашли по тексту, пробуем по индексу
+      // Photo or Video - обычно первый пункт, Document - второй
+      const index = isMediaType ? 0 : 1;
+      if (menuItems[index]) {
+        (menuItems[index] as HTMLElement).click();
+        return { success: true, method: 'index', index };
+      }
+      
+      return { success: false, reason: 'No matching menu item found' };
+    }, targetTexts, isMedia);
+    
+    if (!clicked.success) {
+      logger.warn('Menu item not found', { fileType, reason: clicked.reason });
+      return false;
+    }
+    
+    logger.debug('Menu item clicked', { fileType, method: clicked.method, details: clicked });
+    return true;
+  }
+
+  /**
+   * Загрузка файла через input[type="file"]
+   * Ищет подходящий input и загружает файл через uploadFile()
+   */
+  private async uploadFileToInput(page: Page, absolutePath: string, fileType: 'image' | 'video' | 'document'): Promise<boolean> {
+    try {
+      // Ищем все input[type="file"] на странице
+      const fileInputs = await page.$$('input[type="file"]');
+      
+      logger.debug('Found file inputs on page', { count: fileInputs.length });
+      
+      if (fileInputs.length === 0) {
+        return false;
+      }
+
+      // Для документов ищем input с accept="*" или без accept
+      // Для изображений/видео ищем input с accept*="image" или "video"
+      for (const fileInput of fileInputs) {
+        try {
+          const acceptAttr = await fileInput.evaluate((el) => el.getAttribute('accept') || '');
+          
+          let isCorrectInput = false;
+          if (fileType === 'document') {
+            // Документы: accept="*" или accept содержит application или пустой
+            isCorrectInput = acceptAttr === '*' || 
+                           acceptAttr.includes('application') || 
+                           acceptAttr.includes('pdf') ||
+                           acceptAttr === '' ||
+                           acceptAttr.includes('*');
+          } else {
+            // Изображения/видео: accept содержит image или video
+            isCorrectInput = acceptAttr.includes('image') || 
+                           acceptAttr.includes('video') ||
+                           acceptAttr === '*';
+          }
+          
+          if (isCorrectInput) {
+            await fileInput.uploadFile(absolutePath);
+            logger.debug('File uploaded to input', { absolutePath, acceptAttr, fileType });
+            return true;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      // Если не нашли подходящий, пробуем последний input
+      const lastInput = fileInputs[fileInputs.length - 1];
+      if (lastInput) {
+        await lastInput.uploadFile(absolutePath);
+        logger.debug('File uploaded to last input (fallback)', { absolutePath });
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      logger.warn('Failed to upload file to input', { error });
+      return false;
+    }
+  }
+
+  /**
+   * Отправка файла через FileChooser (основной метод)
+   */
+  private async sendFileViaFileChooser(
+    page: Page, 
+    absolutePath: string, 
+    fileType: 'image' | 'video' | 'document'
+  ): Promise<void> {
+    // Кликаем на кнопку прикрепления (+)
+    const attachButton = await this.findAttachButton(page);
+    if (!attachButton) {
+      throw new Error('Attach button not found');
+    }
+    
+    logger.debug('Clicking attach button to open menu');
+    await attachButton.click();
+    await this.delay(500);
+
+    // Готовим перехват FileChooser и кликаем на пункт меню
+    const [fileChooser] = await Promise.all([
+      page.waitForFileChooser({ timeout: 5000 }).catch(() => null),
+      this.clickMenuItem(page, fileType),
+    ]);
+
+    let fileUploaded = false;
+
+    if (fileChooser) {
+      await fileChooser.accept([absolutePath]);
+      logger.debug('File uploaded via FileChooser', { absolutePath });
+      fileUploaded = true;
+    } else {
+      logger.debug('FileChooser not available, trying direct input upload');
+      await this.delay(500);
+      fileUploaded = await this.uploadFileToInput(page, absolutePath, fileType);
+    }
+    
+    if (!fileUploaded) {
+      throw new Error('Could not upload file via FileChooser or direct input');
+    }
+  }
+
+  /**
    * Отправка файла/вложений
    */
-  private async sendFileMessage(page: Page, attachmentPath: string): Promise<void> {
+  private async sendFileMessage(page: Page, attachmentPath: string, phone?: string, profileId?: string): Promise<void> {
     try {
       // Преобразуем путь в абсолютный
       const absolutePath = this.resolveFilePath(attachmentPath);
@@ -602,107 +966,328 @@ export class TelegramSender {
         throw new Error(`File not found: ${absolutePath} (original path: ${attachmentPath})`);
       }
 
+      // Определяем тип файла
+      const fileType = this.getFileType(absolutePath);
+
       logger.debug('Sending Telegram file', { 
         originalPath: attachmentPath, 
         absolutePath,
+        fileType,
         fileExists 
       });
+
+      // Проверяем что мы в правильном чате (без переоткрытия - чат уже открыт в sendMessage)
+      if (phone) {
+        const normalizedPhone = phone.replace(/[^\d]/g, '');
+        const cachedPhone = profileId ? this.currentOpenChat.get(profileId) : null;
+        if (cachedPhone !== normalizedPhone) {
+          logger.warn('Chat may have changed, but continuing with file send', { phone: normalizedPhone, cachedPhone });
+        }
+      }
 
       // Ждем появления поля ввода (чтобы убедиться, что чат открыт)
       await page.waitForSelector(TELEGRAM_SELECTORS.MESSAGE_INPUT, { timeout: 10000 });
       await this.delay(500);
 
-      // Ищем кнопку прикрепления файла с несколькими попытками
-      let attachButton = await page.$(TELEGRAM_SELECTORS.ATTACH_BUTTON);
-      
-      // Если не найдена, пробуем найти через поиск по aria-label и title
-      if (!attachButton) {
-        logger.debug('Attach button not found with primary selector, trying alternative methods');
-        
-        // Пробуем найти через evaluate
-        attachButton = await page.evaluateHandle((selector) => {
-          // @ts-expect-error
-          const buttons = document.querySelectorAll('button');
-          for (const btn of buttons) {
-            const ariaLabel = btn.getAttribute('aria-label') || '';
-            const title = btn.getAttribute('title') || '';
-            const className = btn.className || '';
-            
-            if (
-              ariaLabel.toLowerCase().includes('attach') ||
-              ariaLabel.toLowerCase().includes('прикрепить') ||
-              title.toLowerCase().includes('attach') ||
-              title.toLowerCase().includes('прикрепить') ||
-              className.toLowerCase().includes('attach')
-            ) {
-              return btn;
-            }
-          }
-          return null;
-        });
-      }
+      // Используем FileChooser метод с fallback на прямой upload
+      await this.sendFileViaFileChooser(page, absolutePath, fileType);
 
-      if (!attachButton || attachButton.asElement() === null) {
-        throw new Error('Attach button not found. Please check if Telegram Web interface has changed.');
-      }
-
-      // Используем современный API Puppeteer для загрузки файлов
-      logger.debug('Clicking attach button and waiting for file chooser');
-      const [fileChooser] = await Promise.all([
-        page.waitForFileChooser({ timeout: 15000 }),
-        attachButton.asElement()!.click(),
-      ]);
-
-      logger.debug('File chooser opened, accepting file', { absolutePath });
-      await fileChooser.accept([absolutePath]);
-      
-      // Ждем загрузки файла (появление превью или индикатора загрузки)
+      // Ждем загрузки файла и появления превью
       await this.delay(2000);
-      
-      // Проверяем, что файл загрузился (ищем превью или индикатор)
-      const fileUploaded = await page.evaluate(() => {
-        // @ts-expect-error
-        const bodyText = document.body.innerText || '';
-        // Проверяем наличие индикаторов загрузки или превью
-        // @ts-expect-error
-        const previews = document.querySelectorAll('[class*="preview"], [class*="media"], [class*="file"]');
-        return previews.length > 0 || bodyText.includes('Uploading') || bodyText.includes('Загрузка');
-      });
 
-      if (!fileUploaded) {
-        logger.warn('File upload indicator not found, but continuing anyway');
+      // Проверяем, что файл загружен (появление превью или попапа)
+      const fileLoaded = await this.waitForFilePreview(page);
+      if (!fileLoaded) {
+        logger.warn('File preview not detected, but continuing');
       }
 
-      // Ждем еще немного для завершения загрузки
-      await this.delay(1000);
+      // Дополнительная задержка для полной загрузки файла и появления попапа
+      await this.delay(2000);
 
-      // Пробуем отправить файл через Enter
-      logger.debug('Sending file via Enter key');
-      await page.keyboard.press('Enter');
+      // Отправляем файл (clickSendButton сам будет ждать появления попапа)
+      await this.clickSendButton(page);
       
-      // Альтернативный способ: ищем кнопку отправки и кликаем
-      await this.delay(500);
-      const sendButton = await page.$(TELEGRAM_SELECTORS.SEND_FILE_BUTTON);
-      if (sendButton) {
-        logger.debug('Found send button, clicking it');
-        await sendButton.click();
-      }
-
       // Ждем подтверждения отправки
       await this.delay(2000);
 
       logger.debug('Telegram file message sent successfully', { 
-        attachmentPath: absolutePath 
+        attachmentPath: absolutePath,
+        phone,
+        profileId
       });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       logger.error('Failed to send Telegram file message', { 
         attachmentPath, 
+        phone,
+        profileId,
         error: errorMsg,
         stack: error instanceof Error ? error.stack : undefined
       });
       throw new Error(`Failed to send file message: ${errorMsg}`);
     }
+  }
+
+  /**
+   * Ожидание превью файла
+   * Проверяет, что файл загрузился (появление превью, попапа или индикаторов загрузки)
+   */
+  private async waitForFilePreview(page: Page): Promise<boolean> {
+    const maxChecks = 15; // Увеличиваем количество проверок
+    const checkInterval = 500;
+    
+    for (let i = 0; i < maxChecks; i++) {
+      await this.delay(checkInterval);
+      
+      const hasPreview = await page.evaluate(() => {
+        // Проверяем разные индикаторы загрузки файла
+        
+        // 1. Проверяем попап отправки файла (самый надежный индикатор)
+        const sendPopup = document.querySelector('.popup-send-photo.active, .popup-new-media.active');
+        if (sendPopup) {
+          return true;
+        }
+        
+        // 2. Проверяем превью файла
+        const previewSelectors = [
+          'img[src*="blob"]',
+          'video[src*="blob"]',
+          '[data-testid*="media"]',
+          '[class*="preview"]',
+          '[class*="attachment"]',
+          '[class*="media-container"]',
+          '[class*="document"]',
+          '.popup-photo',
+          '.popup-item-document',
+        ];
+        
+        for (const sel of previewSelectors) {
+          if (document.querySelector(sel)) {
+            return true;
+          }
+        }
+        
+        // 3. Проверяем текст "Uploading" или "Загрузка" (файл еще загружается)
+        const bodyText = document.body.innerText ?? '';
+        if (bodyText.includes('Uploading') || bodyText.includes('Загрузка')) {
+          return true; // Файл загружается, но это тоже индикатор
+        }
+        
+        return false;
+      });
+      
+      if (hasPreview) {
+        logger.debug('File preview/popup detected', { checkNumber: i + 1 });
+        return true;
+      }
+    }
+    
+    logger.warn('File preview/popup not detected after all checks');
+    return false;
+  }
+
+  /**
+   * Клик на кнопку отправки
+   * Ищет кнопку в попапе отправки файла (popup-send-photo или popup-new-media)
+   */
+  private async clickSendButton(page: Page): Promise<void> {
+    // Ждем появления попапа отправки файла
+    logger.debug('Waiting for send popup to appear');
+    try {
+      // Ждем появления активного попапа отправки файла (увеличиваем таймаут)
+      await page.waitForSelector('.popup-send-photo.active, .popup-new-media.active', { 
+        timeout: 15000, // Увеличиваем таймаут до 15 секунд
+        visible: true 
+      });
+      await this.delay(1000);
+      logger.debug('Send popup appeared');
+    } catch (error) {
+      logger.warn('Send popup not found, trying alternative selectors', { error });
+      // Пробуем альтернативные селекторы
+      try {
+        await page.waitForSelector('.popup-input-container, button.btn-primary.btn-color-primary', { 
+          timeout: 5000,
+          visible: true 
+        });
+        await this.delay(500);
+        logger.debug('Alternative selector found');
+      } catch {
+        logger.warn('Alternative selectors also not found');
+      }
+    }
+
+    // Способ 1: Ищем кнопку внутри активного попапа popup-send-photo или popup-new-media
+    const clickedInPopup = await page.evaluate(() => {
+      // Ищем активный попап отправки файла
+      const sendPopup = document.querySelector('.popup-send-photo.active, .popup-new-media.active');
+      if (sendPopup) {
+        // Ищем кнопку отправки внутри попапа
+        const sendButton = sendPopup.querySelector('button.btn-primary.btn-color-primary');
+        if (sendButton) {
+          const text = sendButton.textContent?.trim() ?? '';
+          const spanText = sendButton.querySelector('span.i18n')?.textContent?.trim() ?? '';
+          const hasSendText = text.includes('Send') || text.includes('Отправить') || 
+                             spanText.includes('Send') || spanText.includes('Отправить');
+          
+          if (hasSendText) {
+            // Проверяем видимость
+            const isVisible = (sendButton as HTMLElement).offsetParent !== null;
+            if (isVisible) {
+              // Пробуем несколько способов клика
+              try {
+                (sendButton as HTMLElement).click();
+                return { success: true, method: 'click', location: 'popup-send-photo/popup-new-media' };
+              } catch {
+                // Если обычный click не сработал, пробуем через dispatchEvent
+                const clickEvent = new MouseEvent('click', {
+                  bubbles: true,
+                  cancelable: true,
+                  view: window
+                });
+                sendButton.dispatchEvent(clickEvent);
+                return { success: true, method: 'dispatchEvent', location: 'popup-send-photo/popup-new-media' };
+              }
+            }
+          }
+        }
+      }
+      return { success: false, reason: 'Button not found in popup' };
+    });
+
+    if (clickedInPopup.success) {
+      logger.debug('Send button clicked in popup', { method: clickedInPopup.method, location: clickedInPopup.location });
+      await this.delay(1000);
+      return;
+    }
+
+    // Способ 2: Ищем кнопку внутри popup-input-container
+    const clickedInInputContainer = await page.evaluate(() => {
+      const popupContainer = document.querySelector('.popup-input-container');
+      if (popupContainer) {
+        const sendButton = popupContainer.querySelector('button.btn-primary.btn-color-primary');
+        if (sendButton) {
+          const text = sendButton.textContent?.trim() ?? '';
+          const spanText = sendButton.querySelector('span.i18n')?.textContent?.trim() ?? '';
+          const hasSendText = text.includes('Send') || text.includes('Отправить') || 
+                             spanText.includes('Send') || spanText.includes('Отправить');
+          
+          if (hasSendText && (sendButton as HTMLElement).offsetParent !== null) {
+            try {
+              (sendButton as HTMLElement).click();
+              return { success: true, method: 'click', location: 'popup-input-container' };
+            } catch {
+              const clickEvent = new MouseEvent('click', { bubbles: true, cancelable: true, view: window });
+              sendButton.dispatchEvent(clickEvent);
+              return { success: true, method: 'dispatchEvent', location: 'popup-input-container' };
+            }
+          }
+        }
+      }
+      return { success: false };
+    });
+
+    if (clickedInInputContainer.success) {
+      logger.debug('Send button clicked in input container', { method: clickedInInputContainer.method });
+      await this.delay(1000);
+      return;
+    }
+
+    // Способ 3: Ищем кнопку через Puppeteer API с проверкой видимости
+    const sendButtonPrimary = await page.$('button.btn-primary.btn-color-primary');
+    
+    if (sendButtonPrimary) {
+      // Проверяем, что кнопка видима и содержит текст "Send"
+      const canClick = await page.evaluate((el) => {
+        const text = el.textContent?.trim() ?? '';
+        const spanText = el.querySelector('span.i18n')?.textContent?.trim() ?? '';
+        const hasText = text.includes('Send') || text.includes('Отправить') || 
+                       spanText.includes('Send') || spanText.includes('Отправить');
+        const isVisible = (el as HTMLElement).offsetParent !== null;
+        return { canClick: hasText && isVisible, text, spanText };
+      }, sendButtonPrimary);
+      
+      if (canClick.canClick) {
+        logger.debug('Found send button, clicking', { text: canClick.text, spanText: canClick.spanText });
+        // Прокручиваем к кнопке
+        await sendButtonPrimary.evaluate((el) => {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+        await this.delay(300);
+        
+        // Пробуем кликнуть через Puppeteer
+        try {
+          await sendButtonPrimary.click({ delay: 100 });
+          logger.debug('Send button clicked via Puppeteer click');
+          await this.delay(1000);
+          return;
+        } catch (error) {
+          logger.warn('Puppeteer click failed, trying evaluate click', { error });
+          // Fallback: клик через evaluate
+          await page.evaluate((el) => {
+            (el as HTMLElement).click();
+          }, sendButtonPrimary);
+          await this.delay(1000);
+          return;
+        }
+      }
+    }
+
+    // Способ 4: Ищем через evaluate напрямую по всем возможным селекторам
+    const clickedViaEvaluate = await page.evaluate(() => {
+      // Приоритет 1: Кнопка внутри активного попапа
+      const sendPopup = document.querySelector('.popup-send-photo.active, .popup-new-media.active');
+      if (sendPopup) {
+        const buttons = sendPopup.querySelectorAll('button.btn-primary.btn-color-primary');
+        for (const button of Array.from(buttons)) {
+          const text = button.textContent?.trim() ?? '';
+          const spanText = button.querySelector('span.i18n')?.textContent?.trim() ?? '';
+          const isVisible = (button as HTMLElement).offsetParent !== null;
+          if ((text.includes('Send') || text.includes('Отправить') || 
+               spanText.includes('Send') || spanText.includes('Отправить')) && isVisible) {
+            try {
+              (button as HTMLElement).click();
+              return 'popup button (click)';
+            } catch {
+              const clickEvent = new MouseEvent('click', { bubbles: true, cancelable: true, view: window });
+              button.dispatchEvent(clickEvent);
+              return 'popup button (dispatchEvent)';
+            }
+          }
+        }
+      }
+      
+      // Приоритет 2: Любая видимая кнопка с нужными классами
+      const primaryButtons = document.querySelectorAll('button.btn-primary.btn-color-primary');
+      for (const button of Array.from(primaryButtons)) {
+        const text = button.textContent?.trim() ?? '';
+        const spanText = button.querySelector('span.i18n')?.textContent?.trim() ?? '';
+        const isVisible = (button as HTMLElement).offsetParent !== null;
+        if ((text.includes('Send') || text.includes('Отправить') || 
+             spanText.includes('Send') || spanText.includes('Отправить')) && isVisible) {
+          try {
+            (button as HTMLElement).click();
+            return 'any visible button (click)';
+          } catch {
+            const clickEvent = new MouseEvent('click', { bubbles: true, cancelable: true, view: window });
+            button.dispatchEvent(clickEvent);
+            return 'any visible button (dispatchEvent)';
+          }
+        }
+      }
+      
+      return null;
+    });
+
+    if (clickedViaEvaluate) {
+      logger.debug('Send button clicked via evaluate', { method: clickedViaEvaluate });
+      await this.delay(1000);
+      return;
+    }
+
+    // Способ 5: Fallback - отправляем через Enter
+    logger.warn('Send button not found, using Enter key as fallback');
+    await page.keyboard.press('Enter');
+    await this.delay(1000);
   }
 
   /**
@@ -729,7 +1314,7 @@ export class TelegramSender {
 
       // Открываем чат
       try {
-        await this.openChat(page, phone);
+        await this.openChat(page, phone, profileId);
         // Если чат открылся без ошибок, значит номер зарегистрирован и доступен
         return true;
       } catch (error) {

@@ -40,10 +40,27 @@ export interface SendMessageResult {
 export class MessageSenderService {
   private whatsappSender: WhatsAppSender;
   private telegramSender: TelegramSender;
+  private chromeProcessService?: ChromeProcessService;
 
   constructor(chromeProcessService?: ChromeProcessService) {
+    this.chromeProcessService = chromeProcessService;
     this.whatsappSender = new WhatsAppSender(chromeProcessService);
     this.telegramSender = new TelegramSender(chromeProcessService);
+  }
+
+  /**
+   * Пометить профиль как занятый рассылкой
+   * Предотвращает переключение вкладок мониторингом статуса
+   */
+  markProfileBusy(profileId: string, messenger: 'whatsapp' | 'telegram', campaignId?: string): void {
+    this.chromeProcessService?.markProfileBusy(profileId, messenger, campaignId);
+  }
+
+  /**
+   * Пометить профиль как свободный
+   */
+  markProfileFree(profileId: string): void {
+    this.chromeProcessService?.markProfileFree(profileId);
   }
 
   /**

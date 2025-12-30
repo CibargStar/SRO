@@ -95,6 +95,12 @@ export class ProfileWorker {
     
     // Загружаем шаблон кампании при старте
     await this.loadTemplate();
+
+    // Помечаем профиль как занятый рассылкой
+    // Это предотвращает переключение вкладок мониторингом статуса аккаунтов
+    // Определяем мессенджер по типу кампании (можно уточнить позже при отправке)
+    this.sender.markProfileBusy(this.profileId, 'whatsapp', this.campaignId);
+    logger.debug('Profile marked as busy for campaign', { profileId: this.profileId, campaignId: this.campaignId });
     
     while (this.running) {
       if (this.paused) {
@@ -167,49 +173,36 @@ export class ProfileWorker {
             continue;
           }
 
-          // Отправляем каждый элемент шаблона отдельным сообщением по порядку
-          let lastResult: typeof result | null = null;
-          let hasError = false;
+          // Собираем все элементы шаблона для ОДНОГО вызова sendMessage
+          // Это гарантирует, что чат откроется один раз и все элементы уйдут в него
+          const allTexts: string[] = [];
+          const allAttachments: string[] = [];
 
-          for (let i = 0; i < processedItems.length; i++) {
-            const item = processedItems[i];
-            
-            // Отправляем элемент
-            const itemResult = await this.sendWithHandling({
-              messageId: msg.id,
-              messenger,
-              phone,
-              text: item.type === 'TEXT' ? item.content : undefined,
-              attachments: item.type === 'FILE' ? [item.filePath!] : undefined,
-              clientId,
-              phoneId,
-              waStatus: msg.clientPhone?.whatsAppStatus ?? 'Unknown' as MessengerStatus,
-              tgStatus: msg.clientPhone?.telegramStatus ?? 'Unknown' as MessengerStatus,
-              sendDelayMs: this.delayBetweenMessagesMs,
-            });
-
-            lastResult = itemResult;
-
-            // Если произошла ошибка, прерываем отправку остальных элементов
-            if (itemResult.status === 'FAILED') {
-              hasError = true;
-              break;
-            }
-
-            // Небольшая задержка между элементами (кроме последнего)
-            if (i < processedItems.length - 1) {
-              await this.delay(500);
+          for (const item of processedItems) {
+            if (item.type === 'TEXT' && item.content) {
+              allTexts.push(item.content);
+            } else if (item.type === 'FILE' && item.filePath) {
+              allAttachments.push(item.filePath);
             }
           }
 
-          // Используем результат последнего отправленного элемента
-          result = lastResult || {
+          // Объединяем все тексты в один (разделяем переносом строки)
+          const combinedText = allTexts.length > 0 ? allTexts.join('\n') : undefined;
+
+          // Отправляем все элементы ОДНИМ вызовом sendMessage
+          // Это предотвращает переключение чата между текстом и файлами
+          result = await this.sendWithHandling({
             messageId: msg.id,
-            status: hasError ? 'FAILED' as const : 'SENT' as const,
-            messenger: null,
+            messenger,
+            phone,
+            text: combinedText,
+            attachments: allAttachments.length > 0 ? allAttachments : undefined,
             clientId,
             phoneId,
-          };
+            waStatus: msg.clientPhone?.whatsAppStatus ?? 'Unknown' as MessengerStatus,
+            tgStatus: msg.clientPhone?.telegramStatus ?? 'Unknown' as MessengerStatus,
+            sendDelayMs: this.delayBetweenMessagesMs,
+          });
 
           await this.onMessageProcessed(result);
         } catch (error) {
@@ -253,6 +246,10 @@ export class ProfileWorker {
         }
       }
     }
+
+    // Освобождаем профиль после завершения цикла обработки
+    this.sender.markProfileFree(this.profileId);
+    logger.debug('Profile marked as free after campaign completion', { profileId: this.profileId, campaignId: this.campaignId });
   }
 
   /**
@@ -260,6 +257,11 @@ export class ProfileWorker {
    */
   stop(): Promise<void> {
     this.running = false;
+    
+    // Освобождаем профиль - он больше не занят рассылкой
+    this.sender.markProfileFree(this.profileId);
+    logger.debug('Profile marked as free after campaign stop', { profileId: this.profileId, campaignId: this.campaignId });
+    
     return Promise.resolve();
   }
 
