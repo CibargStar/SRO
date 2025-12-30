@@ -629,17 +629,52 @@ export class WhatsAppSender {
   }
 
   /**
-   * Загрузка файла через input[type="file"]
-   * Ищет подходящий input и загружает файл через uploadFile()
+   * Загрузка файла через input[type="file"] с правильным MIME-типом
+   * Использует метод с установкой MIME-типа для предотвращения ошибок "файл не поддерживается"
    */
   private async uploadFileToInput(page: Page, absolutePath: string, fileType: 'image' | 'video' | 'document'): Promise<boolean> {
     try {
-      // Ищем все input[type="file"] на странице
+      // Получаем MIME-тип файла
+      const mimeType = this.getMimeType(absolutePath);
+      const fileName = path.basename(absolutePath);
+      
+      logger.debug('Uploading file with MIME type', { 
+        absolutePath, 
+        fileName, 
+        mimeType, 
+        fileType 
+      });
+
+      // Читаем файл в base64
+      const fileBuffer = await fs.readFile(absolutePath);
+      const base64Data = fileBuffer.toString('base64');
+
+      // Используем метод с правильным MIME-типом
+      // Это гарантирует, что WhatsApp получит файл с корректным типом
+      const result = await this.uploadFileWithMimeType(
+        page,
+        base64Data,
+        fileName,
+        mimeType,
+        fileType
+      );
+
+      if (result) {
+        logger.debug('File uploaded successfully with MIME type', { 
+          absolutePath, 
+          fileName, 
+          mimeType 
+        });
+        return true;
+      }
+
+      // Fallback: пробуем стандартный метод (на случай если метод с MIME-типом не сработал)
+      logger.debug('MIME type method failed, trying standard uploadFile', { absolutePath });
+      
       const fileInputs = await page.$$('input[type="file"]');
       
-      logger.debug('Found file inputs on page', { count: fileInputs.length });
-      
       if (fileInputs.length === 0) {
+        logger.warn('No file inputs found for fallback', { absolutePath });
         return false;
       }
 
@@ -666,7 +701,7 @@ export class WhatsAppSender {
           
           if (isCorrectInput) {
             await fileInput.uploadFile(absolutePath);
-            logger.debug('File uploaded to input', { absolutePath, acceptAttr, fileType });
+            logger.debug('File uploaded to input (fallback)', { absolutePath, acceptAttr, fileType });
             return true;
           }
         } catch {
@@ -684,7 +719,10 @@ export class WhatsAppSender {
       
       return false;
     } catch (error) {
-      logger.warn('Failed to upload file to input', { error });
+      logger.warn('Failed to upload file to input', { 
+        error: error instanceof Error ? error.message : String(error),
+        absolutePath 
+      });
       return false;
     }
   }
@@ -994,7 +1032,8 @@ export class WhatsAppSender {
   }
 
   /**
-   * Fallback метод: отправка через FileChooser (старый метод)
+   * Отправка файла через FileChooser с fallback на методы с правильным MIME-типом
+   * Приоритет: FileChooser -> uploadFileToInput (с MIME-типом) -> стандартный uploadFile
    */
   private async sendFileViaFileChooser(
     page: Page, 
@@ -1017,17 +1056,31 @@ export class WhatsAppSender {
     let fileUploaded = false;
 
     if (fileChooser) {
-      await fileChooser.accept([absolutePath]);
-      logger.debug('File uploaded via FileChooser', { absolutePath });
-      fileUploaded = true;
+      try {
+        await fileChooser.accept([absolutePath]);
+        logger.debug('File uploaded via FileChooser', { absolutePath, fileType });
+        fileUploaded = true;
+      } catch (error) {
+        logger.warn('FileChooser accept failed, trying MIME type method', { 
+          error: error instanceof Error ? error.message : String(error),
+          absolutePath 
+        });
+        // FileChooser может не установить правильный MIME-тип, пробуем метод с MIME-типом
+        await this.delay(500);
+        fileUploaded = await this.uploadFileToInput(page, absolutePath, fileType);
+      }
     } else {
-      logger.debug('FileChooser not available, trying direct input upload');
+      logger.debug('FileChooser not available, trying direct input upload with MIME type');
       await this.delay(500);
+      // uploadFileToInput теперь использует метод с правильным MIME-типом
       fileUploaded = await this.uploadFileToInput(page, absolutePath, fileType);
     }
     
     if (!fileUploaded) {
-      throw new Error('Could not upload file via FileChooser fallback');
+      throw new Error(
+        `Could not upload file via FileChooser or MIME type method. ` +
+        `File: ${absolutePath}, Type: ${fileType}`
+      );
     }
   }
 
