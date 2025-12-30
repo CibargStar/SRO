@@ -122,6 +122,10 @@ export class WhatsAppSender {
    */
   async sendMessage(input: SenderInput): Promise<SenderResult> {
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:123',message:'sendMessage START',data:{profileId:input.profileId,phone:input.phone,hasText:!!input.text,attachmentsCount:input.attachments?.length||0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C,D'})}).catch(()=>{});
+      // #endregion
+      
       validatePhone(input.phone);
 
       if (!input.profileId) {
@@ -132,11 +136,17 @@ export class WhatsAppSender {
         throw new Error('ChromeProcessService is not available');
       }
 
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:135',message:'Before getOrCreateMessengerPage',data:{profileId:input.profileId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       const page = await this.chromeProcessService.getOrCreateMessengerPage(
         input.profileId,
         'whatsapp',
         'https://web.whatsapp.com'
       );
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:140',message:'After getOrCreateMessengerPage',data:{profileId:input.profileId,pageExists:!!page,pageClosed:page?.isClosed()||false},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
 
       if (!page) {
         throw new Error('Failed to get WhatsApp page for profile');
@@ -145,7 +155,13 @@ export class WhatsAppSender {
       // ВАЖНО: Активируем вкладку WhatsApp перед отправкой
       // Это гарантирует, что мы работаем именно с этой вкладкой,
       // даже если мониторинг статуса переключил фокус
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:148',message:'Before bringToFront',data:{profileId:input.profileId,phone:input.phone,pageClosed:page.isClosed()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       await page.bringToFront();
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:150',message:'After bringToFront',data:{profileId:input.profileId,phone:input.phone,pageClosed:page.isClosed()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       await this.delay(100);
 
       // Открываем чат с номером (передаём profileId для кэширования)
@@ -503,11 +519,18 @@ export class WhatsAppSender {
    * Клик на кнопку прикрепления
    */
   private async clickAttachButton(page: Page): Promise<boolean> {
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:505',message:'clickAttachButton START',data:{pageClosed:page.isClosed(),pageUrl:page.url()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,C'})}).catch(()=>{});
+    // #endregion
+    
     // Ищем кнопку через селекторы
     for (const selector of SELECTORS.attachButton) {
       try {
         const element = await page.$(selector);
         if (element) {
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:512',message:'Found attach button element',data:{selector,pageClosed:page.isClosed()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,C'})}).catch(()=>{});
+          // #endregion
           // Если это span, ищем родительскую кнопку
           if (selector.startsWith('span')) {
             const button = await page.evaluateHandle((el) => {
@@ -571,9 +594,16 @@ export class WhatsAppSender {
     const startTime = Date.now();
     const checkInterval = 200;
     
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:570',message:'waitForAttachmentMenu START',data:{timeout,pageClosed:page.isClosed(),pageUrl:page.url()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
+    
     while (Date.now() - startTime < timeout) {
       // Проверяем, что страница не закрыта
       if (page.isClosed()) {
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:577',message:'Page closed in waitForAttachmentMenu',data:{elapsed:Date.now()-startTime},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
         logger.warn('Page closed while waiting for menu', { elapsed: Date.now() - startTime });
         return false;
       }
@@ -644,6 +674,9 @@ export class WhatsAppSender {
       });
       
       if (menuInfo.found) {
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:608',message:'Menu found in waitForAttachmentMenu',data:{elapsed:Date.now()-startTime,elementsCount:menuInfo.elements?.length||0,pageClosed:page.isClosed()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
         logger.debug('Attachment menu appeared', { 
           elapsed: Date.now() - startTime,
           elements: menuInfo.elements?.length || 0
@@ -676,6 +709,10 @@ export class WhatsAppSender {
    * Добавлено ожидание появления меню и retry логика
    */
   private async clickMenuItem(page: Page, fileType: 'image' | 'video' | 'document'): Promise<boolean> {
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:623',message:'clickMenuItem START',data:{fileType,pageClosed:page.isClosed(),pageUrl:page.url()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,C'})}).catch(()=>{});
+    // #endregion
+    
     // Определяем aria-label в зависимости от типа файла
     const ariaLabels = fileType === 'document' 
       ? ['Документ', 'Document']
@@ -684,7 +721,13 @@ export class WhatsAppSender {
     logger.debug('Looking for menu item', { fileType, ariaLabels, url: page.url() });
 
     // Ожидаем появления меню перед попыткой найти пункт
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:632',message:'Before waitForAttachmentMenu',data:{fileType,pageClosed:page.isClosed()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
     const menuAppeared = await this.waitForAttachmentMenu(page, 5000);
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:635',message:'After waitForAttachmentMenu',data:{fileType,menuAppeared,pageClosed:page.isClosed()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
     if (!menuAppeared) {
       logger.warn('Menu did not appear in waitForAttachmentMenu, but continuing with search', { fileType });
       // Даем еще немного времени - возможно меню появляется с задержкой
@@ -705,9 +748,16 @@ export class WhatsAppSender {
 
       // Проверяем, что страница не закрыта
       if (page.isClosed()) {
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:647',message:'Page closed during search',data:{fileType,retry},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
         logger.error('Page closed during menu item search', { fileType, retry });
         throw new Error('Page closed during menu item search');
       }
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:650',message:'Before selectors search',data:{fileType,retry,pageClosed:page.isClosed()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,C'})}).catch(()=>{});
+      // #endregion
 
       logger.debug('Trying selectors method', { selectors: menuSelectors, fileType, retry });
       for (const selector of menuSelectors) {
@@ -748,8 +798,14 @@ export class WhatsAppSender {
                 // Игнорируем ошибки прокрутки
               }
               
+              // #region agent log
+              fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:663',message:'Before clicking menu item element',data:{fileType,retry,selector,pageClosed:page.isClosed()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,C'})}).catch(()=>{});
+              // #endregion
               await this.delay(100); // Небольшая задержка перед кликом
               await element.click();
+              // #region agent log
+              fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:666',message:'After clicking menu item element',data:{fileType,retry,selector,pageClosed:page.isClosed()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,C'})}).catch(()=>{});
+              // #endregion
               logger.info('Clicked menu item via selector', { selector, fileType, retry });
               await this.delay(200); // Небольшая задержка после клика
               return true;
@@ -1364,6 +1420,10 @@ export class WhatsAppSender {
     const fileName = path.basename(absolutePath);
     const mimeType = this.getMimeType(absolutePath);
 
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:1359',message:'sendFileViaFileChooser START',data:{fileType,fileName,pageClosed:page.isClosed(),pageUrl:page.url()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
+    // #endregion
+
     logger.info('Starting file upload via FileChooser', { 
       absolutePath, 
       fileName, 
@@ -1372,9 +1432,24 @@ export class WhatsAppSender {
       profileId: page.url().includes('profileId') ? 'present' : 'not in URL'
     });
 
+    // Проверяем состояние страницы перед началом
+    if (page.isClosed()) {
+      const errorMsg = 'Page is closed before file upload';
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:1375',message:'Page closed before upload',data:{fileType,error:errorMsg},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
+      throw new Error(errorMsg);
+    }
+
     // Кликаем на кнопку прикрепления (+)
     logger.debug('Step 1: Clicking attach button', { fileType });
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:1380',message:'Before clickAttachButton',data:{fileType,pageClosed:page.isClosed(),pageUrl:page.url()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
+    // #endregion
     const attachClicked = await this.clickAttachButton(page);
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:1383',message:'After clickAttachButton',data:{fileType,attachClicked,pageClosed:page.isClosed()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
+    // #endregion
     if (!attachClicked) {
       const errorMsg = 'Could not click attach button - menu may not be available';
       logger.error(errorMsg, { fileType, url: page.url() });
@@ -1385,16 +1460,26 @@ export class WhatsAppSender {
     // Увеличиваем задержку для стабильности при параллельной работе нескольких браузеров
     // Меню может появляться с задержкой, особенно при нагрузке
     await this.delay(800);
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:1390',message:'After delay before FileChooser',data:{fileType,pageClosed:page.isClosed(),pageUrl:page.url()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
+    // #endregion
 
     // КРИТИЧНО: Запускаем waitForFileChooser СТРОГО ДО клика на пункт меню!
     // Это перехватывает диалог выбора файла и предотвращает открытие проводника Windows.
     logger.debug('Step 2: Setting up FileChooser interception', { fileType });
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:1395',message:'Before waitForFileChooser',data:{fileType,pageClosed:page.isClosed()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
     const fileChooserPromise = page.waitForFileChooser({ timeout: 10000 });
     
     // КРИТИЧНО: Кликаем на пункт меню и СРАЗУ проверяем результат
     // Если клик не прошел - FileChooser не появится, и мы не должны ждать его
     // clickMenuItem теперь сам ждет появления меню и делает retry
     logger.debug('Step 3: Clicking menu item with FileChooser interception', { fileType });
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:1403',message:'Before clickMenuItem',data:{fileType,pageClosed:page.isClosed()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,C'})}).catch(()=>{});
+    // #endregion
     
     // Запускаем клик и перехват "одновременно", но проверяем результат клика
     const menuClickPromise = this.clickMenuItem(page, fileType);
@@ -1406,9 +1491,16 @@ export class WhatsAppSender {
         logger.warn('FileChooser promise rejected', { 
           error: err instanceof Error ? err.message : String(err) 
         });
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:1408',message:'FileChooser promise rejected',data:{fileType,error:err instanceof Error ? err.message : String(err),pageClosed:page.isClosed()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
         return null;
       }),
     ]);
+
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/4ab3c79e-9b19-4d80-b2e9-121229227ee9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp-sender.ts:1415',message:'After Promise.allSettled',data:{fileType,menuClickStatus:menuClickResult.status,fileChooserStatus:fileChooserResult.status,pageClosed:page.isClosed()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
+    // #endregion
 
     // КРИТИЧЕСКАЯ ПРОВЕРКА: Если клик на пункт меню не прошел - FileChooser не появится
     const menuClickSuccess = menuClickResult.status === 'fulfilled' && menuClickResult.value === true;
