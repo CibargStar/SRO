@@ -573,58 +573,91 @@ export class WhatsAppSender {
       ? ['Документ', 'Document']
       : ['Фото и видео', 'Photos & videos', 'Photos'];
 
-    logger.debug('Looking for menu item', { fileType, ariaLabels });
+    logger.debug('Looking for menu item', { fileType, ariaLabels, url: page.url() });
 
     // Способ 1: Ищем через селекторы
     const menuSelectors = fileType === 'document' 
       ? SELECTORS.menuItemDocument 
       : SELECTORS.menuItemPhoto;
 
+    logger.debug('Trying selectors method', { selectors: menuSelectors, fileType });
     for (const selector of menuSelectors) {
       try {
         const element = await page.$(selector);
         if (element) {
+          const isVisible = await element.isIntersectingViewport().catch(() => false);
+          logger.debug('Found element via selector', { selector, fileType, isVisible });
           await element.click();
-          logger.debug('Clicked menu item via selector', { selector, fileType });
+          logger.info('Clicked menu item via selector', { selector, fileType });
+          await this.delay(200); // Небольшая задержка после клика
           return true;
         }
-      } catch {
+      } catch (error) {
+        logger.debug('Selector click failed', { 
+          selector, 
+          error: error instanceof Error ? error.message : String(error) 
+        });
         continue;
       }
     }
 
     // Способ 2: Ищем через evaluate по aria-label
-    const clicked = await page.evaluate((labels: string[]) => {
-      // Ищем по aria-label
-      for (const label of labels) {
-        const el = document.querySelector(`[aria-label="${label}"]`);
-        if (el) {
-          (el as HTMLElement).click();
-          return label;
-        }
-      }
-      
-      // Fallback: ищем menuitem с нужным текстом
-      const menuItems = Array.from(document.querySelectorAll('[role="menuitem"]'));
-      for (const item of menuItems) {
-        const ariaLabel = item.getAttribute('aria-label') ?? '';
+    logger.debug('Trying evaluate method', { ariaLabels, fileType });
+    const evaluateResult = await page.evaluate((labels: string[]) => {
+      try {
+        // Ищем по aria-label
         for (const label of labels) {
-          if (ariaLabel.includes(label) || ariaLabel === label) {
-            (item as HTMLElement).click();
-            return ariaLabel;
+          const el = document.querySelector(`[aria-label="${label}"]`);
+          if (el) {
+            (el as HTMLElement).click();
+            return { success: true, method: 'aria-label', label };
           }
         }
+        
+        // Fallback: ищем menuitem с нужным текстом
+        const menuItems = Array.from(document.querySelectorAll('[role="menuitem"]'));
+        const foundItems: Array<{ ariaLabel: string; visible: boolean }> = [];
+        
+        for (const item of menuItems) {
+          const ariaLabel = item.getAttribute('aria-label') ?? '';
+          const isVisible = (item as HTMLElement).offsetParent !== null;
+          foundItems.push({ ariaLabel, visible: isVisible });
+          
+          for (const label of labels) {
+            if (ariaLabel.includes(label) || ariaLabel === label) {
+              (item as HTMLElement).click();
+              return { success: true, method: 'menuitem', label: ariaLabel };
+            }
+          }
+        }
+        
+        return { 
+          success: false, 
+          error: 'No matching menu item found', 
+          foundItems,
+          labels 
+        };
+      } catch (err) {
+        return { success: false, error: String(err) };
       }
-      
-      return null;
     }, ariaLabels);
 
-    if (clicked) {
-      logger.debug('Clicked menu item via evaluate', { clicked, fileType });
+    if (evaluateResult.success) {
+      logger.info('Clicked menu item via evaluate', { 
+        clicked: evaluateResult.label, 
+        method: evaluateResult.method,
+        fileType 
+      });
+      await this.delay(200); // Небольшая задержка после клика
       return true;
     }
 
-    logger.warn('Could not find menu item', { fileType, ariaLabels });
+    logger.error('Could not find menu item', { 
+      fileType, 
+      ariaLabels,
+      evaluateResult: evaluateResult.error || evaluateResult,
+      url: page.url()
+    });
     return false;
   }
 
@@ -1049,60 +1082,110 @@ export class WhatsAppSender {
     const fileName = path.basename(absolutePath);
     const mimeType = this.getMimeType(absolutePath);
 
-    logger.info('Starting file upload via FileChooser', { absolutePath, fileName, mimeType, fileType });
+    logger.info('Starting file upload via FileChooser', { 
+      absolutePath, 
+      fileName, 
+      mimeType, 
+      fileType,
+      profileId: page.url().includes('profileId') ? 'present' : 'not in URL'
+    });
 
     // Кликаем на кнопку прикрепления (+)
+    logger.debug('Step 1: Clicking attach button', { fileType });
     const attachClicked = await this.clickAttachButton(page);
     if (!attachClicked) {
-      throw new Error('Could not click attach button');
+      const errorMsg = 'Could not click attach button - menu may not be available';
+      logger.error(errorMsg, { fileType, url: page.url() });
+      throw new Error(errorMsg);
     }
+    logger.debug('Attach button clicked successfully', { fileType });
     await this.delay(500);
 
     // КРИТИЧНО: Запускаем waitForFileChooser СТРОГО ДО клика на пункт меню!
     // Это перехватывает диалог выбора файла и предотвращает открытие проводника Windows.
-    // Promise создается ДО клика и ждет появления FileChooser.
+    logger.debug('Step 2: Setting up FileChooser interception', { fileType });
     const fileChooserPromise = page.waitForFileChooser({ timeout: 10000 });
     
-    // Теперь кликаем на пункт меню - FileChooser появится, но диалог НЕ откроется
-    // потому что мы уже ждем его через waitForFileChooser
-    logger.debug('Clicking menu item with FileChooser interception', { fileType });
+    // КРИТИЧНО: Кликаем на пункт меню и СРАЗУ проверяем результат
+    // Если клик не прошел - FileChooser не появится, и мы не должны ждать его
+    logger.debug('Step 3: Clicking menu item with FileChooser interception', { fileType });
     
-    // Используем Promise.all чтобы клик и перехват происходили "одновременно"
-    // Это гарантирует, что FileChooser будет перехвачен до открытия диалога
-    const [fileChooser] = await Promise.all([
+    // Запускаем клик и перехват "одновременно", но проверяем результат клика
+    const menuClickPromise = this.clickMenuItem(page, fileType);
+    
+    // Ждем оба Promise, но проверяем результат клика ПЕРВЫМ
+    const [menuClickResult, fileChooserResult] = await Promise.allSettled([
+      menuClickPromise,
       fileChooserPromise.catch((err) => {
-        logger.warn('FileChooser interception failed', { 
+        logger.warn('FileChooser promise rejected', { 
           error: err instanceof Error ? err.message : String(err) 
         });
         return null;
       }),
-      this.clickMenuItem(page, fileType),
     ]);
 
+    // КРИТИЧЕСКАЯ ПРОВЕРКА: Если клик на пункт меню не прошел - FileChooser не появится
+    const menuClickSuccess = menuClickResult.status === 'fulfilled' && menuClickResult.value === true;
+    if (!menuClickSuccess) {
+      const menuClickError = menuClickResult.status === 'rejected' 
+        ? (menuClickResult.reason instanceof Error ? menuClickResult.reason.message : String(menuClickResult.reason))
+        : 'Menu click returned false';
+      const errorMsg = `Menu item click failed. Status: ${menuClickResult.status}, ` +
+        `Error: ${menuClickError}. ` +
+        `FileChooser will not appear. File: ${absolutePath}`;
+      logger.error(errorMsg, { 
+        fileType, 
+        menuClickStatus: menuClickResult.status,
+        menuClickValue: menuClickResult.status === 'fulfilled' ? menuClickResult.value : undefined,
+        url: page.url()
+      });
+      throw new Error(errorMsg);
+    }
+
+    logger.debug('Menu item clicked successfully', { 
+      fileType, 
+      fileChooserStatus: fileChooserResult.status === 'fulfilled' ? 'fulfilled' : 'rejected'
+    });
+
+    // Проверяем FileChooser
+    const fileChooser = fileChooserResult.status === 'fulfilled' ? fileChooserResult.value : null;
     if (fileChooser) {
       // FileChooser успешно перехвачен - используем accept() с путем к файлу
-      // Это ЕДИНСТВЕННЫЙ надежный способ загрузить файл в WhatsApp
-      logger.debug('FileChooser intercepted successfully, accepting file', { absolutePath });
+      logger.debug('Step 4: FileChooser intercepted successfully, accepting file', { absolutePath });
       try {
         await fileChooser.accept([absolutePath]);
         logger.info('File uploaded successfully via FileChooser.accept()', { fileName, mimeType });
         return;
       } catch (error) {
-        logger.error('FileChooser.accept() failed', { 
-          error: error instanceof Error ? error.message : String(error),
-          absolutePath 
+        const errorMsg = `FileChooser.accept() failed: ${error instanceof Error ? error.message : String(error)}`;
+        logger.error(errorMsg, { 
+          absolutePath,
+          fileName,
+          mimeType
         });
-        throw new Error(`FileChooser.accept() failed: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error(errorMsg);
       }
     }
 
     // FileChooser не появился - это критическая ошибка
     // Без FileChooser мы не можем надежно загрузить файл в WhatsApp
-    throw new Error(
-      `FileChooser was not intercepted. File: ${absolutePath}. ` +
+    const fileChooserError = fileChooserResult.status === 'rejected'
+      ? (fileChooserResult.reason instanceof Error ? fileChooserResult.reason.message : String(fileChooserResult.reason))
+      : 'FileChooser returned null';
+    const errorMsg = `FileChooser was not intercepted. ` +
+      `Menu click: success, ` +
+      `FileChooser: ${fileChooserResult.status === 'fulfilled' ? 'null' : 'rejected'} (${fileChooserError}). ` +
+      `File: ${absolutePath}. ` +
       `This is required for reliable file upload in WhatsApp. ` +
-      `Make sure the attach menu opened correctly.`
-    );
+      `Make sure the attach menu opened correctly.`;
+    logger.error(errorMsg, { 
+      fileType,
+      menuClickSuccess: true,
+      fileChooserStatus: fileChooserResult.status,
+      fileChooserError,
+      url: page.url()
+    });
+    throw new Error(errorMsg);
   }
 
   /**
