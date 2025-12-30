@@ -67,13 +67,20 @@ export class StatusCheckerService {
         throw new Error(`Cannot get/create page for messenger ${serviceName} in profile ${profileId}`);
       }
 
-      // ВАЖНО: Активируем вкладку перед проверкой!
-      // Браузер не рендерит контент (включая QR коды) на неактивных вкладках
-      await page.bringToFront();
-      logger.debug('Brought messenger page to front', { profileId, serviceName });
+      // КРИТИЧНО: Проверяем, не занят ли профиль рассылкой перед переключением фокуса
+      // Если профиль занят - не переключаем фокус, чтобы не нарушить процесс отправки файлов
+      const isBusy = this.chromeProcessService.isProfileBusy(profileId);
+      if (!isBusy) {
+        // ВАЖНО: Активируем вкладку перед проверкой только если профиль не занят!
+        // Браузер не рендерит контент (включая QR коды) на неактивных вкладках
+        await page.bringToFront();
+        logger.debug('Brought messenger page to front', { profileId, serviceName });
 
-      // Небольшая пауза для рендеринга после активации
-      await new Promise((resolve) => setTimeout(resolve, 500));
+        // Небольшая пауза для рендеринга после активации
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      } else {
+        logger.debug('Skipping bringToFront - profile is busy with campaign', { profileId, serviceName });
+      }
 
       // Создание контекста проверки
       const context: CheckContext = {
