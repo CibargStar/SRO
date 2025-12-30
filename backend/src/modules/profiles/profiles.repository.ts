@@ -361,12 +361,42 @@ export class ProfilesRepository {
    */
   async delete(profileId: string) {
     try {
+      // Сначала удаляем все связанные CampaignProfile записи
+      // Это необходимо из-за onDelete: Restrict в схеме
+      const deletedCampaignProfiles = await this.prisma.campaignProfile.deleteMany({
+        where: { profileId },
+      });
+
+      if (deletedCampaignProfiles.count > 0) {
+        logger.info('Deleted campaign profiles before profile deletion', {
+          profileId,
+          deletedCount: deletedCampaignProfiles.count,
+        });
+      }
+
+      // Также удаляем связанные CampaignMessage записи (если есть)
+      const deletedMessages = await this.prisma.campaignMessage.deleteMany({
+        where: { profileId },
+      });
+
+      if (deletedMessages.count > 0) {
+        logger.info('Deleted campaign messages before profile deletion', {
+          profileId,
+          deletedCount: deletedMessages.count,
+        });
+      }
+
+      // Теперь удаляем сам профиль
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       await this.prisma.profile.delete({
         where: { id: profileId },
       });
 
-      logger.info('Profile deleted', { profileId });
+      logger.info('Profile deleted', { 
+        profileId,
+        deletedCampaignProfiles: deletedCampaignProfiles.count,
+        deletedMessages: deletedMessages.count,
+      });
     } catch (error) {
       logger.error('Failed to delete profile', { error, profileId });
       throw error;
