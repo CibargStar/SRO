@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, FormControlLabel, Checkbox, Stack, Typography } from '@mui/material';
 import { StyledTextField } from '@/components/common';
+import { RegionMultiSelect } from '@/components/RegionMultiSelect';
 import type { FilterConfig } from '@/types/campaign';
 
 interface BaseFilterFormProps {
@@ -16,6 +17,18 @@ export function BaseFilterForm({ value, onChange }: BaseFilterFormProps) {
       <Typography variant="subtitle2" sx={{ color: '#f5f5f5', fontWeight: 500 }}>
         Фильтры базы
       </Typography>
+
+      <Box>
+        <RegionMultiSelect
+          value={value.regionIds || []}
+          onChange={(regionIds) => update({ regionIds: regionIds.length > 0 ? regionIds : undefined })}
+          label="Регионы"
+          fullWidth
+        />
+        <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)', mt: 0.5, display: 'block' }}>
+          Выберите "Все регионы" или конкретные регионы для фильтрации клиентов.
+        </Typography>
+      </Box>
 
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
         <StyledTextField

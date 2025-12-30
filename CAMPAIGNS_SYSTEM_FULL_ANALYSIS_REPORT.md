@@ -441,3 +441,9 @@ queryClient.setQueryData(campaignsKeys.detail(campaignId), (prev: Campaign | und
 **Анализ выполнен:** ✅ Завершен  
 **Все проблемы:** ✅ Исправлены  
 **Код:** ✅ Готов к использованию
+
+
+
+
+
+

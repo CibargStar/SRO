@@ -624,19 +624,19 @@ export interface CampaignGlobalSettings {
   pauseMode: 1 | 2;
   
   // Тайминги (в миллисекундах)
-  minDelayBetweenContactsMs: number;
-  maxDelayBetweenContactsMs: number;
-  minDelayBetweenMessagesMs: number;
-  maxDelayBetweenMessagesMs: number;
+  delayBetweenContactsMs: number;
+  delayBetweenMessagesMs: number;
   
   // Лимиты
   maxContactsPerProfilePerHour: number;
   maxContactsPerProfilePerDay: number;
   
-  // Рабочее время по умолчанию
-  defaultWorkHoursStart: string;
-  defaultWorkHoursEnd: string;
-  defaultWorkDays: number[];
+  // ПРИМЕЧАНИЕ: defaultWorkHoursStart, defaultWorkHoursEnd, defaultWorkDays больше не используются
+  // Рабочие часы настраиваются индивидуально для каждой кампании
+  // Эти поля оставлены как опциональные для обратной совместимости, если бэкенд все еще возвращает их из БД
+  defaultWorkHoursStart?: string;
+  defaultWorkHoursEnd?: string;
+  defaultWorkDays?: number[];
   
   // Имитация набора
   typingSimulationEnabled: boolean;
@@ -693,15 +693,10 @@ export interface UserCampaignLimits {
  */
 export interface UpdateGlobalSettingsInput {
   pauseMode?: 1 | 2;
-  minDelayBetweenContactsMs?: number;
-  maxDelayBetweenContactsMs?: number;
-  minDelayBetweenMessagesMs?: number;
-  maxDelayBetweenMessagesMs?: number;
+  delayBetweenContactsMs?: number;
+  delayBetweenMessagesMs?: number;
   maxContactsPerProfilePerHour?: number;
   maxContactsPerProfilePerDay?: number;
-  defaultWorkHoursStart?: string;
-  defaultWorkHoursEnd?: string;
-  defaultWorkDays?: number[];
   typingSimulationEnabled?: boolean;
   typingSpeedCharsPerSec?: number;
   maxRetriesOnError?: number;

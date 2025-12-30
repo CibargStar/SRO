@@ -35,12 +35,14 @@ export const recurrenceTypeSchema = z.enum(['NONE', 'DAILY', 'WEEKLY', 'MONTHLY'
 
 export const scheduleConfigSchema = z.object({
   // Время работы (рабочие часы)
-  workHoursEnabled: z.boolean().default(false),
+  workHoursEnabled: z.boolean(),
+  // Если workHoursEnabled=true, то workHoursStart и workHoursEnd обязательны
   workHoursStart: z.string().regex(/^\d{2}:\d{2}$/, 'Формат времени: HH:MM').optional(),
   workHoursEnd: z.string().regex(/^\d{2}:\d{2}$/, 'Формат времени: HH:MM').optional(),
   
   // Рабочие дни
-  workDaysEnabled: z.boolean().default(false),
+  workDaysEnabled: z.boolean(),
+  // Если workDaysEnabled=true, то workDays обязателен
   workDays: z.array(z.number().int().min(0).max(6)).optional(),
   
   // Периодичность
@@ -49,7 +51,31 @@ export const scheduleConfigSchema = z.object({
   
   // Таймзона
   timezone: z.string().default('Europe/Moscow'),
-});
+}).refine(
+  (data) => {
+    // Если рабочие часы включены, то время начала и конца обязательны
+    if (data.workHoursEnabled && (!data.workHoursStart || !data.workHoursEnd)) {
+      return false;
+    }
+    return true;
+  },
+  {
+    message: 'Если рабочие часы включены, необходимо указать время начала и конца',
+    path: ['workHoursStart'],
+  }
+).refine(
+  (data) => {
+    // Если рабочие дни включены, то список дней обязателен
+    if (data.workDaysEnabled && (!data.workDays || data.workDays.length === 0)) {
+      return false;
+    }
+    return true;
+  },
+  {
+    message: 'Если рабочие дни включены, необходимо выбрать хотя бы один день',
+    path: ['workDays'],
+  }
+);
 
 export type ScheduleConfigFormData = z.infer<typeof scheduleConfigSchema>;
 
@@ -154,7 +180,7 @@ export const createCampaignSchema = z.object({
     .array(z.string().uuid({ message: 'Некорректный профиль' }))
     .min(1, { message: 'Выберите хотя бы один профиль' }),
   
-  scheduleConfig: scheduleConfigSchema.optional(),
+  scheduleConfig: scheduleConfigSchema, // Обязательно - рабочие часы настраиваются для каждой кампании
   filterConfig: filterConfigSchema.optional(),
   optionsConfig: optionsConfigSchema.optional(),
   
@@ -195,7 +221,7 @@ export const updateCampaignSchema = z.object({
   
   universalTarget: universalTargetSchema.optional().nullable(),
   
-  scheduleConfig: scheduleConfigSchema.optional(),
+  scheduleConfig: scheduleConfigSchema, // Обязательно - рабочие часы настраиваются для каждой кампании
   filterConfig: filterConfigSchema.optional(),
   optionsConfig: optionsConfigSchema.optional(),
   
@@ -250,17 +276,11 @@ export type UpdateCampaignProfilesFormData = z.infer<typeof updateCampaignProfil
 export const globalSettingsSchema = z.object({
   pauseMode: z.union([z.literal(1), z.literal(2)]).default(2),
   
-  minDelayBetweenContactsMs: z.number().int().min(0).default(30000),
-  maxDelayBetweenContactsMs: z.number().int().min(0).default(120000),
-  minDelayBetweenMessagesMs: z.number().int().min(0).default(3000),
-  maxDelayBetweenMessagesMs: z.number().int().min(0).default(10000),
+  delayBetweenContactsMs: z.number().int().min(0).default(60000),
+  delayBetweenMessagesMs: z.number().int().min(0).default(5000),
   
   maxContactsPerProfilePerHour: z.number().int().positive().default(100),
   maxContactsPerProfilePerDay: z.number().int().positive().default(500),
-  
-  defaultWorkHoursStart: z.string().regex(/^\d{2}:\d{2}$/).default('09:00'),
-  defaultWorkHoursEnd: z.string().regex(/^\d{2}:\d{2}$/).default('21:00'),
-  defaultWorkDays: z.array(z.number().int().min(0).max(6)).default([1, 2, 3, 4, 5]),
   
   typingSimulationEnabled: z.boolean().default(true),
   typingSpeedCharsPerSec: z.number().int().positive().default(50),

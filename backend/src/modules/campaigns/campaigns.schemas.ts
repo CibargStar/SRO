@@ -37,15 +37,20 @@ export const logLevelSchema = z.enum(['INFO', 'WARNING', 'ERROR']);
 
 /**
  * Конфигурация расписания кампании
+ * 
+ * ВАЖНО: Рабочие часы и дни настраиваются индивидуально для каждой кампании.
+ * Глобальные настройки больше не используются как fallback.
  */
 export const scheduleConfigSchema = z.object({
   // Время работы (рабочие часы)
-  workHoursEnabled: z.boolean().default(false),
+  workHoursEnabled: z.boolean(),
+  // Если workHoursEnabled=true, то workHoursStart и workHoursEnd обязательны
   workHoursStart: z.string().regex(/^\d{2}:\d{2}$/).optional(), // HH:MM
   workHoursEnd: z.string().regex(/^\d{2}:\d{2}$/).optional(), // HH:MM
   
   // Рабочие дни (0 = Воскресенье, 1 = Понедельник, ..., 6 = Суббота)
-  workDaysEnabled: z.boolean().default(false),
+  workDaysEnabled: z.boolean(),
+  // Если workDaysEnabled=true, то workDays обязателен
   workDays: z.array(z.number().int().min(0).max(6)).optional(),
   
   // Периодичность (для SCHEDULED)
@@ -54,7 +59,31 @@ export const scheduleConfigSchema = z.object({
   
   // Таймзона
   timezone: z.string().default('Europe/Moscow'),
-});
+}).refine(
+  (data) => {
+    // Если рабочие часы включены, то время начала и конца обязательны
+    if (data.workHoursEnabled && (!data.workHoursStart || !data.workHoursEnd)) {
+      return false;
+    }
+    return true;
+  },
+  {
+    message: 'Если рабочие часы включены, необходимо указать время начала и конца',
+    path: ['workHoursStart'],
+  }
+).refine(
+  (data) => {
+    // Если рабочие дни включены, то список дней обязателен
+    if (data.workDaysEnabled && (!data.workDays || data.workDays.length === 0)) {
+      return false;
+    }
+    return true;
+  },
+  {
+    message: 'Если рабочие дни включены, необходимо выбрать хотя бы один день',
+    path: ['workDays'],
+  }
+);
 
 export type ScheduleConfig = z.infer<typeof scheduleConfigSchema>;
 
@@ -166,8 +195,8 @@ export const createCampaignSchema = z.object({
     .array(z.string().uuid({ message: 'Некорректный формат ID профиля' }))
     .min(1, { message: 'Необходимо выбрать хотя бы один профиль' }),
   
-  // Конфигурации (опционально)
-  scheduleConfig: scheduleConfigSchema.optional(),
+  // Конфигурации
+  scheduleConfig: scheduleConfigSchema, // Обязательно - рабочие часы настраиваются для каждой кампании
   filterConfig: filterConfigSchema.optional(),
   optionsConfig: optionsConfigSchema.optional(),
   

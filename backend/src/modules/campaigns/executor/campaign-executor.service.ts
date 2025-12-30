@@ -230,12 +230,8 @@ export class CampaignExecutorService extends EventEmitter {
 
     const settings = await this.settingsRepository.getOrCreate();
     const pauseMode: 1 | 2 = settings.pauseMode === 2 ? 2 : 1;
-    const delayBetweenMessagesMs = settings.minDelayBetweenMessagesMs && settings.maxDelayBetweenMessagesMs
-      ? { minMs: settings.minDelayBetweenMessagesMs, maxMs: settings.maxDelayBetweenMessagesMs }
-      : undefined;
-    const delayBetweenContactsMs = settings.minDelayBetweenContactsMs && settings.maxDelayBetweenContactsMs
-      ? { minMs: settings.minDelayBetweenContactsMs, maxMs: settings.maxDelayBetweenContactsMs }
-      : undefined;
+    const delayBetweenMessagesMs = settings.delayBetweenMessagesMs ?? undefined;
+    const delayBetweenContactsMs = settings.delayBetweenContactsMs ?? undefined;
     const typingDelayMs =
       settings.typingSpeedCharsPerSec && settings.typingSpeedCharsPerSec > 0
         ? {

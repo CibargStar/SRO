@@ -57,3 +57,9 @@ export interface CampaignErrorPayload {
 export interface CampaignCompletedPayload {
   campaignId: string;
 }
+
+
+
+
+
+

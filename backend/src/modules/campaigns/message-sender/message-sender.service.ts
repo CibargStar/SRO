@@ -23,11 +23,12 @@ export interface SendMessageInput {
   attachments?: string[]; // пути к файлам
   simulateTyping?: boolean;
   typingDelayRange?: { minMs: number; maxMs: number };
-  sendDelayRange?: { minMs: number; maxMs: number };
+  sendDelayMs?: number;
   universalTarget?: UniversalTarget | null;
   hasWhatsApp?: boolean;
   hasTelegram?: boolean;
   profileId?: string; // ID профиля для доступа к Puppeteer
+  skipSendDelay?: boolean; // Пропустить задержку перед отправкой (для второго мессенджера в режиме BOTH)
 }
 
 export interface SendMessageResult {
@@ -55,8 +56,9 @@ export class MessageSenderService {
       this.ensurePhoneValid(phone);
 
       // Задержка перед отправкой (анти-спам тайминги)
-      if (input.sendDelayRange) {
-        await this.delay(this.getRandomDelay(input.sendDelayRange.minMs, input.sendDelayRange.maxMs));
+      // Пропускаем задержку если skipSendDelay=true (для второго мессенджера в режиме BOTH)
+      if (input.sendDelayMs && input.sendDelayMs > 0 && !input.skipSendDelay) {
+        await this.delay(input.sendDelayMs);
       }
 
       // Симуляция набора
@@ -114,9 +116,9 @@ export class MessageSenderService {
   }
 
   /**
-   * Случайная задержка
+   * Случайная задержка (используется только для симуляции набора)
    */
-  getRandomDelay(minMs: number, maxMs: number): number {
+  private getRandomDelay(minMs: number, maxMs: number): number {
     const min = Math.max(0, minMs);
     const max = Math.max(min, maxMs);
     return Math.floor(Math.random() * (max - min + 1)) + min;

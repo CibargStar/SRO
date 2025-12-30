@@ -98,7 +98,7 @@ export class CampaignsService {
       _count?: { profiles: number; messages: number; logs: number };
     }
   ): Campaign & {
-    scheduleConfig: ScheduleConfig | null;
+    scheduleConfig: ScheduleConfig; // Обязательно - рабочие часы настраиваются для каждой кампании
     filterConfig: FilterConfig | null;
     optionsConfig: OptionsConfig | null;
     template?: { id: string; name: string; type: string; messengerType: string } | null;
@@ -108,7 +108,13 @@ export class CampaignsService {
   } {
     return {
       ...campaign,
-      scheduleConfig: safeJsonParse<ScheduleConfig>(campaign.scheduleConfig, null),
+      scheduleConfig: safeJsonParse<ScheduleConfig>(campaign.scheduleConfig, {
+        workHoursEnabled: false,
+        workDaysEnabled: false,
+        workDays: [],
+        recurrence: 'NONE',
+        timezone: 'Europe/Moscow',
+      }) as ScheduleConfig, // Обязательно, но для старых кампаний может быть null - используем дефолт
       filterConfig: safeJsonParse<FilterConfig>(campaign.filterConfig, null),
       optionsConfig: safeJsonParse<OptionsConfig>(campaign.optionsConfig, null),
     };
@@ -179,7 +185,7 @@ export class CampaignsService {
       campaignType: input.campaignType,
       messengerType: input.messengerType,
       universalTarget: input.universalTarget,
-      scheduleConfig: input.scheduleConfig ? JSON.stringify(input.scheduleConfig) : null,
+      scheduleConfig: JSON.stringify(input.scheduleConfig), // Обязательно - рабочие часы настраиваются для каждой кампании
       filterConfig: input.filterConfig ? JSON.stringify(input.filterConfig) : null,
       optionsConfig: input.optionsConfig ? JSON.stringify(input.optionsConfig) : null,
       scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
@@ -198,7 +204,7 @@ export class CampaignsService {
           campaignType: campaignData.campaignType,
           messengerType: campaignData.messengerType,
           universalTarget: campaignData.universalTarget ?? null,
-          scheduleConfig: campaignData.scheduleConfig ?? null,
+          scheduleConfig: campaignData.scheduleConfig, // Обязательно
           filterConfig: campaignData.filterConfig ?? null,
           optionsConfig: campaignData.optionsConfig ?? null,
           scheduledAt: campaignData.scheduledAt ?? null,
@@ -345,7 +351,13 @@ export class CampaignsService {
     // Парсим JSON конфиги
     return {
       ...campaign,
-      scheduleConfig: safeJsonParse<ScheduleConfig>(campaign.scheduleConfig, null),
+      scheduleConfig: safeJsonParse<ScheduleConfig>(campaign.scheduleConfig, {
+        workHoursEnabled: false,
+        workDaysEnabled: false,
+        workDays: [],
+        recurrence: 'NONE',
+        timezone: 'Europe/Moscow',
+      }) as ScheduleConfig, // Обязательно, но для старых кампаний может быть null - используем дефолт
       filterConfig: safeJsonParse<FilterConfig>(campaign.filterConfig, null),
       optionsConfig: safeJsonParse<OptionsConfig>(campaign.optionsConfig, null),
     };
@@ -362,7 +374,13 @@ export class CampaignsService {
       ...result,
       data: result.data.map((campaign) => ({
         ...campaign,
-        scheduleConfig: safeJsonParse<ScheduleConfig>(campaign.scheduleConfig, null),
+        scheduleConfig: safeJsonParse<ScheduleConfig>(campaign.scheduleConfig, {
+        workHoursEnabled: false,
+        workDaysEnabled: false,
+        workDays: [],
+        recurrence: 'NONE',
+        timezone: 'Europe/Moscow',
+      }) as ScheduleConfig, // Обязательно, но для старых кампаний может быть null - используем дефолт
         filterConfig: safeJsonParse<FilterConfig>(campaign.filterConfig, null),
         optionsConfig: safeJsonParse<OptionsConfig>(campaign.optionsConfig, null),
       })),
@@ -577,6 +595,31 @@ export class CampaignsService {
       result.valid = false;
       result.templateValid = false;
       result.errors.push('Шаблон не содержит элементов');
+    } else {
+      // Для мульти шаблона проверяем, что есть хотя бы один валидный элемент
+      // (TEXT с контентом или FILE с файлом)
+      if (template.type === 'MULTI') {
+        const hasValidTextItem = template.items.some(
+          item => item.type === 'TEXT' && item.content && item.content.trim().length > 0
+        );
+        const hasValidFileItem = template.items.some(
+          item => item.type === 'FILE' && item.filePath && item.filePath.trim().length > 0
+        );
+        
+        if (!hasValidTextItem && !hasValidFileItem) {
+          result.valid = false;
+          result.templateValid = false;
+          result.errors.push('Мульти шаблон должен содержать хотя бы один валидный элемент (TEXT с текстом или FILE с файлом)');
+        }
+      } else if (template.type === 'SINGLE') {
+        // Для одиночного шаблона проверяем, что есть TEXT элемент с контентом
+        const textItem = template.items.find(item => item.type === 'TEXT');
+        if (!textItem || !textItem.content || textItem.content.trim().length === 0) {
+          result.valid = false;
+          result.templateValid = false;
+          result.errors.push('Одиночный шаблон должен содержать TEXT элемент с текстом');
+        }
+      }
     }
 
     // Проверка группы клиентов
@@ -846,6 +889,7 @@ export class CampaignsService {
         : campaign.profiles.map((p) => p.profileId);
 
     if (profileIds.length === 0) {
+      logger.warn('No profiles selected for campaign', { campaignId, userId });
       throw new HttpError('Не выбраны профили для выполнения кампании', 400, 'PROFILES_REQUIRED');
     }
 
@@ -897,6 +941,12 @@ export class CampaignsService {
     );
 
     if (distribution.totalContacts <= 0) {
+      logger.warn('No contacts match campaign filters', { 
+        campaignId, 
+        userId,
+        filterConfig,
+        messengerTarget: campaign.messengerType 
+      });
       throw new HttpError('Нет контактов, соответствующих условиям кампании', 400, 'NO_CONTACTS_MATCH');
     }
 

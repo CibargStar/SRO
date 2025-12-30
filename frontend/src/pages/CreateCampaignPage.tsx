@@ -97,6 +97,13 @@ export function CreateCampaignPage() {
       clientGroupId: '',
       profileIds: [],
       scheduledAt: null,
+      scheduleConfig: {
+        workHoursEnabled: false,
+        workDaysEnabled: false,
+        workDays: [],
+        recurrence: 'NONE',
+        timezone: 'Europe/Moscow',
+      },
     },
     mode: 'onChange',
   });

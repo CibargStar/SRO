@@ -25,15 +25,12 @@ import { z } from 'zod';
 
 const updateGlobalSettingsSchema = z.object({
   pauseMode: z.number().int().min(1).max(2).optional(),
-  minDelayBetweenContactsMs: z.number().int().min(0).optional(),
-  maxDelayBetweenContactsMs: z.number().int().min(0).optional(),
-  minDelayBetweenMessagesMs: z.number().int().min(0).optional(),
-  maxDelayBetweenMessagesMs: z.number().int().min(0).optional(),
+  delayBetweenContactsMs: z.number().int().min(0).optional(),
+  delayBetweenMessagesMs: z.number().int().min(0).optional(),
   maxContactsPerProfilePerHour: z.number().int().min(1).optional(),
   maxContactsPerProfilePerDay: z.number().int().min(1).optional(),
-  defaultWorkHoursStart: z.string().regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
-  defaultWorkHoursEnd: z.string().regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
-  defaultWorkDays: z.array(z.number().int().min(1).max(7)).optional(),
+  // ПРИМЕЧАНИЕ: defaultWorkHoursStart, defaultWorkHoursEnd, defaultWorkDays больше не используются
+  // Рабочие часы настраиваются индивидуально для каждой кампании
   typingSimulationEnabled: z.boolean().optional(),
   typingSpeedCharsPerSec: z.number().int().min(1).optional(),
   maxRetriesOnError: z.number().int().min(0).optional(),
@@ -117,15 +114,11 @@ export class CampaignAdminController {
       // Преобразуем defaultWorkDays в JSON строку, если передан массив
       const updateInput: Partial<{
         pauseMode?: number;
-        minDelayBetweenContactsMs?: number;
-        maxDelayBetweenContactsMs?: number;
-        minDelayBetweenMessagesMs?: number;
-        maxDelayBetweenMessagesMs?: number;
+        delayBetweenContactsMs?: number;
+        delayBetweenMessagesMs?: number;
         maxContactsPerProfilePerHour?: number;
         maxContactsPerProfilePerDay?: number;
-        defaultWorkHoursStart?: string;
-        defaultWorkHoursEnd?: string;
-        defaultWorkDays?: string;
+        // ПРИМЕЧАНИЕ: defaultWorkHoursStart, defaultWorkHoursEnd, defaultWorkDays больше не используются
         typingSimulationEnabled?: boolean;
         typingSpeedCharsPerSec?: number;
         maxRetriesOnError?: number;
@@ -138,9 +131,7 @@ export class CampaignAdminController {
         warmupDay1To3Limit?: number;
         warmupDay4To7Limit?: number;
       }> = { ...input };
-      if (input.defaultWorkDays) {
-        updateInput.defaultWorkDays = JSON.stringify(input.defaultWorkDays);
-      }
+      // ПРИМЕЧАНИЕ: defaultWorkDays больше не используется
 
       const settings = await this.settingsService.updateGlobalSettings(updateInput, userId);
       res.json(settings);

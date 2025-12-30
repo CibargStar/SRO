@@ -15,11 +15,9 @@ export interface UpdateGlobalSettingsInput {
   // Режим паузы: 1 = между номерами, 2 = между клиентами
   pauseMode?: number;
   
-  // Тайминги (в миллисекундах)
-  minDelayBetweenContactsMs?: number;
-  maxDelayBetweenContactsMs?: number;
-  minDelayBetweenMessagesMs?: number;
-  maxDelayBetweenMessagesMs?: number;
+  // Тайминги (в миллисекундах) - фиксированные значения
+  delayBetweenContactsMs?: number;
+  delayBetweenMessagesMs?: number;
   
   // Лимиты
   maxContactsPerProfilePerHour?: number;
@@ -95,32 +93,18 @@ export class CampaignSettingsService {
       updateData.pauseMode = input.pauseMode;
     }
 
-    if (input.minDelayBetweenContactsMs !== undefined) {
-      if (input.minDelayBetweenContactsMs < 0) {
-        throw new Error('minDelayBetweenContactsMs must be non-negative');
+    if (input.delayBetweenContactsMs !== undefined) {
+      if (input.delayBetweenContactsMs < 0) {
+        throw new Error('delayBetweenContactsMs must be non-negative');
       }
-      updateData.minDelayBetweenContactsMs = input.minDelayBetweenContactsMs;
+      updateData.delayBetweenContactsMs = input.delayBetweenContactsMs;
     }
 
-    if (input.maxDelayBetweenContactsMs !== undefined) {
-      if (input.maxDelayBetweenContactsMs < 0) {
-        throw new Error('maxDelayBetweenContactsMs must be non-negative');
+    if (input.delayBetweenMessagesMs !== undefined) {
+      if (input.delayBetweenMessagesMs < 0) {
+        throw new Error('delayBetweenMessagesMs must be non-negative');
       }
-      updateData.maxDelayBetweenContactsMs = input.maxDelayBetweenContactsMs;
-    }
-
-    if (input.minDelayBetweenMessagesMs !== undefined) {
-      if (input.minDelayBetweenMessagesMs < 0) {
-        throw new Error('minDelayBetweenMessagesMs must be non-negative');
-      }
-      updateData.minDelayBetweenMessagesMs = input.minDelayBetweenMessagesMs;
-    }
-
-    if (input.maxDelayBetweenMessagesMs !== undefined) {
-      if (input.maxDelayBetweenMessagesMs < 0) {
-        throw new Error('maxDelayBetweenMessagesMs must be non-negative');
-      }
-      updateData.maxDelayBetweenMessagesMs = input.maxDelayBetweenMessagesMs;
+      updateData.delayBetweenMessagesMs = input.delayBetweenMessagesMs;
     }
 
     if (input.maxContactsPerProfilePerHour !== undefined) {
@@ -240,23 +224,19 @@ export class CampaignSettingsService {
   }
 
   /**
-   * Получить случайную задержку между контактами
+   * Получить задержку между контактами
    */
-  async getRandomContactDelay(): Promise<number> {
+  async getContactDelay(): Promise<number> {
     const settings = await this.repository.getOrCreate();
-    const min = settings.minDelayBetweenContactsMs;
-    const max = settings.maxDelayBetweenContactsMs;
-    return Math.floor(Math.random() * (max - min + 1)) + min;
+    return settings.delayBetweenContactsMs;
   }
 
   /**
-   * Получить случайную задержку между сообщениями в цепочке
+   * Получить задержку между сообщениями в цепочке
    */
-  async getRandomMessageDelay(): Promise<number> {
+  async getMessageDelay(): Promise<number> {
     const settings = await this.repository.getOrCreate();
-    const min = settings.minDelayBetweenMessagesMs;
-    const max = settings.maxDelayBetweenMessagesMs;
-    return Math.floor(Math.random() * (max - min + 1)) + min;
+    return settings.delayBetweenMessagesMs;
   }
 
   /**

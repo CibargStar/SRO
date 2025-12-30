@@ -17,7 +17,6 @@ import type { CampaignGlobalSettings, UpdateGlobalSettingsInput } from '@/types/
 import { PauseModeSelector } from '@/components/admin/campaign-settings/PauseModeSelector';
 import { TimingsForm } from '@/components/admin/campaign-settings/TimingsForm';
 import { LimitsForm } from '@/components/admin/campaign-settings/LimitsForm';
-import { WorkHoursForm } from '@/components/admin/campaign-settings/WorkHoursForm';
 import { TypingSimulationForm } from '@/components/admin/campaign-settings/TypingSimulationForm';
 import { ErrorHandlingForm } from '@/components/admin/campaign-settings/ErrorHandlingForm';
 import { MonitoringForm } from '@/components/admin/campaign-settings/MonitoringForm';
@@ -34,15 +33,10 @@ export function CampaignSettingsAdminPage() {
     if (data) {
       setForm({
         pauseMode: data.pauseMode,
-        minDelayBetweenContactsMs: data.minDelayBetweenContactsMs,
-        maxDelayBetweenContactsMs: data.maxDelayBetweenContactsMs,
-        minDelayBetweenMessagesMs: data.minDelayBetweenMessagesMs,
-        maxDelayBetweenMessagesMs: data.maxDelayBetweenMessagesMs,
+        delayBetweenContactsMs: data.delayBetweenContactsMs,
+        delayBetweenMessagesMs: data.delayBetweenMessagesMs,
         maxContactsPerProfilePerHour: data.maxContactsPerProfilePerHour,
         maxContactsPerProfilePerDay: data.maxContactsPerProfilePerDay,
-        defaultWorkHoursStart: data.defaultWorkHoursStart,
-        defaultWorkHoursEnd: data.defaultWorkHoursEnd,
-        defaultWorkDays: data.defaultWorkDays,
         typingSimulationEnabled: data.typingSimulationEnabled,
         typingSpeedCharsPerSec: data.typingSpeedCharsPerSec,
         maxRetriesOnError: data.maxRetriesOnError,
@@ -147,15 +141,6 @@ export function CampaignSettingsAdminPage() {
                 Лимиты
               </Typography>
               <LimitsForm form={form} onChange={handleFieldChange} />
-            </Box>
-
-            <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.08)' }} />
-
-            <Box>
-              <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500, mb: 2, fontSize: '1.1rem' }}>
-                Рабочие часы
-              </Typography>
-              <WorkHoursForm form={form} onChange={handleFieldChange} />
             </Box>
 
             <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.08)' }} />

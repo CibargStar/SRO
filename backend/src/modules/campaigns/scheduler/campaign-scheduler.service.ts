@@ -33,9 +33,8 @@ export interface ScheduleConfig {
 }
 
 export interface GlobalSettings {
-  defaultWorkHoursStart: string; // 'HH:mm'
-  defaultWorkHoursEnd: string; // 'HH:mm'
-  defaultWorkDays: number[]; // 0-6
+  // ПРИМЕЧАНИЕ: Поля defaultWorkHoursStart, defaultWorkHoursEnd, defaultWorkDays больше не используются
+  // Рабочие часы настраиваются индивидуально для каждой кампании
   keepCompletedCampaignsDays: number;
   autoResumeAfterRestart: boolean;
 }
@@ -191,16 +190,13 @@ export class CampaignSchedulerService {
     try {
       const now = new Date();
 
-      // Получаем глобальные настройки
-      const globalSettings = await this.getGlobalSettings();
-
       // Проверяем RUNNING кампании - нужно ли приостановить
       const runningCampaigns = await this.repository.findRunning();
       
       for (const campaign of runningCampaigns) {
         const scheduleConfig = this.parseScheduleConfig(campaign.scheduleConfig);
         
-        if (!this.isWithinWorkHours(scheduleConfig, now, globalSettings)) {
+        if (!this.isWithinWorkHours(scheduleConfig, now)) {
           logger.info('Pausing campaign (outside work hours)', {
             campaignId: campaign.id,
             name: campaign.name,
@@ -228,7 +224,7 @@ export class CampaignSchedulerService {
         
         // Возобновляем только если кампания была поставлена на паузу из-за рабочих часов
         // (а не вручную пользователем)
-        if (this.isWithinWorkHours(scheduleConfig, now, globalSettings)) {
+        if (this.isWithinWorkHours(scheduleConfig, now)) {
           // Проверяем, была ли пауза автоматической
           // (если pausedAt близко к границе рабочих часов)
           const wasAutoPaused = this.wasAutoPaused(campaign);
@@ -255,38 +251,79 @@ export class CampaignSchedulerService {
 
   /**
    * Проверка, находится ли текущее время в рабочих часах
+   * 
+   * ВАЖНО: Используются только настройки кампании. Глобальные настройки больше не используются.
+   * Если рабочие часы/дни отключены (workHoursEnabled=false или workDaysEnabled=false),
+   * то соответствующая проверка не выполняется (кампания работает 24/7 по этому параметру).
    */
   isWithinWorkHours(
     scheduleConfig: ScheduleConfig | null,
-    date: Date,
-    globalSettings?: GlobalSettings | null
+    date: Date
   ): boolean {
-    const timezone = scheduleConfig?.timezone ?? 'UTC';
-
-    // Часы из конфигурации кампании (целые) или строки из глобальных настроек
-    const workHoursStart =
-      scheduleConfig?.workHoursStart ??
-      this.parseHour(globalSettings?.defaultWorkHoursStart ?? '09:00');
-    const workHoursEnd =
-      scheduleConfig?.workHoursEnd ??
-      this.parseHour(globalSettings?.defaultWorkHoursEnd ?? '21:00');
-
-    const workDays =
-      scheduleConfig?.workDays ??
-      globalSettings?.defaultWorkDays ??
-      [1, 2, 3, 4, 5];
-
-    // Конвертируем время в нужную таймзону
-    const localTime = this.getLocalTime(date, timezone);
-    const currentHour = localTime.getHours();
-    const currentDay = localTime.getDay();
-
-    if (!workDays.includes(currentDay)) {
-      return false;
+    // Если конфигурации нет - считаем что рабочие часы не ограничены (24/7)
+    if (!scheduleConfig) {
+      return true;
     }
-    if (currentHour < workHoursStart || currentHour >= workHoursEnd) {
-      return false;
+
+    const timezone = scheduleConfig.timezone ?? 'Europe/Moscow';
+
+    // Если рабочие часы отключены - не проверяем время (24/7 по часам)
+    if (scheduleConfig.workHoursEnabled === false) {
+      // Проверяем только рабочие дни, если они включены
+      if (scheduleConfig.workDaysEnabled === true && scheduleConfig.workDays) {
+        const localTime = this.getLocalTime(date, timezone);
+        const currentDay = localTime.getDay();
+        return scheduleConfig.workDays.includes(currentDay);
+      }
+      // Если и рабочие дни отключены - кампания работает 24/7
+      return true;
     }
+
+    // Если рабочие дни отключены - не проверяем день (24/7 по дням)
+    if (scheduleConfig.workDaysEnabled === false) {
+      // Проверяем только рабочие часы, если они включены
+      if (scheduleConfig.workHoursEnabled === true && scheduleConfig.workHoursStart && scheduleConfig.workHoursEnd) {
+        const localTime = this.getLocalTime(date, timezone);
+        const currentHour = localTime.getHours();
+        const workHoursStart = this.parseHour(scheduleConfig.workHoursStart);
+        const workHoursEnd = this.parseHour(scheduleConfig.workHoursEnd);
+        return currentHour >= workHoursStart && currentHour < workHoursEnd;
+      }
+      // Если и рабочие часы отключены - кампания работает 24/7
+      return true;
+    }
+
+    // Если оба включены - проверяем и часы, и дни
+    if (scheduleConfig.workHoursEnabled === true && scheduleConfig.workDaysEnabled === true) {
+      if (!scheduleConfig.workHoursStart || !scheduleConfig.workHoursEnd || !scheduleConfig.workDays) {
+        // Если настройки неполные - логируем предупреждение и разрешаем работу
+        logger.warn('Incomplete work hours/days configuration, allowing campaign to run', {
+          hasWorkHours: !!(scheduleConfig.workHoursStart && scheduleConfig.workHoursEnd),
+          hasWorkDays: !!scheduleConfig.workDays,
+        });
+        return true;
+      }
+
+      const localTime = this.getLocalTime(date, timezone);
+      const currentHour = localTime.getHours();
+      const currentDay = localTime.getDay();
+      const workHoursStart = this.parseHour(scheduleConfig.workHoursStart);
+      const workHoursEnd = this.parseHour(scheduleConfig.workHoursEnd);
+
+      // Проверяем день недели
+      if (!scheduleConfig.workDays.includes(currentDay)) {
+        return false;
+      }
+
+      // Проверяем часы
+      if (currentHour < workHoursStart || currentHour >= workHoursEnd) {
+        return false;
+      }
+
+      return true;
+    }
+
+    // Если оба отключены - кампания работает 24/7
     return true;
   }
 
@@ -382,9 +419,6 @@ export class CampaignSchedulerService {
       if (!settings) return null;
 
       return {
-        defaultWorkHoursStart: settings.defaultWorkHoursStart,
-        defaultWorkHoursEnd: settings.defaultWorkHoursEnd,
-        defaultWorkDays: this.safeParseWorkDays(settings.defaultWorkDays),
         keepCompletedCampaignsDays: settings.keepCompletedCampaignsDays,
         autoResumeAfterRestart: settings.autoResumeAfterRestart,
       };
@@ -452,10 +486,9 @@ export class CampaignSchedulerService {
       }
 
       const scheduleConfig = this.parseScheduleConfig(campaign.scheduleConfig);
-      const globalSettings = await this.getGlobalSettings();
       const now = new Date();
 
-      if (!this.isWithinWorkHours(scheduleConfig, now, globalSettings)) {
+      if (!this.isWithinWorkHours(scheduleConfig, now)) {
         logger.warn('Cannot trigger campaign outside work hours', { campaignId });
         return false;
       }
@@ -561,7 +594,7 @@ export class CampaignSchedulerService {
       for (const campaign of campaigns) {
         const scheduleConfig = this.parseScheduleConfig(campaign.scheduleConfig);
 
-        if (this.isWithinWorkHours(scheduleConfig, now, globalSettings)) {
+        if (this.isWithinWorkHours(scheduleConfig, now)) {
           logger.info('Restoring campaign after restart', {
             campaignId: campaign.id,
             name: campaign.name,

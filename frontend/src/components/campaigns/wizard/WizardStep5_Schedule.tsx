@@ -17,9 +17,9 @@ export function WizardStep5_Schedule() {
             value={(field.value as ScheduleConfig) || {
               workHoursEnabled: false,
               workDaysEnabled: false,
-              workDays: [1, 2, 3, 4, 5],
+              workDays: [],
               recurrence: 'NONE',
-              timezone: 'UTC',
+              timezone: 'Europe/Moscow',
             }}
             onChange={field.onChange}
           />

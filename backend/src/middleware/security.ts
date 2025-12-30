@@ -13,6 +13,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import { env } from '../config/env';
+import logger from '../config/logger';
 
 /**
  * Helmet middleware - устанавливает безопасные HTTP заголовки
@@ -56,8 +57,8 @@ export const securityMiddleware = helmet({
   crossOriginEmbedderPolicy: false, // Отключен для совместимости с некоторыми библиотеками
   // Cross-Origin Opener Policy
   crossOriginOpenerPolicy: { policy: 'same-origin' },
-  // Cross-Origin Resource Policy
-  crossOriginResourcePolicy: { policy: 'same-origin' },
+  // Cross-Origin Resource Policy - разрешаем cross-origin для CORS
+  crossOriginResourcePolicy: { policy: 'cross-origin' }, // Изменено с 'same-origin' на 'cross-origin' для поддержки CORS
   // DNS Prefetch Control
   dnsPrefetchControl: true,
   // Frame Guard (X-Frame-Options)
@@ -88,7 +89,7 @@ export const securityMiddleware = helmet({
  * CORS middleware - настройка Cross-Origin Resource Sharing
  * 
  * Настройки:
- * - origin: разрешенный origin (из env.FRONTEND_URL)
+ * - origin: разрешенный origin (из env.FRONTEND_URL или список origins)
  * - credentials: разрешены cookies и авторизационные заголовки
  * - methods: разрешенные HTTP методы
  * - allowedHeaders: разрешенные заголовки
@@ -99,12 +100,46 @@ export const securityMiddleware = helmet({
  * - Preflight запросы обрабатываются корректно
  */
 export const corsMiddleware = cors({
-  origin: env.FRONTEND_URL,
+  origin: (origin, callback) => {
+    // Разрешенные origins
+    const allowedOrigins = [
+      env.FRONTEND_URL,
+      'http://localhost:5173', // Vite dev server
+      'http://localhost:3000', // Альтернативный порт для dev
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:3000',
+    ].filter(Boolean); // Убираем undefined значения
+
+    // Логирование для отладки (только в development)
+    if (process.env.NODE_ENV !== 'production') {
+      logger.debug('CORS check', { origin, allowedOrigins });
+    }
+
+    // В development разрешаем запросы без origin (например, Postman, curl)
+    // В production это должно быть отключено
+    if (!origin) {
+      if (process.env.NODE_ENV !== 'production') {
+        return callback(null, true);
+      } else {
+        return callback(new Error('Origin is required in production'));
+      }
+    }
+
+    // Проверяем, есть ли origin в списке разрешенных
+    if (origin && allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      logger.warn('CORS blocked', { origin, allowedOrigins });
+      callback(new Error(`Not allowed by CORS. Origin: ${origin || 'none'}`));
+    }
+  },
   credentials: true, // Разрешаем cookies и авторизационные заголовки
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   exposedHeaders: ['RateLimit-*', 'X-Filename', 'Content-Disposition'], // Экспортируем заголовки rate limiting и имя файла
   maxAge: 86400, // 24 часа для preflight запросов
+  preflightContinue: false, // Останавливаем обработку preflight запросов после CORS
+  optionsSuccessStatus: 200, // Статус для успешных OPTIONS запросов
 });
 
 /**

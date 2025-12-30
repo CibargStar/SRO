@@ -49,6 +49,7 @@ export interface DistributionResult {
 export interface FilterConfig {
   // Фильтры базы клиентов
   clientStatuses?: string[];
+  regionIds?: string[]; // Фильтр по регионам
   whatsAppStatus?: MessengerStatus[];
   telegramStatus?: MessengerStatus[];
   hasWhatsApp?: boolean;
@@ -94,6 +95,9 @@ export class LoadBalancerService {
           groupId: clientGroupId,
           ...(filterConfig?.clientStatuses && filterConfig.clientStatuses.length > 0
             ? { status: { in: filterConfig.clientStatuses as ('NEW' | 'OLD')[] } }
+            : {}),
+          ...(filterConfig?.regionIds && filterConfig.regionIds.length > 0
+            ? { regionId: { in: filterConfig.regionIds } }
             : {}),
         },
         include: {

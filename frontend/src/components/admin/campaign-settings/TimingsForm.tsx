@@ -15,38 +15,20 @@ export function TimingsForm({ form, onChange }: Props) {
     <Grid container spacing={2}>
       <Grid item xs={12} md={6}>
         <StyledTextField
-          label="Мин. задержка между контактами (мс)"
+          label="Задержка между контактами (мс)"
           type="number"
           fullWidth
-          value={form.minDelayBetweenContactsMs ?? ''}
-          onChange={(e) => onChange('minDelayBetweenContactsMs', e.target.value === '' ? undefined : Number(e.target.value))}
+          value={form.delayBetweenContactsMs ?? ''}
+          onChange={(e) => onChange('delayBetweenContactsMs', e.target.value === '' ? undefined : Number(e.target.value))}
         />
       </Grid>
       <Grid item xs={12} md={6}>
         <StyledTextField
-          label="Макс. задержка между контактами (мс)"
+          label="Задержка между сообщениями (мс)"
           type="number"
           fullWidth
-          value={form.maxDelayBetweenContactsMs ?? ''}
-          onChange={(e) => onChange('maxDelayBetweenContactsMs', e.target.value === '' ? undefined : Number(e.target.value))}
-        />
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <StyledTextField
-          label="Мин. задержка между сообщениями (мс)"
-          type="number"
-          fullWidth
-          value={form.minDelayBetweenMessagesMs ?? ''}
-          onChange={(e) => onChange('minDelayBetweenMessagesMs', e.target.value === '' ? undefined : Number(e.target.value))}
-        />
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <StyledTextField
-          label="Макс. задержка между сообщениями (мс)"
-          type="number"
-          fullWidth
-          value={form.maxDelayBetweenMessagesMs ?? ''}
-          onChange={(e) => onChange('maxDelayBetweenMessagesMs', e.target.value === '' ? undefined : Number(e.target.value))}
+          value={form.delayBetweenMessagesMs ?? ''}
+          onChange={(e) => onChange('delayBetweenMessagesMs', e.target.value === '' ? undefined : Number(e.target.value))}
         />
       </Grid>
     </Grid>

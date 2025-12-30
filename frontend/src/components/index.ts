@@ -18,6 +18,7 @@ export { ClientTable } from './ClientTable';
 export { CreateClientDialog } from './CreateClientDialog';
 export { EditClientDialog } from './EditClientDialog';
 export { RegionSelector } from './RegionSelector';
+export { RegionMultiSelect } from './RegionMultiSelect';
 export { ClientGroupSelector } from './ClientGroupSelector';
 export { ClientPhonesList } from './ClientPhonesList';
 export { ClientPhonesFormField } from './ClientPhonesFormField';

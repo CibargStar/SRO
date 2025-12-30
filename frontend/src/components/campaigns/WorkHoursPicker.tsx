@@ -31,26 +31,32 @@ export function WorkHoursPicker({ value, onChange }: WorkHoursPickerProps) {
         label={<Typography sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Ограничить отправку рабочими часами</Typography>}
       />
 
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-        <StyledTextField
-          label="Начало"
-          type="time"
-          InputLabelProps={{ shrink: true }}
-          value={value.workHoursStart || '09:00'}
-          onChange={(e) => update({ workHoursStart: e.target.value })}
-          disabled={!value.workHoursEnabled}
-          fullWidth
-        />
-        <StyledTextField
-          label="Окончание"
-          type="time"
-          InputLabelProps={{ shrink: true }}
-          value={value.workHoursEnd || '18:00'}
-          onChange={(e) => update({ workHoursEnd: e.target.value })}
-          disabled={!value.workHoursEnabled}
-          fullWidth
-        />
-      </Stack>
+      {value.workHoursEnabled && (
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+          <StyledTextField
+            label="Начало"
+            type="time"
+            InputLabelProps={{ shrink: true }}
+            value={value.workHoursStart || '09:00'}
+            onChange={(e) => update({ workHoursStart: e.target.value })}
+            required
+            fullWidth
+            helperText={!value.workHoursStart ? 'Обязательное поле' : undefined}
+            error={!value.workHoursStart}
+          />
+          <StyledTextField
+            label="Окончание"
+            type="time"
+            InputLabelProps={{ shrink: true }}
+            value={value.workHoursEnd || '18:00'}
+            onChange={(e) => update({ workHoursEnd: e.target.value })}
+            required
+            fullWidth
+            helperText={!value.workHoursEnd ? 'Обязательное поле' : undefined}
+            error={!value.workHoursEnd}
+          />
+        </Stack>
+      )}
     </Stack>
   );
 }

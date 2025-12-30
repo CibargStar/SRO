@@ -793,11 +793,9 @@ model CampaignGlobalSettings {
   // Режим паузы: 1 = между номерами, 2 = между клиентами
   pauseMode Int @default(2)
 
-  // Тайминги (в миллисекундах)
-  minDelayBetweenContactsMs Int @default(30000) // 30 сек
-  maxDelayBetweenContactsMs Int @default(120000) // 2 мин
-  minDelayBetweenMessagesMs Int @default(3000) // 3 сек
-  maxDelayBetweenMessagesMs Int @default(10000) // 10 сек
+  // Тайминги (в миллисекундах) - фиксированные значения
+  delayBetweenContactsMs Int @default(60000) // 1 мин
+  delayBetweenMessagesMs Int @default(5000) // 5 сек
 
   // Лимиты
   maxContactsPerProfilePerHour Int @default(100)

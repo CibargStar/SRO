@@ -22,8 +22,8 @@ interface ProfileWorkerConfig {
   sender: MessageSenderService;
   universalTarget?: UniversalTarget | null;
   pauseMode: 1 | 2;
-  delayBetweenMessagesMs?: { minMs: number; maxMs: number };
-  delayBetweenContactsMs?: { minMs: number; maxMs: number };
+  delayBetweenMessagesMs?: number;
+  delayBetweenContactsMs?: number;
   typingSimulationEnabled?: boolean;
   typingDelayMs?: { minMs: number; maxMs: number };
   onMessageProcessed: (result: {
@@ -60,13 +60,14 @@ export class ProfileWorker {
   private running = false;
   private paused = false;
   private pauseMode: 1 | 2;
-  private delayBetweenMessagesMs?: { minMs: number; maxMs: number };
-  private delayBetweenContactsMs?: { minMs: number; maxMs: number };
+  private delayBetweenMessagesMs?: number;
+  private delayBetweenContactsMs?: number;
   private typingSimulationEnabled?: boolean;
   private typingDelayMs?: { minMs: number; maxMs: number };
   private lastClientId: string | null = null;
   private universalTarget?: UniversalTarget | null;
   private templateText: string | null = null;
+  private templateItems: Array<{ type: 'TEXT' | 'FILE'; content?: string | null; filePath?: string | null; orderIndex: number }> = [];
   private variableParser: VariableParserService;
 
   constructor(config: ProfileWorkerConfig) {
@@ -148,35 +149,67 @@ export class ProfileWorker {
         };
 
         try {
-          // Получаем текст из шаблона с подстановкой переменных клиента
-          const text = await this.getProcessedTemplateText(msg.client, phone);
+          // Получаем элементы шаблона с подстановкой переменных клиента
+          const processedItems = await this.getProcessedTemplateItems(msg.client, phone);
 
           // Проверяем, есть ли что отправлять
-          if (!text || text.trim() === '') {
-            // Если текст пустой, помечаем как FAILED
+          if (processedItems.length === 0) {
+            // Если нет элементов, помечаем как FAILED
             result = {
               messageId: msg.id,
               status: 'FAILED' as const,
               messenger: null,
               clientId,
               phoneId,
-              errorMessage: 'Template text is empty or failed to load',
+              errorMessage: 'Template has no text or file content',
             };
             await this.onMessageProcessed(result);
             continue;
           }
 
-          // Отправляем
-          result = await this.sendWithHandling({
+          // Отправляем каждый элемент шаблона отдельным сообщением по порядку
+          let lastResult: typeof result | null = null;
+          let hasError = false;
+
+          for (let i = 0; i < processedItems.length; i++) {
+            const item = processedItems[i];
+            
+            // Отправляем элемент
+            const itemResult = await this.sendWithHandling({
+              messageId: msg.id,
+              messenger,
+              phone,
+              text: item.type === 'TEXT' ? item.content : undefined,
+              attachments: item.type === 'FILE' ? [item.filePath!] : undefined,
+              clientId,
+              phoneId,
+              waStatus: msg.clientPhone?.whatsAppStatus ?? 'Unknown' as MessengerStatus,
+              tgStatus: msg.clientPhone?.telegramStatus ?? 'Unknown' as MessengerStatus,
+              sendDelayMs: this.delayBetweenMessagesMs,
+            });
+
+            lastResult = itemResult;
+
+            // Если произошла ошибка, прерываем отправку остальных элементов
+            if (itemResult.status === 'FAILED') {
+              hasError = true;
+              break;
+            }
+
+            // Небольшая задержка между элементами (кроме последнего)
+            if (i < processedItems.length - 1) {
+              await this.delay(500);
+            }
+          }
+
+          // Используем результат последнего отправленного элемента
+          result = lastResult || {
             messageId: msg.id,
-            messenger,
-            phone,
-            text,
+            status: hasError ? 'FAILED' as const : 'SENT' as const,
+            messenger: null,
             clientId,
             phoneId,
-            waStatus: msg.clientPhone?.whatsAppStatus ?? 'Unknown' as MessengerStatus,
-            tgStatus: msg.clientPhone?.telegramStatus ?? 'Unknown' as MessengerStatus,
-          });
+          };
 
           await this.onMessageProcessed(result);
         } catch (error) {
@@ -254,10 +287,12 @@ export class ProfileWorker {
     messenger: 'WHATSAPP' | 'TELEGRAM' | null;
     phone: string;
     text?: string;
+    attachments?: string[]; // Пути к файлам из шаблона
     clientId: string | null;
     phoneId: string | null;
     waStatus: MessengerStatus;
     tgStatus: MessengerStatus;
+    sendDelayMs?: number;
   }): Promise<{
     messageId: string;
     status: 'SENT' | 'FAILED' | 'SKIPPED';
@@ -275,10 +310,11 @@ export class ProfileWorker {
         const sendResult = await this.sender.sendMessage({
           messenger: input.messenger,
           phone: input.phone,
-          text: input.text ?? '',
+          text: input.text,
+          attachments: input.attachments, // Передаем файлы из шаблона
           simulateTyping: this.typingSimulationEnabled,
           typingDelayRange: this.typingDelayMs,
-          sendDelayRange: this.delayBetweenMessagesMs,
+          sendDelayMs: input.sendDelayMs,
           hasWhatsApp: hasWa,
           hasTelegram: hasTg,
           universalTarget: this.universalTarget,
@@ -309,18 +345,20 @@ export class ProfileWorker {
       // UNIVERSAL / BOTH логика: пробуем по приоритету, для BOTH — обе попытки
       const tried: Array<{ messenger: MessengerType; result: SendMessageResult }> = [];
 
-      const trySend = async (messenger: MessengerType) => {
+      const trySend = async (messenger: MessengerType, skipSendDelay = false) => {
         const res = await this.sender.sendMessage({
           messenger,
           phone: input.phone,
-          text: input.text ?? '',
+          text: input.text,
+          attachments: input.attachments, // Передаем файлы из шаблона
           simulateTyping: this.typingSimulationEnabled,
           typingDelayRange: this.typingDelayMs,
-          sendDelayRange: this.delayBetweenMessagesMs,
+          sendDelayMs: input.sendDelayMs,
           hasWhatsApp: hasWa,
           hasTelegram: hasTg,
           universalTarget: this.universalTarget,
           profileId: this.profileId,
+          skipSendDelay, // Пропускаем задержку для второго мессенджера в режиме BOTH
         });
         tried.push({ messenger, result: res });
         if (res.success) {
@@ -330,11 +368,19 @@ export class ProfileWorker {
       };
 
       if (this.universalTarget === 'BOTH') {
-        if (hasWa) await trySend('WHATSAPP');
-        if (hasTg) await trySend('TELEGRAM');
-      } else if (this.universalTarget === 'TELEGRAM_FIRST') {
+        // В режиме BOTH отправляем в оба мессенджера БЕЗ паузы между ними
+        // Пауза должна быть только между контактами, а не между мессенджерами для одного контакта
+        if (hasWa) {
+          await trySend('WHATSAPP', false); // Первый мессенджер - с задержкой
+        }
         if (hasTg) {
-          const res = await trySend('TELEGRAM');
+          await trySend('TELEGRAM', true); // Второй мессенджер - БЕЗ задержки (для того же контакта)
+        }
+      } else if (this.universalTarget === 'TELEGRAM_FIRST') {
+        // В режиме TELEGRAM_FIRST сначала пробуем Telegram, если не удалось - WhatsApp
+        // Это fallback, поэтому задержка нужна для обоих (разные попытки)
+        if (hasTg) {
+          const res = await trySend('TELEGRAM', false);
           if (res.success) {
             return {
               messageId: input.messageId,
@@ -345,11 +391,15 @@ export class ProfileWorker {
             };
           }
         }
-        if (hasWa) await trySend('WHATSAPP');
+        if (hasWa) {
+          await trySend('WHATSAPP', false); // Fallback - с задержкой
+        }
       } else {
         // WHATSAPP_FIRST или undefined
+        // В режиме WHATSAPP_FIRST сначала пробуем WhatsApp, если не удалось - Telegram
+        // Это fallback, поэтому задержка нужна для обоих (разные попытки)
         if (hasWa) {
-          const res = await trySend('WHATSAPP');
+          const res = await trySend('WHATSAPP', false);
           if (res.success) {
             return {
               messageId: input.messageId,
@@ -360,7 +410,9 @@ export class ProfileWorker {
             };
           }
         }
-        if (hasTg) await trySend('TELEGRAM');
+        if (hasTg) {
+          await trySend('TELEGRAM', false); // Fallback - с задержкой
+        }
       }
 
       // Итог: если были успешные отправки — считаем SENT, иначе FAILED
@@ -414,25 +466,17 @@ export class ProfileWorker {
   }
 
   private async applyMessageDelay(): Promise<void> {
-    if (!this.delayBetweenMessagesMs) {
+    if (!this.delayBetweenMessagesMs || this.delayBetweenMessagesMs <= 0) {
       return;
     }
-    const delayMs = this.randomInRange(this.delayBetweenMessagesMs.minMs, this.delayBetweenMessagesMs.maxMs);
-    await this.delay(delayMs);
+    await this.delay(this.delayBetweenMessagesMs);
   }
 
   private async applyContactDelay(): Promise<void> {
-    if (!this.delayBetweenContactsMs) {
+    if (!this.delayBetweenContactsMs || this.delayBetweenContactsMs <= 0) {
       return;
     }
-    const delayMs = this.randomInRange(this.delayBetweenContactsMs.minMs, this.delayBetweenContactsMs.maxMs);
-    await this.delay(delayMs);
-  }
-
-  private randomInRange(min: number, max: number): number {
-    const safeMin = Math.max(0, min);
-    const safeMax = Math.max(safeMin, max);
-    return Math.floor(Math.random() * (safeMax - safeMin + 1)) + safeMin;
+    await this.delay(this.delayBetweenContactsMs);
   }
 
   private async delay(ms: number): Promise<void> {
@@ -444,6 +488,7 @@ export class ProfileWorker {
 
   /**
    * Загрузка шаблона кампании
+   * Загружает все элементы шаблона (TEXT и FILE) для поддержки мульти шаблонов
    */
   private async loadTemplate(): Promise<void> {
     try {
@@ -453,8 +498,7 @@ export class ProfileWorker {
           template: {
             include: {
               items: {
-                where: { type: 'TEXT' },
-                orderBy: { orderIndex: 'asc' },
+                orderBy: { orderIndex: 'asc' }, // Загружаем все элементы по порядку
               },
             },
           },
@@ -466,31 +510,37 @@ export class ProfileWorker {
           campaignId: this.campaignId 
         });
         this.templateText = null;
+        this.templateItems = [];
         return;
       }
 
-      // Объединяем все TEXT элементы шаблона
-      const textItems = campaign.template.items
+      // Сохраняем все элементы шаблона
+      this.templateItems = campaign.template.items.map(item => ({
+        type: item.type as 'TEXT' | 'FILE',
+        content: item.content,
+        filePath: item.filePath,
+        orderIndex: item.orderIndex,
+      }));
+
+      // Объединяем все TEXT элементы шаблона для обратной совместимости
+      // ВАЖНО: Для WhatsApp лучше отправлять каждую часть отдельным сообщением,
+      // но для обратной совместимости оставляем объединение через \n
+      const textItems = this.templateItems
+        .filter(item => item.type === 'TEXT')
         .map((item) => item.content || '')
         .filter((text) => text.trim() !== '')
         .join('\n')
         .trim();
 
-      if (!textItems) {
-        logger.warn('Campaign template has no text content', { 
-          campaignId: this.campaignId,
-          templateId: campaign.template.id,
-          itemsCount: campaign.template.items.length
-        });
-        this.templateText = null;
-        return;
-      }
+      this.templateText = textItems || null; // Может быть null, если только FILE элементы
 
-      this.templateText = textItems;
       logger.debug('Campaign template loaded successfully', { 
         campaignId: this.campaignId,
         templateId: campaign.template.id,
-        textLength: this.templateText.length
+        itemsCount: this.templateItems.length,
+        textItemsCount: this.templateItems.filter(i => i.type === 'TEXT').length,
+        fileItemsCount: this.templateItems.filter(i => i.type === 'FILE').length,
+        textLength: this.templateText?.length || 0
       });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
@@ -499,11 +549,14 @@ export class ProfileWorker {
         campaignId: this.campaignId 
       });
       this.templateText = null;
+      this.templateItems = [];
     }
   }
 
   /**
    * Получение обработанного текста шаблона с подстановкой переменных клиента
+   * Возвращает текст из TEXT элементов шаблона
+   * @deprecated Используйте getProcessedTemplateItems для отправки каждого элемента отдельно
    */
   private async getProcessedTemplateText(
     client: WorkerMessage['client'],
@@ -531,6 +584,73 @@ export class ProfileWorker {
 
     // Обрабатываем шаблон с подстановкой переменных
     return this.variableParser.replaceVariables(this.templateText, clientData);
+  }
+
+  /**
+   * Получение обработанных элементов шаблона с подстановкой переменных клиента
+   * Возвращает массив элементов (TEXT и FILE) в порядке orderIndex
+   */
+  private async getProcessedTemplateItems(
+    client: WorkerMessage['client'],
+    phone: string
+  ): Promise<Array<{ type: 'TEXT' | 'FILE'; content?: string; filePath?: string }>> {
+    // Если шаблон не загружен, возвращаем пустой массив
+    if (this.templateItems.length === 0) {
+      return [];
+    }
+
+    // Подготавливаем данные клиента для подстановки
+    const clientData: ClientData = client ? {
+      firstName: client.firstName || '',
+      lastName: client.lastName || '',
+      middleName: client.middleName || null,
+      phone: phone || '',
+      groupName: client.group?.name || null,
+      regionName: client.region?.name || null,
+    } : {
+      firstName: '',
+      lastName: '',
+      middleName: null,
+      phone: phone || '',
+      groupName: null,
+      regionName: null,
+    };
+
+    // Обрабатываем каждый элемент шаблона
+    const processedItems: Array<{ type: 'TEXT' | 'FILE'; content?: string; filePath?: string }> = [];
+
+    for (const item of this.templateItems) {
+      if (item.type === 'TEXT' && item.content) {
+        // Обрабатываем TEXT элемент с подстановкой переменных
+        const processedContent = this.variableParser.replaceVariables(item.content, clientData);
+        if (processedContent.trim().length > 0) {
+          processedItems.push({
+            type: 'TEXT',
+            content: processedContent,
+          });
+        }
+      } else if (item.type === 'FILE' && item.filePath && item.filePath.trim().length > 0) {
+        // FILE элемент - просто добавляем путь к файлу
+        processedItems.push({
+          type: 'FILE',
+          filePath: item.filePath,
+        });
+      }
+    }
+
+    return processedItems;
+  }
+
+  /**
+   * Получение путей к файлам из шаблона
+   * Возвращает массив путей к FILE элементам шаблона
+   * @deprecated Используйте getProcessedTemplateItems для отправки каждого элемента отдельно
+   */
+  private getTemplateAttachments(): string[] {
+    return this.templateItems
+      .filter(item => item.type === 'FILE' && item.filePath && item.filePath.trim().length > 0)
+      .map(item => item.filePath!)
+      .filter((path): path is string => !!path);
   }
 }
 

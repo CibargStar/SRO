@@ -38,7 +38,7 @@ export interface CreateCampaignData {
   campaignType: CampaignType;
   messengerType: MessengerTarget;
   universalTarget?: UniversalTarget | null;
-  scheduleConfig?: string | null;
+  scheduleConfig: string; // Обязательно - рабочие часы настраиваются для каждой кампании
   filterConfig?: string | null;
   optionsConfig?: string | null;
   scheduledAt?: Date | null;
@@ -160,7 +160,7 @@ export class CampaignRepository {
           campaignType: data.campaignType,
           messengerType: data.messengerType,
           universalTarget: data.universalTarget ?? null,
-          scheduleConfig: data.scheduleConfig ?? null,
+          scheduleConfig: data.scheduleConfig, // Обязательно
           filterConfig: data.filterConfig ?? null,
           optionsConfig: data.optionsConfig ?? null,
           scheduledAt: data.scheduledAt ?? null,

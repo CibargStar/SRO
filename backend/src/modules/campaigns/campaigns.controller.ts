@@ -296,13 +296,38 @@ export class CampaignsController {
   ): Promise<void> => {
     try {
       const userId = req.user!.id;
+      logger.info('Starting campaign', { 
+        campaignId: req.params.campaignId, 
+        userId,
+        body: req.body 
+      });
+
       const { campaignId } = campaignIdParamSchema.parse(req.params);
       const input = startCampaignSchema.parse(req.body);
+
+      logger.debug('Campaign start input parsed', { campaignId, input });
 
       // Валидация перед запуском
       const validation = await this.service.validateCampaign(userId, campaignId);
 
+      logger.debug('Campaign validation completed', { 
+        campaignId, 
+        valid: validation.valid, 
+        errorsCount: validation.errors.length,
+        warningsCount: validation.warnings.length 
+      });
+
       if (!validation.valid && !input.force) {
+        logger.warn('Campaign validation failed', {
+          campaignId,
+          userId,
+          errors: validation.errors,
+          warnings: validation.warnings,
+          templateValid: validation.templateValid,
+          profilesValid: validation.profilesValid,
+          groupValid: validation.groupValid,
+          contactsCount: validation.contactsCount,
+        });
         res.status(400).json({
           error: 'Кампания не прошла валидацию',
           validation,
@@ -311,6 +336,7 @@ export class CampaignsController {
       }
 
       // Подготовка очереди и перевод в QUEUED
+      logger.debug('Queueing campaign', { campaignId, profileIds: input.profileIds });
       await this.service.queueCampaign(userId, campaignId, input.profileIds);
 
       const executor = this.resolveExecutor(req);
@@ -319,8 +345,15 @@ export class CampaignsController {
       // Получаем обновлённую кампанию для возврата
       const campaign = await this.service.getCampaign(userId, campaignId);
 
+      logger.info('Campaign started successfully', { campaignId, userId });
       res.json(campaign);
     } catch (error) {
+      logger.error('Error starting campaign', {
+        campaignId: req.params.campaignId,
+        userId: req.user?.id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       next(error);
     }
   };

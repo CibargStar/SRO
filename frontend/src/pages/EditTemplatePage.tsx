@@ -211,30 +211,32 @@ export function EditTemplatePage() {
                     name="categoryId"
                     control={control}
                     render={({ field }) => (
-                      <StyledSelect
-                        value={field.value || ''}
-                        onChange={(e) => field.onChange(e.target.value)}
-                        label="Категория"
-                        error={!!errors.categoryId}
-                        MenuProps={MenuProps}
-                      >
-                        {categories && categories.length > 0 ? (
-                          categories.map((cat) => (
-                            <MenuItem key={cat.id} value={cat.id}>
-                              {cat.name}
+                      <>
+                        <StyledSelect
+                          value={field.value || ''}
+                          onChange={(e) => field.onChange(e.target.value)}
+                          label="Категория"
+                          error={!!errors.categoryId}
+                          MenuProps={MenuProps}
+                        >
+                          {categories && categories.length > 0 ? (
+                            categories.map((cat) => (
+                              <MenuItem key={cat.id} value={cat.id}>
+                                {cat.name}
+                              </MenuItem>
+                            ))
+                          ) : (
+                            <MenuItem value="" disabled>
+                              <em>Сначала создайте категорию</em>
                             </MenuItem>
-                          ))
-                        ) : (
-                          <MenuItem value="" disabled>
-                            <em>Сначала создайте категорию</em>
-                          </MenuItem>
+                          )}
+                        </StyledSelect>
+                        {errors.categoryId && (
+                          <Typography sx={{ color: '#f44336', mt: 0.5, fontSize: '0.75rem' }}>
+                            {errors.categoryId.message}
+                          </Typography>
                         )}
-                      </StyledSelect>
-                      {errors.categoryId && (
-                        <Typography sx={{ color: '#f44336', mt: 0.5, fontSize: '0.75rem' }}>
-                          {errors.categoryId.message}
-                        </Typography>
-                      )}
+                      </>
                     )}
                   />
                 </FormControl>

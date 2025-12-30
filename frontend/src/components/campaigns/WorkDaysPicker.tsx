@@ -42,32 +42,37 @@ export function WorkDaysPicker({ value, onChange }: WorkDaysPickerProps) {
         label={<Typography sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Ограничить отправку рабочими днями</Typography>}
       />
 
-      <Grid container spacing={1.5}>
-        {DAYS.map((day) => (
-          <Grid item key={day.value}>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={value.workDays?.includes(day.value) ?? false}
-                  onChange={(e) => updateDays(day.value, e.target.checked)}
-                  disabled={!value.workDaysEnabled}
-                  size="small"
-                  sx={{
-                    color: '#6366f1',
-                    '&.Mui-checked': {
-                      color: '#6366f1',
-                    },
-                    '&.Mui-disabled': {
-                      color: 'rgba(255, 255, 255, 0.3)',
-                    },
-                  }}
+      {value.workDaysEnabled && (
+        <>
+          <Grid container spacing={1.5}>
+            {DAYS.map((day) => (
+              <Grid item key={day.value}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={value.workDays?.includes(day.value) ?? false}
+                      onChange={(e) => updateDays(day.value, e.target.checked)}
+                      size="small"
+                      sx={{
+                        color: '#6366f1',
+                        '&.Mui-checked': {
+                          color: '#6366f1',
+                        },
+                      }}
+                    />
+                  }
+                  label={<Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>{day.label}</Typography>}
                 />
-              }
-              label={<Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>{day.label}</Typography>}
-            />
+              </Grid>
+            ))}
           </Grid>
-        ))}
-      </Grid>
+          {(!value.workDays || value.workDays.length === 0) && (
+            <Typography variant="caption" sx={{ color: '#f44336', mt: 0.5, display: 'block' }}>
+              Необходимо выбрать хотя бы один день
+            </Typography>
+          )}
+        </>
+      )}
     </Stack>
   );
 }
