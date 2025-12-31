@@ -167,6 +167,334 @@ export class WhatsAppSender {
   }
 
   /**
+   * Проверка и обработка модальных окон с ошибками (недействительный номер, контакт не существует и т.д.)
+   * Проверяет различные типы ошибок WhatsApp перед попыткой открыть чат
+   * Использует повторные попытки, так как модальное окно может появиться с задержкой
+   * @returns true если модальное окно было обнаружено и закрыто, false если не найдено
+   * @throws Error если модальное окно обнаружено (номер недействителен или контакт не существует)
+   */
+  private async checkAndHandleInvalidPhoneModal(page: Page, phone: string): Promise<boolean> {
+    try {
+      // Проверяем модальное окно с повторными попытками (до 3 секунд)
+      const maxAttempts = 15;
+      const checkInterval = 200;
+      let modalInfo: { found: boolean; errorType?: string; ariaLabel?: string; textContent?: string; hasOkButton?: boolean } = { found: false };
+
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        // Проверяем наличие модального окна с ошибкой
+        modalInfo = await page.evaluate(() => {
+          // Расширенный список ключевых слов для различных типов ошибок
+          // 1. Недействительный номер телефона
+          const invalidPhoneKeywords = [
+            'недействителен',
+            'invalid',
+            'неверный',
+            'incorrect',
+            'номер телефона',
+            'phone number',
+            'отправленный по url',
+            'sent via url',
+          ];
+          
+          // 2. Контакт не существует / не зарегистрирован
+          const contactNotFoundKeywords = [
+            'не существует',
+            'doesn\'t exist',
+            'not exist',
+            'не зарегистрирован',
+            'not registered',
+            'не найден',
+            'not found',
+            'не в whatsapp',
+            'not on whatsapp',
+            'не использует whatsapp',
+            'doesn\'t use whatsapp',
+            'не зарегистрирован в whatsapp',
+            'not registered in whatsapp',
+          ];
+          
+          // Объединяем все ключевые слова
+          const allErrorKeywords = [...invalidPhoneKeywords, ...contactNotFoundKeywords];
+          
+          // ТОЧНЫЙ ПОИСК: Ищем модальное окно по точному селектору с aria-label
+          // Это более надежный способ - ищем элемент с data-animate-modal-popup="true" 
+          // и aria-label, содержащим ключевые слова
+          const exactModalSelectors = [
+            'div[data-animate-modal-popup="true"][aria-label*="недействителен"]',
+            'div[data-animate-modal-popup="true"][aria-label*="invalid"]',
+            'div[data-animate-modal-popup="true"][aria-label*="не существует"]',
+            'div[data-animate-modal-popup="true"][aria-label*="not exist"]',
+            'div[data-animate-modal-popup="true"][aria-label*="not registered"]',
+            'div[data-animate-modal-popup="true"][aria-label*="не зарегистрирован"]',
+          ];
+          
+          // Пробуем точные селекторы сначала
+          for (const selector of exactModalSelectors) {
+            const exactModal = document.querySelector(selector);
+            if (exactModal) {
+              const htmlModal = exactModal as HTMLElement;
+              const style = window.getComputedStyle(htmlModal);
+              const isVisible = htmlModal.offsetParent !== null && 
+                               style.display !== 'none' && 
+                               style.visibility !== 'hidden';
+              
+              if (isVisible) {
+                const ariaLabel = htmlModal.getAttribute('aria-label') ?? '';
+                const textContent = htmlModal.innerText ?? htmlModal.textContent ?? '';
+                
+                // Определяем тип ошибки
+                const isContactNotFound = contactNotFoundKeywords.some(keyword => {
+                  const normalizedKeyword = keyword.toLowerCase().trim();
+                  const normalizedAriaLabel = ariaLabel.toLowerCase().replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
+                  const normalizedTextContent = textContent.toLowerCase().replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
+                  return normalizedAriaLabel.includes(normalizedKeyword) ||
+                         normalizedTextContent.includes(normalizedKeyword);
+                });
+                
+                const errorType = isContactNotFound ? 'contact_not_found' : 'invalid_phone';
+                
+                // Ищем кнопку OK
+                const okButton = exactModal.querySelector('button') ?? 
+                               exactModal.querySelector('[role="button"]') ??
+                               Array.from(exactModal.querySelectorAll('button, [role="button"]')).find(btn => {
+                                 const btnText = (btn as HTMLElement).textContent ?? '';
+                                 return btnText.toLowerCase().includes('ok') || 
+                                        btnText.toLowerCase().includes('ок');
+                               });
+                
+                return {
+                  found: true,
+                  errorType,
+                  ariaLabel,
+                  textContent: textContent.substring(0, 200),
+                  hasOkButton: !!okButton,
+                };
+              }
+            }
+          }
+          
+          // Если точные селекторы не сработали, используем общий поиск
+          // Ищем ВСЕ модальные окна по data-animate-modal-popup
+          const allModals = Array.from(document.querySelectorAll('div[data-animate-modal-popup="true"]'));
+          
+          // Также ищем через role="dialog"
+          const dialogModals = Array.from(document.querySelectorAll('div[role="dialog"]'));
+          
+          // Объединяем все найденные модальные окна (убираем дубликаты)
+          const allModalElements = Array.from(new Set([...allModals, ...dialogModals]));
+
+          // Проверяем каждое модальное окно
+          for (const modal of allModalElements) {
+            const htmlModal = modal as HTMLElement;
+            
+            // Проверяем видимость модального окна
+            const style = window.getComputedStyle(htmlModal);
+            const isVisible = htmlModal.offsetParent !== null && 
+                             style.display !== 'none' && 
+                             style.visibility !== 'hidden';
+            
+            if (!isVisible) {
+              continue; // Пропускаем невидимые модальные окна
+            }
+
+            // Получаем aria-label и весь текст из модального окна (включая дочерние элементы)
+            const ariaLabel = htmlModal.getAttribute('aria-label') ?? '';
+            // Используем innerText для получения видимого текста, включая дочерние элементы
+            const textContent = htmlModal.innerText ?? htmlModal.textContent ?? '';
+            
+            // Нормализуем текст для поиска (убираем лишние пробелы и спецсимволы)
+            // Важно: заменяем &nbsp; на пробел ДО нормализации
+            const normalizedAriaLabel = ariaLabel.toLowerCase()
+              .replace(/&nbsp;/gi, ' ')
+              .replace(/\s+/g, ' ')
+              .trim();
+            const normalizedTextContent = textContent.toLowerCase()
+              .replace(/&nbsp;/gi, ' ')
+              .replace(/\s+/g, ' ')
+              .trim();
+            
+            // Проверяем наличие ошибки через ключевые слова
+            let hasError = allErrorKeywords.some(keyword => {
+              const normalizedKeyword = keyword.toLowerCase().trim();
+              return normalizedAriaLabel.includes(normalizedKeyword) ||
+                     normalizedTextContent.includes(normalizedKeyword);
+            });
+            
+            // Дополнительная проверка: если aria-label содержит "недействителен" или похожие слова напрямую
+            // (на случай если ключевые слова не сработали из-за форматирования)
+            if (!hasError && ariaLabel) {
+              const directErrorPatterns = [
+                /недействителен/i,
+                /invalid/i,
+                /неверный/i,
+                /не существует/i,
+                /doesn.*exist/i,
+                /not.*exist/i,
+                /not.*registered/i,
+                /не зарегистрирован/i,
+              ];
+              hasError = directErrorPatterns.some(pattern => 
+                pattern.test(ariaLabel) || pattern.test(textContent)
+              );
+            }
+
+            if (hasError) {
+              // Определяем тип ошибки
+              const isContactNotFound = contactNotFoundKeywords.some(keyword => {
+                const normalizedKeyword = keyword.toLowerCase().trim();
+                return normalizedAriaLabel.includes(normalizedKeyword) ||
+                       normalizedTextContent.includes(normalizedKeyword);
+              });
+              
+              const errorType = isContactNotFound ? 'contact_not_found' : 'invalid_phone';
+
+              // Ищем кнопку OK для закрытия
+              const okButton = modal.querySelector('button') ?? 
+                             modal.querySelector('[role="button"]') ??
+                             Array.from(modal.querySelectorAll('button, [role="button"]')).find(btn => {
+                               const btnText = (btn as HTMLElement).textContent ?? '';
+                               return btnText.toLowerCase().includes('ok') || 
+                                      btnText.toLowerCase().includes('ок');
+                             });
+
+              return {
+                found: true,
+                errorType,
+                ariaLabel,
+                textContent: textContent.substring(0, 200),
+                hasOkButton: !!okButton,
+              };
+            }
+          }
+
+          return { found: false };
+        });
+
+        // Если модальное окно найдено, выходим из цикла
+        if (modalInfo.found) {
+          logger.debug('WhatsApp error modal found', { attempt: attempt + 1, phone });
+          break;
+        }
+
+        // Если модальное окно не найдено, ждем перед следующей попыткой
+        if (attempt < maxAttempts - 1) {
+          await this.delay(checkInterval);
+        }
+      }
+
+      // Если модальное окно не найдено после всех попыток, делаем финальную диагностику
+      if (!modalInfo.found) {
+        // Финальная диагностика: проверяем, есть ли вообще какие-то модальные окна
+        const diagnosticInfo = await page.evaluate(() => {
+          const modals = Array.from(document.querySelectorAll('div[data-animate-modal-popup="true"], div[role="dialog"]'));
+          return modals.map(modal => {
+            const htmlModal = modal as HTMLElement;
+            const style = window.getComputedStyle(htmlModal);
+            const isVisible = htmlModal.offsetParent !== null && 
+                             style.display !== 'none' && 
+                             style.visibility !== 'hidden';
+            return {
+              selector: modal.tagName,
+              ariaLabel: htmlModal.getAttribute('aria-label') ?? '',
+              textContent: (htmlModal.innerText ?? htmlModal.textContent ?? '').substring(0, 100),
+              isVisible,
+            };
+          }).filter(m => m.isVisible);
+        });
+
+        if (diagnosticInfo.length > 0) {
+          logger.warn('Modal windows found but not recognized as error modals', {
+            phone,
+            attempts: maxAttempts,
+            modals: diagnosticInfo,
+          });
+        } else {
+          logger.debug('No WhatsApp error modal found after all attempts', {
+            phone,
+            attempts: maxAttempts,
+          });
+        }
+        return false;
+      }
+
+      if (modalInfo.found && 'errorType' in modalInfo) {
+        logger.error('WhatsApp error modal detected', {
+          phone,
+          errorType: modalInfo.errorType,
+          ariaLabel: modalInfo.ariaLabel,
+          textContent: modalInfo.textContent,
+        });
+
+        // Закрываем модальное окно
+        try {
+          // Способ 1: Ищем и кликаем кнопку OK
+          const okButtonClicked = await page.evaluate(() => {
+            // Ищем кнопку OK в модальном окне
+            const modal = document.querySelector('div[data-animate-modal-popup="true"]');
+            if (!modal) {
+              return false;
+            }
+
+            const buttons = Array.from(modal.querySelectorAll('button, [role="button"]'));
+            for (const btn of buttons) {
+              const btnText = (btn as HTMLElement).textContent ?? '';
+              if (btnText.toLowerCase().includes('ok') || btnText.toLowerCase().includes('ок')) {
+                (btn as HTMLElement).click();
+                return true;
+              }
+            }
+            return false;
+          });
+
+          if (!okButtonClicked) {
+            // Способ 2: Нажимаем Escape
+            await page.keyboard.press('Escape');
+          }
+
+          await this.delay(300);
+          logger.debug('WhatsApp error modal closed', { errorType: modalInfo.errorType });
+        } catch (closeError) {
+          logger.warn('Failed to close WhatsApp error modal', {
+            error: closeError instanceof Error ? closeError.message : 'Unknown',
+            errorType: modalInfo.errorType,
+          });
+        }
+
+        // Выбрасываем ошибку с понятным сообщением в зависимости от типа ошибки
+        const errorText = modalInfo.textContent ?? modalInfo.ariaLabel ?? 'Unknown error';
+        if (modalInfo.errorType === 'contact_not_found') {
+          throw new Error(
+            `Contact not found in WhatsApp: ${phone}. ` +
+            `WhatsApp error: "${errorText}". ` +
+            `This phone number is not registered in WhatsApp or doesn't exist.`
+          );
+        } else {
+          throw new Error(
+            `Invalid phone number: ${phone}. ` +
+            `WhatsApp error: "${errorText}". ` +
+            `Please check the phone number format and ensure it's valid.`
+          );
+        }
+      }
+
+      return false;
+    } catch (error) {
+      // Если это наша ошибка о недействительном номере или контакте - пробрасываем её дальше
+      if (error instanceof Error && (
+        error.message.includes('Invalid phone number') ||
+        error.message.includes('Contact not found')
+      )) {
+        throw error;
+      }
+      // Иначе просто возвращаем false (модальное окно не найдено)
+      logger.debug('Error checking for WhatsApp error modal', {
+        error: error instanceof Error ? error.message : 'Unknown',
+      });
+      return false;
+    }
+  }
+
+  /**
    * Открытие чата по номеру
    * Проверяет, не открыт ли уже чат с этим номером - если да, не перезагружает страницу
    */
@@ -214,6 +542,10 @@ export class WhatsAppSender {
 
       // Переходим в чат
       await page.goto(chatUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+      // Проверяем наличие модального окна с ошибкой недействительного номера
+      // Это должно быть сделано ДО ожидания поля ввода, так как при ошибке поле ввода не появится
+      await this.checkAndHandleInvalidPhoneModal(page, phone);
 
       // Ждем поле ввода
       await page.waitForSelector(SELECTORS.messageInput, { timeout: 20000 });
