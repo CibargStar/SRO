@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Box, Stack, Alert, Typography, Divider } from '@mui/material';
 import type { Template } from '@/types/template';
 import { TemplateItemEditor } from './TemplateItemEditor';

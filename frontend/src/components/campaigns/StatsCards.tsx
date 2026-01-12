@@ -1,4 +1,3 @@
-import React from 'react';
 import { Card, CardContent, Grid, Typography } from '@mui/material';
 
 interface StatsCardsProps {
@@ -17,7 +16,7 @@ export function StatsCards({ success, failed, skipped }: StatsCardsProps) {
   return (
     <Grid container spacing={1.5}>
       {items.map((item) => (
-        <Grid item xs={12} sm={4} key={item.label}>
+        <Grid size={{ xs: 12, sm: 4 }} key={item.label}>
           <Card sx={{ 
             backgroundColor: 'rgba(255,255,255,0.05)', 
             borderRadius: '12px',

@@ -4,7 +4,6 @@
  * Компонент для отображения статистики кампании
  */
 
-import React from 'react';
 import {
   Box,
   Paper,
@@ -28,7 +27,6 @@ import {
   CheckCircle as SuccessIcon,
   Error as ErrorIcon,
   Block as SkippedIcon,
-  Speed as SpeedIcon,
   Timer as TimerIcon,
   WhatsApp as WhatsAppIcon,
   Telegram as TelegramIcon,
@@ -140,7 +138,7 @@ export function CampaignStatsView({ stats, isLoading }: CampaignStatsViewProps) 
         <Skeleton variant="text" width={200} height={32} sx={{ mb: 2 }} />
         <Grid container spacing={2}>
           {[1, 2, 3, 4].map((i) => (
-            <Grid item xs={6} sm={3} key={i}>
+            <Grid size={{ xs: 6, sm: 3 }} key={i}>
               <Skeleton variant="rectangular" height={120} sx={{ borderRadius: '12px' }} />
             </Grid>
           ))}
@@ -175,7 +173,7 @@ export function CampaignStatsView({ stats, isLoading }: CampaignStatsViewProps) 
     <Box>
       {/* Основные показатели */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={6} sm={3}>
+        <Grid size={{ xs: 6, sm: 3 }}>
           <StatCard
             title="Успешно отправлено"
             value={stats.successfulContacts}
@@ -184,7 +182,7 @@ export function CampaignStatsView({ stats, isLoading }: CampaignStatsViewProps) 
             color="#4caf50"
           />
         </Grid>
-        <Grid item xs={6} sm={3}>
+        <Grid size={{ xs: 6, sm: 3 }}>
           <StatCard
             title="Ошибки"
             value={stats.failedContacts}
@@ -193,7 +191,7 @@ export function CampaignStatsView({ stats, isLoading }: CampaignStatsViewProps) 
             color="#f44336"
           />
         </Grid>
-        <Grid item xs={6} sm={3}>
+        <Grid size={{ xs: 6, sm: 3 }}>
           <StatCard
             title="Пропущено"
             value={stats.skippedContacts}
@@ -202,7 +200,7 @@ export function CampaignStatsView({ stats, isLoading }: CampaignStatsViewProps) 
             color="#ff9800"
           />
         </Grid>
-        <Grid item xs={6} sm={3}>
+        <Grid size={{ xs: 6, sm: 3 }}>
           <StatCard
             title="Время выполнения"
             value={formatDurationFromSeconds(stats.duration)}
@@ -215,7 +213,7 @@ export function CampaignStatsView({ stats, isLoading }: CampaignStatsViewProps) 
 
       <Grid container spacing={3}>
         {/* Статистика по мессенджерам */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Paper sx={{ p: 2.5, height: '100%', backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '16px', border: 'none' }}>
             <Typography variant="h6" gutterBottom sx={{ color: '#f5f5f5', fontWeight: 500 }}>
               По мессенджерам
@@ -302,7 +300,7 @@ export function CampaignStatsView({ stats, isLoading }: CampaignStatsViewProps) 
         </Grid>
 
         {/* Распределение результатов */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Paper sx={{ p: 2.5, height: '100%', backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '16px', border: 'none' }}>
             <Typography variant="h6" gutterBottom sx={{ color: '#f5f5f5', fontWeight: 500 }}>
               Распределение результатов
@@ -349,7 +347,7 @@ export function CampaignStatsView({ stats, isLoading }: CampaignStatsViewProps) 
 
         {/* Статистика по профилям */}
         {stats.byProfile && stats.byProfile.length > 0 && (
-          <Grid item xs={12}>
+          <Grid size={12}>
             <Paper sx={{ p: 2.5, backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '16px', border: 'none' }}>
               <Typography variant="h6" gutterBottom sx={{ color: '#f5f5f5', fontWeight: 500 }}>
                 По профилям
@@ -434,7 +432,7 @@ export function CampaignStatsView({ stats, isLoading }: CampaignStatsViewProps) 
 
         {/* Топ ошибок */}
         {stats.topErrors && stats.topErrors.length > 0 && (
-          <Grid item xs={12}>
+          <Grid size={12}>
             <Paper sx={{ p: 2.5, backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '16px', border: 'none' }}>
               <Typography variant="h6" gutterBottom sx={{ color: '#f44336', fontWeight: 500 }}>
                 Частые ошибки

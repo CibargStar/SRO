@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Box, Paper, Stack, Typography, Alert } from '@mui/material';
 import { StyledTextField, StyledButton, CancelButton } from '@/components/common';
 import { useSetupTelegramBot, useDisconnectTelegramBot } from '@/hooks';

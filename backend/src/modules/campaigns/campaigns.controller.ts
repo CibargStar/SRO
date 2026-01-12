@@ -586,7 +586,6 @@ export class CampaignsController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const userId = req.user!.id;
       const { campaignId } = campaignIdParamSchema.parse(req.params);
 
       // Используем CampaignStatsService для получения полной статистики

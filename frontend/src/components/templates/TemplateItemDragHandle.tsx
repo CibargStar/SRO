@@ -1,4 +1,3 @@
-import React from 'react';
 import { IconButton, Tooltip } from '@mui/material';
 import DragHandleIcon from '@mui/icons-material/DragHandle';
 

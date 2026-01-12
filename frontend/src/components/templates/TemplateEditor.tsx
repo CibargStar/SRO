@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, Divider, Stack, Typography } from '@mui/material';
 import type { Template } from '@/types/template';
 import { SingleTemplateEditor } from './SingleTemplateEditor';

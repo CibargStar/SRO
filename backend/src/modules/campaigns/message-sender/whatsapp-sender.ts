@@ -31,7 +31,20 @@ export interface SenderResult {
 
 // Селекторы WhatsApp Web
 const SELECTORS = {
-  messageInput: 'div[contenteditable="true"][data-tab="10"]',
+  // Поле ввода сообщения - приоритет специфичным селекторам, чтобы исключить поле поиска
+  messageInput: [
+    // Самые специфичные селекторы - точно указывают на поле ввода сообщения
+    'div[contenteditable="true"][aria-placeholder*="Введите сообщение"]', // По placeholder (самый надежный)
+    'div[contenteditable="true"][aria-label*="Ввести в чат"]', // По aria-label с "Ввести в чат"
+    'div.lexical-rich-text-input div[contenteditable="true"][role="textbox"]', // Внутри контейнера lexical-rich-text-input
+    'div[contenteditable="true"][data-lexical-editor="true"][role="textbox"]', // Lexical редактор с role="textbox"
+    'div[contenteditable="true"][data-lexical-editor="true"]', // Lexical редактор
+    'div[contenteditable="true"][role="textbox"][tabindex="10"]', // С role и tabindex
+    'div[contenteditable="true"][tabindex="10"]', // С tabindex="10" (не поле поиска)
+    'div[contenteditable="true"][data-tab="10"]', // Старый формат (для совместимости)
+    // Исключаем поле поиска: не должно содержать "Поиск" или "Search" в aria-label/placeholder
+    'div[contenteditable="true"][role="textbox"]:not([aria-label*="Поиск"]):not([aria-label*="Search"]):not([aria-placeholder*="Поиск"]):not([aria-placeholder*="Search"])',
+  ],
   attachButton: [
     'span[data-icon="plus"]',
     'span[data-icon="plus-rounded"]',
@@ -91,6 +104,182 @@ export class WhatsAppSender {
    */
   private async delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Поиск поля ввода сообщения по списку селекторов
+   * Исключает поле поиска контактов
+   * @returns ElementHandle поля ввода или null если не найдено
+   */
+  private async findMessageInput(page: Page): Promise<ElementHandle<Element> | null> {
+    for (const selector of SELECTORS.messageInput) {
+      try {
+        const element = await page.$(selector);
+        if (element) {
+          // Проверяем видимость и что это не поле поиска
+          const isValid = await page.evaluate((el) => {
+            const htmlEl = el as HTMLElement;
+            if (!htmlEl) { return false; }
+            
+            // Проверяем видимость
+            const style = window.getComputedStyle(htmlEl);
+            const isVisible = htmlEl.offsetParent !== null && 
+                             style.display !== 'none' && 
+                             style.visibility !== 'hidden';
+            
+            if (!isVisible) { return false; }
+            
+            // Дополнительная проверка: исключаем поле поиска контактов
+            const ariaLabel = (htmlEl.getAttribute('aria-label') ?? '').toLowerCase();
+            const ariaPlaceholder = (htmlEl.getAttribute('aria-placeholder') ?? '').toLowerCase();
+            const placeholder = (htmlEl.getAttribute('placeholder') ?? '').toLowerCase();
+            
+            // Проверяем, что это НЕ поле поиска
+            const searchKeywords = ['поиск', 'search', 'новый чат', 'new chat'];
+            const isSearchField = searchKeywords.some(keyword => 
+              ariaLabel.includes(keyword) || 
+              ariaPlaceholder.includes(keyword) || 
+              placeholder.includes(keyword)
+            );
+            
+            if (isSearchField) {
+              return false; // Это поле поиска, пропускаем
+            }
+            
+            // Проверяем, что это поле ввода сообщения (должно быть в области чата)
+            // Поле ввода сообщения обычно имеет aria-placeholder="Введите сообщение" или aria-label с "Ввести в чат"
+            const messageKeywords = ['введите сообщение', 'enter message', 'ввести в чат', 'type in chat'];
+            const isMessageField = messageKeywords.some(keyword => 
+              ariaLabel.includes(keyword) || 
+              ariaPlaceholder.includes(keyword)
+            );
+            
+            // Также проверяем наличие lexical-rich-text-input в родителях
+            let parent = htmlEl.parentElement;
+            let hasLexicalContainer = false;
+            while (parent && parent !== document.body) {
+              if (parent.classList.contains('lexical-rich-text-input')) {
+                hasLexicalContainer = true;
+                break;
+              }
+              parent = parent.parentElement;
+            }
+            
+            // Принимаем элемент если:
+            // 1. Это точно поле ввода сообщения (по ключевым словам), ИЛИ
+            // 2. Находится в контейнере lexical-rich-text-input (характерно для поля ввода сообщения)
+            return isMessageField || hasLexicalContainer;
+          }, element).catch(() => false);
+          
+          if (isValid) {
+            logger.debug('Found message input field', { selector });
+            return element;
+          }
+        }
+      } catch {
+        continue;
+      }
+    }
+    
+    // Если не нашли через селекторы, пробуем более сложный поиск
+    logger.debug('Trying advanced search for message input field');
+    const advancedSearch = await page.evaluate(() => {
+      // Ищем все contenteditable поля
+      const allInputs = Array.from(document.querySelectorAll('div[contenteditable="true"]'));
+      
+      for (const input of allInputs) {
+        const htmlInput = input as HTMLElement;
+        if (!htmlInput) { continue; }
+        
+        // Проверяем видимость
+        const style = window.getComputedStyle(htmlInput);
+        if (htmlInput.offsetParent === null || 
+            style.display === 'none' || 
+            style.visibility === 'hidden') {
+          continue;
+        }
+        
+        // Проверяем, что это НЕ поле поиска
+        const ariaLabel = (htmlInput.getAttribute('aria-label') ?? '').toLowerCase();
+        const ariaPlaceholder = (htmlInput.getAttribute('aria-placeholder') ?? '').toLowerCase();
+        
+        const searchKeywords = ['поиск', 'search', 'новый чат', 'new chat'];
+        const isSearchField = searchKeywords.some(keyword => 
+          ariaLabel.includes(keyword) || ariaPlaceholder.includes(keyword)
+        );
+        
+        if (isSearchField) {
+          continue; // Пропускаем поле поиска
+        }
+        
+        // Проверяем, что это поле ввода сообщения
+        const messageKeywords = ['введите сообщение', 'enter message', 'ввести в чат', 'type in chat'];
+        const isMessageField = messageKeywords.some(keyword => 
+          ariaLabel.includes(keyword) || ariaPlaceholder.includes(keyword)
+        );
+        
+        // Проверяем наличие lexical-rich-text-input в родителях
+        let parent = htmlInput.parentElement;
+        let hasLexicalContainer = false;
+        while (parent && parent !== document.body) {
+          if (parent.classList.contains('lexical-rich-text-input')) {
+            hasLexicalContainer = true;
+            break;
+          }
+          parent = parent.parentElement;
+        }
+        
+        // Принимаем если это поле ввода сообщения
+        if (isMessageField || hasLexicalContainer) {
+          return htmlInput;
+        }
+      }
+      
+      return null;
+    });
+    
+    if (advancedSearch) {
+      // Конвертируем результат в ElementHandle
+      const element = await page.evaluateHandle(() => {
+        // Находим элемент заново по его характеристикам
+        const allInputs = Array.from(document.querySelectorAll('div[contenteditable="true"]'));
+        for (const input of allInputs) {
+          const htmlInput = input as HTMLElement;
+          const ariaPlaceholder = (htmlInput.getAttribute('aria-placeholder') ?? '').toLowerCase();
+          if (ariaPlaceholder.includes('введите сообщение') || ariaPlaceholder.includes('enter message')) {
+            return htmlInput;
+          }
+        }
+        return null;
+      });
+      
+      const elementHandle = element.asElement() as ElementHandle<Element> | null;
+      if (elementHandle) {
+        logger.debug('Found message input field via advanced search');
+        return elementHandle;
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Ожидание появления поля ввода сообщения
+   * @param timeout таймаут в миллисекундах
+   */
+  private async waitForMessageInput(page: Page, timeout: number = 20000): Promise<ElementHandle<Element> | null> {
+    const startTime = Date.now();
+    const checkInterval = 200;
+    
+    while (Date.now() - startTime < timeout) {
+      const input = await this.findMessageInput(page);
+      if (input) {
+        return input;
+      }
+      await this.delay(checkInterval);
+    }
+    
+    return null;
   }
 
   /**
@@ -519,7 +708,7 @@ export class WhatsAppSender {
         
         try {
           // Проверяем что поле ввода есть и мы всё ещё в правильном чате
-          const inputExists = await page.$(SELECTORS.messageInput);
+          const inputExists = await this.findMessageInput(page);
           if (inputExists) {
             // Дополнительно проверяем URL чтобы убедиться что мы в правильном чате
             const currentUrl = page.url();
@@ -548,7 +737,10 @@ export class WhatsAppSender {
       await this.checkAndHandleInvalidPhoneModal(page, phone);
 
       // Ждем поле ввода
-      await page.waitForSelector(SELECTORS.messageInput, { timeout: 20000 });
+      const inputField = await this.waitForMessageInput(page, 20000);
+      if (!inputField) {
+        throw new Error('Message input field not found after opening chat');
+      }
       await this.delay(300);
 
       // Сохраняем в кэш
@@ -570,15 +762,73 @@ export class WhatsAppSender {
 
   /**
    * Отправка текстового сообщения
-   * Использует ручной набор через keyboard.type для надежности
+   * Использует улучшенную активацию поля ввода для Lexical редактора
    */
   private async sendTextMessage(page: Page, text: string): Promise<void> {
     try {
-      await page.waitForSelector(SELECTORS.messageInput, { timeout: 10000 });
+      // Ищем поле ввода по списку селекторов
+      const inputElement = await this.waitForMessageInput(page, 10000);
       
-      // Кликаем на поле ввода
-      await page.click(SELECTORS.messageInput);
-      await this.delay(200);
+      if (!inputElement) {
+        throw new Error('Message input field not found');
+      }
+
+      // Активируем поле ввода через JavaScript (более надежно для Lexical редактора)
+      await page.evaluate((el) => {
+        const htmlEl = el as HTMLElement;
+        if (!htmlEl) { return false; }
+        
+        // Прокручиваем в видимую область
+        htmlEl.scrollIntoView({ block: 'center', behavior: 'instant' });
+        
+        // Фокусируем элемент
+        htmlEl.focus();
+        
+        // Кликаем для активации
+        const clickEvent = new MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+        });
+        htmlEl.dispatchEvent(clickEvent);
+        
+        // Также вызываем обычный click
+        htmlEl.click();
+        
+        // Для Lexical редактора может потребоваться активация через события
+        const focusEvent = new FocusEvent('focus', {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+        });
+        htmlEl.dispatchEvent(focusEvent);
+        
+        return true;
+      }, inputElement);
+      
+      await this.delay(300); // Даем время для активации поля
+
+      // Проверяем, что поле активно (фокус установлен)
+      const isFocused = await page.evaluate((el) => {
+        const htmlEl = el as HTMLElement;
+        return document.activeElement === htmlEl;
+      }, inputElement).catch(() => false);
+
+      if (!isFocused) {
+        logger.warn('Input field not focused after activation, trying alternative method');
+        // Альтернативный способ: клик через Puppeteer
+        await inputElement.click();
+        await this.delay(200);
+        
+        // Еще раз проверяем фокус
+        const stillNotFocused = !(await page.evaluate((el) => {
+          return document.activeElement === el;
+        }, inputElement).catch(() => false));
+        
+        if (stillNotFocused) {
+          logger.warn('Input field still not focused, but continuing with text input');
+        }
+      }
 
       // Очищаем поле если там что-то есть
       await page.keyboard.down('Control');
@@ -590,6 +840,17 @@ export class WhatsAppSender {
       // Вводим текст через keyboard.type (надежный "ручной" набор)
       await page.keyboard.type(text, { delay: 30 });
       await this.delay(300);
+
+      // Проверяем, что текст введен
+      const textEntered = await page.evaluate((el, expectedText) => {
+        const htmlEl = el as HTMLElement;
+        const currentText = htmlEl.textContent ?? htmlEl.innerText ?? '';
+        return currentText.includes(expectedText.substring(0, 10));
+      }, inputElement, text).catch(() => false);
+
+      if (!textEntered) {
+        logger.warn('Text may not have been entered correctly, but continuing');
+      }
 
       // Отправляем через Enter
       await page.keyboard.press('Enter');
@@ -612,11 +873,25 @@ export class WhatsAppSender {
       const checkInterval = 200;
 
       for (let i = 0; i < maxChecks; i++) {
-        const verification = await page.evaluate((searchText: string, msgInputSel: string, sentIndSel: string, msgContSel: string) => {
+        const verification = await page.evaluate((searchText: string, msgInputSels: string[], sentIndSel: string, msgContSel: string) => {
           const allText = document.body.innerText ?? '';
           const textFound = allText.includes(searchText.substring(0, 50));
 
-          const inputField = document.querySelector(msgInputSel);
+          // Ищем поле ввода по списку селекторов
+          let inputField: Element | null = null;
+          for (const sel of msgInputSels) {
+            const el = document.querySelector(sel);
+            if (el) {
+              const htmlEl = el as HTMLElement;
+              const style = window.getComputedStyle(htmlEl);
+              if (htmlEl.offsetParent !== null && 
+                  style.display !== 'none' && 
+                  style.visibility !== 'hidden') {
+                inputField = el;
+                break;
+              }
+            }
+          }
           const inputIsEmpty = !inputField?.textContent?.trim();
 
           const sentIndicators = document.querySelectorAll(sentIndSel);
@@ -1455,7 +1730,10 @@ export class WhatsAppSender {
       }
 
       // Убеждаемся, что поле ввода доступно
-      await page.waitForSelector(SELECTORS.messageInput, { timeout: 10000 });
+      const inputField = await this.waitForMessageInput(page, 10000);
+      if (!inputField) {
+        throw new Error('Message input field not found before file send');
+      }
       await this.delay(300);
       
       // Используем FileChooser метод - он перехватывает диалог ДО его открытия

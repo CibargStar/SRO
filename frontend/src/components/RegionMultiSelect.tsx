@@ -5,7 +5,6 @@
  * Если выбрано "Все", то regionIds будет пустым массивом (что означает все регионы).
  */
 
-import React from 'react';
 import { FormControl, InputLabel, MenuItem, Chip, Box, Divider } from '@mui/material';
 import { useRegions } from '@/hooks/useRegions';
 import { StyledSelect, MenuProps, selectInputLabelStyles } from './common/SelectStyles';
@@ -69,8 +68,9 @@ export function RegionMultiSelect({
         label={label}
         disabled={disabled || isLoading}
         MenuProps={MenuProps}
-        renderValue={(selected) => {
-          if (selected.length === 0 || (selected.length === 1 && selected[0] === ALL_REGIONS_VALUE)) {
+        renderValue={(selected: unknown) => {
+          const selectedArray = selected as string[];
+          if (selectedArray.length === 0 || (selectedArray.length === 1 && selectedArray[0] === ALL_REGIONS_VALUE)) {
             return <span style={{ color: 'rgba(255, 255, 255, 0.7)' }}>Все регионы</span>;
           }
           return (

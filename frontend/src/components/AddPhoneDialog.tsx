@@ -2,22 +2,18 @@
  * Диалог добавления телефона клиента
  */
 
-import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   Dialog,
   DialogContent,
   DialogActions,
-  Button,
-  TextField,
   Box,
   Alert,
   CircularProgress,
   Typography,
   FormControl,
   InputLabel,
-  Select,
   MenuItem,
 } from '@mui/material';
 import { StyledTextField, StyledButton, CancelButton, StyledSelect } from './common/FormStyles';
@@ -43,19 +39,19 @@ export function AddPhoneDialog({ open, clientId, onClose }: AddPhoneDialogProps)
     reset,
     watch,
     setValue,
-  } = useForm<CreateClientPhoneFormData>({
+  } = useForm({
     resolver: zodResolver(createClientPhoneSchema),
     defaultValues: { 
       phone: '',
-      whatsAppStatus: 'Unknown',
-      telegramStatus: 'Unknown',
+      whatsAppStatus: 'Unknown' as const,
+      telegramStatus: 'Unknown' as const,
     },
   });
 
   const whatsAppStatus = watch('whatsAppStatus');
   const telegramStatus = watch('telegramStatus');
 
-  const onSubmit = (data: CreateClientPhoneFormData) => {
+  const onSubmit = (data: { phone: string; whatsAppStatus?: 'Valid' | 'Invalid' | 'Unknown'; telegramStatus?: 'Valid' | 'Invalid' | 'Unknown' }) => {
     createMutation.mutate(
       { clientId, phoneData: data },
       {

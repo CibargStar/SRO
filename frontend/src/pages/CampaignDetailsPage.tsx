@@ -5,7 +5,7 @@
  * Отображает информацию, прогресс, сообщения, логи и статистику
  */
 
-import React, { useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,

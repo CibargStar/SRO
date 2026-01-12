@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, FormControlLabel, Checkbox, Stack, Typography } from '@mui/material';
 import { StyledTextField } from '@/components/common';
 import { RegionMultiSelect } from '@/components/RegionMultiSelect';

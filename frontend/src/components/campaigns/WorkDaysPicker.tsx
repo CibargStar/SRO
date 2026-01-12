@@ -1,4 +1,3 @@
-import React from 'react';
 import { FormControlLabel, Checkbox, Grid, Typography, Stack } from '@mui/material';
 import type { ScheduleConfig } from '@/types/campaign';
 
@@ -46,7 +45,7 @@ export function WorkDaysPicker({ value, onChange }: WorkDaysPickerProps) {
         <>
           <Grid container spacing={1.5}>
             {DAYS.map((day) => (
-              <Grid item key={day.value}>
+              <Grid key={day.value}>
                 <FormControlLabel
                   control={
                     <Checkbox

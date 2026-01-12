@@ -79,8 +79,7 @@ export class ProfileWorker {
   private currentTemplateIndex: number = 0;
   private messagesSentCount: number = 0;
   
-  // Для обратной совместимости - храним текущие активные элементы
-  private templateText: string | null = null;
+  // Текущие активные элементы шаблона для обработки
   private templateItems: Array<{ type: 'TEXT' | 'FILE'; content?: string | null; filePath?: string | null; orderIndex: number }> = [];
   private variableParser: VariableParserService;
 
@@ -559,7 +558,6 @@ export class ProfileWorker {
             campaignId: this.campaignId 
           });
           this.templates = [];
-          this.templateText = null;
           this.templateItems = [];
           return;
         }
@@ -609,7 +607,6 @@ export class ProfileWorker {
         campaignId: this.campaignId 
       });
       this.templates = [];
-      this.templateText = null;
       this.templateItems = [];
     }
   }
@@ -652,49 +649,6 @@ export class ProfileWorker {
 
     const template = this.templates[index];
     this.templateItems = template.items;
-
-    // Объединяем все TEXT элементы для обратной совместимости
-    const textItems = this.templateItems
-      .filter(item => item.type === 'TEXT')
-      .map((item) => item.content || '')
-      .filter((text) => text.trim() !== '')
-      .join('\n')
-      .trim();
-
-    this.templateText = textItems || null;
-  }
-
-  /**
-   * Получение обработанного текста шаблона с подстановкой переменных клиента
-   * Возвращает текст из TEXT элементов шаблона
-   * @deprecated Используйте getProcessedTemplateItems для отправки каждого элемента отдельно
-   */
-  private async getProcessedTemplateText(
-    client: WorkerMessage['client'],
-    phone: string
-  ): Promise<string> {
-    // Если шаблон не загружен, возвращаем пустую строку
-    if (!this.templateText) {
-      return '';
-    }
-
-    // Если нет данных клиента, возвращаем шаблон без обработки
-    if (!client) {
-      return this.templateText;
-    }
-
-    // Подготавливаем данные клиента для подстановки
-    const clientData: ClientData = {
-      firstName: client.firstName || '',
-      lastName: client.lastName || '',
-      middleName: client.middleName || null,
-      phone: phone || '',
-      groupName: client.group?.name || null,
-      regionName: client.region?.name || null,
-    };
-
-    // Обрабатываем шаблон с подстановкой переменных
-    return this.variableParser.replaceVariables(this.templateText, clientData);
   }
 
   /**
@@ -791,16 +745,5 @@ export class ProfileWorker {
     return processedItems;
   }
 
-  /**
-   * Получение путей к файлам из шаблона
-   * Возвращает массив путей к FILE элементам шаблона
-   * @deprecated Используйте getProcessedTemplateItems для отправки каждого элемента отдельно
-   */
-  private getTemplateAttachments(): string[] {
-    return this.templateItems
-      .filter(item => item.type === 'FILE' && item.filePath && item.filePath.trim().length > 0)
-      .map(item => item.filePath!)
-      .filter((path): path is string => !!path);
-  }
 }
 

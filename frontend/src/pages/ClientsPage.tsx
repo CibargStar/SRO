@@ -12,7 +12,7 @@
  * - Управление группами клиентов (создание, редактирование, удаление)
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -70,7 +70,7 @@ export function ClientsPage() {
   const [search, setSearch] = useState('');
   const [regionId, setRegionId] = useState<string | undefined>('');
   const [groupId, setGroupId] = useState<string | undefined>('');
-  const [status, setStatus] = useState<ClientStatus | undefined>('');
+  const [status, setStatus] = useState<ClientStatus | undefined>(undefined);
   const [sortBy, setSortBy] = useState<'createdAt' | 'lastName' | 'firstName' | 'regionId' | 'status'>('createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   

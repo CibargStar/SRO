@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Box, Grid, Typography, Alert, CircularProgress } from '@mui/material';
 import { useTelegramBotSettings } from '@/hooks';
 import { TelegramBotSetup } from '@/components/telegram/TelegramBotSetup';
@@ -71,20 +71,20 @@ export function TelegramBotSettingsPage() {
 
         {!isLoading && !error && (
           <Grid container spacing={3} alignItems="flex-start">
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TelegramBotSetup
                 isVerified={data?.isVerified ?? false}
                 chatId={data?.chatId ?? null}
                 onVerifyCodeReceived={setLastVerifyCode}
               />
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TelegramVerifySection lastVerifyCode={lastVerifyCode} />
             </Grid>
-            <Grid item xs={12} md={8}>
-              <NotificationSettingsForm settings={data} />
+            <Grid size={{ xs: 12, md: 8 }}>
+              <NotificationSettingsForm settings={data ?? undefined} />
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <Box sx={{ p: 3.5, borderRadius: '16px', backgroundColor: 'rgba(255, 255, 255, 0.06)', border: 'none', height: '100%' }}>
                 <Typography variant="h6" sx={{ color: '#f5f5f5', fontWeight: 500, mb: 1.5 }}>
                   Тест уведомлений

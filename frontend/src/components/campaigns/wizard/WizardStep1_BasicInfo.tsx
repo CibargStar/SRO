@@ -1,10 +1,9 @@
-import React from 'react';
-import { Grid, ToggleButtonGroup, ToggleButton, Typography, FormHelperText } from '@mui/material';
+import { ToggleButtonGroup, ToggleButton, Typography, FormHelperText, Grid } from '@mui/material';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import TelegramIcon from '@mui/icons-material/Telegram';
 import PublicIcon from '@mui/icons-material/Public';
 import { Controller, useFormContext } from 'react-hook-form';
-import { CAMPAIGN_TYPE_LABELS, MESSENGER_TARGET_LABELS, UNIVERSAL_TARGET_LABELS } from '@/types/campaign';
+import { CAMPAIGN_TYPE_LABELS } from '@/types/campaign';
 import { StyledTextField } from '@/components/common';
 import type { CampaignType, MessengerTarget, UniversalTarget } from '@/types/campaign';
 import { UniversalTargetSelector } from '../UniversalTargetSelector';
@@ -23,7 +22,7 @@ export function WizardStep1_BasicInfo() {
 
   return (
     <Grid container spacing={3}>
-      <Grid item xs={12}>
+      <Grid size={{ xs: 12 }}>
         <Controller
           name="name"
           control={control}
@@ -41,7 +40,7 @@ export function WizardStep1_BasicInfo() {
         />
       </Grid>
       
-      <Grid item xs={12}>
+      <Grid size={{ xs: 12 }}>
         <Controller
           name="description"
           control={control}
@@ -58,7 +57,7 @@ export function WizardStep1_BasicInfo() {
         />
       </Grid>
 
-      <Grid item xs={12} md={6}>
+      <Grid size={{ xs: 12, md: 6 }}>
         <Typography variant="subtitle2" gutterBottom sx={{ color: '#f5f5f5', fontWeight: 500 }}>
           Тип кампании
         </Typography>
@@ -104,7 +103,7 @@ export function WizardStep1_BasicInfo() {
         </FormHelperText>
       </Grid>
 
-      <Grid item xs={12} md={6}>
+      <Grid size={{ xs: 12, md: 6 }}>
         <Typography variant="subtitle2" gutterBottom sx={{ color: '#f5f5f5', fontWeight: 500 }}>
           Целевой мессенджер
         </Typography>
@@ -152,7 +151,7 @@ export function WizardStep1_BasicInfo() {
       </Grid>
 
       {watchedValues.messengerType === 'UNIVERSAL' && (
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <Typography variant="subtitle2" gutterBottom sx={{ color: '#f5f5f5', fontWeight: 500 }}>
             Порядок отправки
           </Typography>

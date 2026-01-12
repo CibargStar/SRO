@@ -1,4 +1,3 @@
-import React from 'react';
 import { Stack, Button, styled } from '@mui/material';
 import TextFieldsIcon from '@mui/icons-material/TextFields';
 import AttachFileIcon from '@mui/icons-material/AttachFile';

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Dialog, DialogContent, IconButton, Box, Typography } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import type { Template } from '@/types/template';

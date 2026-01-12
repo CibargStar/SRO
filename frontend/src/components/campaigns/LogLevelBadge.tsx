@@ -4,7 +4,6 @@
  * Отображает уровень логирования события кампании.
  */
 
-import React from 'react';
 import { Chip, type ChipProps } from '@mui/material';
 import {
   Info as InfoIcon,

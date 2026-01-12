@@ -1,4 +1,3 @@
-import React from 'react';
 import { Grid } from '@mui/material';
 import { StyledTextField } from '@/components/common';
 import type { UpdateGlobalSettingsInput } from '@/types/campaign';
@@ -13,7 +12,7 @@ interface Props {
 export function TimingsForm({ form, onChange }: Props) {
   return (
     <Grid container spacing={2}>
-      <Grid item xs={12} md={6}>
+      <Grid size={{ xs: 12, md: 6 }}>
         <StyledTextField
           label="Задержка между контактами (мс)"
           type="number"
@@ -22,7 +21,7 @@ export function TimingsForm({ form, onChange }: Props) {
           onChange={(e) => onChange('delayBetweenContactsMs', e.target.value === '' ? undefined : Number(e.target.value))}
         />
       </Grid>
-      <Grid item xs={12} md={6}>
+      <Grid size={{ xs: 12, md: 6 }}>
         <StyledTextField
           label="Задержка между сообщениями (мс)"
           type="number"

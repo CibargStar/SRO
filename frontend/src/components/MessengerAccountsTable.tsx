@@ -5,7 +5,7 @@
  * Предоставляет действия: включение/выключение, проверка статуса, удаление.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   Table,
   TableBody,
@@ -158,7 +158,7 @@ export function MessengerAccountsTable({
     }
   };
 
-  const formatDate = (dateString: string | undefined) => {
+  const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleString('ru-RU', {
       year: 'numeric',

@@ -2,7 +2,6 @@
  * Badge для отображения типа шаблона (Single/Multi)
  */
 
-import React from 'react';
 import { Chip, type ChipProps, styled } from '@mui/material';
 import { Article as SingleIcon, ViewList as MultiIcon } from '@mui/icons-material';
 import type { TemplateType } from '@/types/template';

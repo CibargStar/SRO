@@ -1,4 +1,3 @@
-import React from 'react';
 import { Grid, FormControlLabel, Switch, Typography } from '@mui/material';
 import { StyledTextField } from '@/components/common';
 import type { UpdateGlobalSettingsInput } from '@/types/campaign';
@@ -13,7 +12,7 @@ interface Props {
 export function ErrorHandlingForm({ form, onChange }: Props) {
   return (
     <Grid container spacing={2}>
-      <Grid item xs={12} md={4}>
+      <Grid size={{ xs: 12, md: 4 }}>
         <StyledTextField
           label="Макс. ретраев при ошибке"
           type="number"
@@ -22,7 +21,7 @@ export function ErrorHandlingForm({ form, onChange }: Props) {
           onChange={(e) => onChange('maxRetriesOnError', e.target.value === '' ? undefined : Number(e.target.value))}
         />
       </Grid>
-      <Grid item xs={12} md={4}>
+      <Grid size={{ xs: 12, md: 4 }}>
         <StyledTextField
           label="Пауза между ретраями (мс)"
           type="number"
@@ -31,7 +30,7 @@ export function ErrorHandlingForm({ form, onChange }: Props) {
           onChange={(e) => onChange('retryDelayMs', e.target.value === '' ? undefined : Number(e.target.value))}
         />
       </Grid>
-      <Grid item xs={12} md={4}>
+      <Grid size={{ xs: 12, md: 4 }}>
         <FormControlLabel
           control={
             <Switch

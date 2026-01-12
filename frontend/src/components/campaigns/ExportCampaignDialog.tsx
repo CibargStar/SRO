@@ -4,7 +4,7 @@
  * Диалог экспорта результатов кампании
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   Dialog,
   DialogTitle,

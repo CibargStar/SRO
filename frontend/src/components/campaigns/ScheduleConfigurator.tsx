@@ -1,4 +1,3 @@
-import React from 'react';
 import { Paper, Stack, Typography } from '@mui/material';
 import { StyledTextField } from '@/components/common';
 import type { ScheduleConfig } from '@/types/campaign';

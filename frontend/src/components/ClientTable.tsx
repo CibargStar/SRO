@@ -5,7 +5,6 @@
  * Предоставляет действия: редактирование, удаление.
  */
 
-import React from 'react';
 import {
   Table,
   TableBody,

@@ -4,7 +4,6 @@
  * Компонент для выбора региона из списка.
  */
 
-import React from 'react';
 import { FormControl, InputLabel, MenuItem } from '@mui/material';
 import { useRegions } from '@/hooks/useRegions';
 import { StyledSelect, MenuProps, selectInputLabelStyles } from './common/SelectStyles';

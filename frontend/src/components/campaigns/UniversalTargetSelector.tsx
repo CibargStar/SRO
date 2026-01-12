@@ -1,4 +1,3 @@
-import React from 'react';
 import { FormControl, InputLabel, MenuItem, Select, FormHelperText } from '@mui/material';
 import type { UniversalTarget } from '@/types/campaign';
 import { UNIVERSAL_TARGET_LABELS } from '@/types/campaign';

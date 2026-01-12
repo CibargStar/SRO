@@ -4,7 +4,7 @@
  * Отображает список телефонов клиента с возможностью редактирования и удаления.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Box, Typography, IconButton, Chip, CircularProgress } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import EditIcon from '@mui/icons-material/Edit';

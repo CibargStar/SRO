@@ -9,7 +9,7 @@
  * - Детальная статистика по клиентам в регионах с переключением пользователя
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   Box,
   Typography,

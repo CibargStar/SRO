@@ -1,4 +1,3 @@
-import React from 'react';
 import { CircularProgress, Alert, Stack } from '@mui/material';
 import { StyledButton } from '@/components/common';
 import { useTestTelegramBot } from '@/hooks';

@@ -1,10 +1,9 @@
-import React from 'react';
-import { Box, Typography, Grid, Paper, Stack, Chip, Alert } from '@mui/material';
+import { Box, Typography, Paper, Stack, Chip, Alert, Grid } from '@mui/material';
 import ShuffleIcon from '@mui/icons-material/Shuffle';
 import { useFormContext } from 'react-hook-form';
 import type { Template } from '@/types/template';
 import { TemplateTypeBadge, MessengerTargetBadge as TemplateMessengerBadge } from '@/components/templates';
-import { CAMPAIGN_TYPE_LABELS, MESSENGER_TARGET_LABELS } from '@/types/campaign';
+import { CAMPAIGN_TYPE_LABELS, MESSENGER_TARGET_LABELS, type CampaignType, type MessengerTarget } from '@/types/campaign';
 import type { ClientGroup } from '@/types';
 
 interface Props {
@@ -23,7 +22,7 @@ export function WizardStep7_Review({ selectedTemplates, clientGroupsData }: Prop
       </Typography>
 
       <Grid container spacing={2}>
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Paper sx={{ p: 2.5, backgroundColor: 'rgba(255, 255, 255, 0.05)', borderRadius: '12px', border: 'none' }}>
             <Typography variant="subtitle2" sx={{ color: 'rgba(255, 255, 255, 0.6)', mb: 1, fontWeight: 500 }}>
               Основная информация
@@ -38,7 +37,7 @@ export function WizardStep7_Review({ selectedTemplates, clientGroupsData }: Prop
             )}
             <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
               <Chip 
-                label={CAMPAIGN_TYPE_LABELS[watchedValues.campaignType]} 
+                label={CAMPAIGN_TYPE_LABELS[watchedValues.campaignType as CampaignType]} 
                 size="small"
                 sx={{
                   backgroundColor: 'rgba(99, 102, 241, 0.2)',
@@ -46,7 +45,7 @@ export function WizardStep7_Review({ selectedTemplates, clientGroupsData }: Prop
                 }}
               />
               <Chip 
-                label={MESSENGER_TARGET_LABELS[watchedValues.messengerType]} 
+                label={MESSENGER_TARGET_LABELS[watchedValues.messengerType as MessengerTarget]} 
                 size="small"
                 sx={{
                   backgroundColor: 'rgba(99, 102, 241, 0.2)',
@@ -57,7 +56,7 @@ export function WizardStep7_Review({ selectedTemplates, clientGroupsData }: Prop
           </Paper>
         </Grid>
 
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Paper sx={{ p: 2.5, backgroundColor: 'rgba(255, 255, 255, 0.05)', borderRadius: '12px', border: 'none' }}>
             <Typography variant="subtitle2" sx={{ color: 'rgba(255, 255, 255, 0.6)', mb: 1, fontWeight: 500 }}>
               {selectedTemplates.length > 1 ? 'Шаблоны (ротация)' : 'Шаблон'}
@@ -123,7 +122,7 @@ export function WizardStep7_Review({ selectedTemplates, clientGroupsData }: Prop
           </Paper>
         </Grid>
 
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Paper sx={{ p: 2.5, backgroundColor: 'rgba(255, 255, 255, 0.05)', borderRadius: '12px', border: 'none' }}>
             <Typography variant="subtitle2" sx={{ color: 'rgba(255, 255, 255, 0.6)', mb: 1, fontWeight: 500 }}>
               База и профили
@@ -139,7 +138,7 @@ export function WizardStep7_Review({ selectedTemplates, clientGroupsData }: Prop
           </Paper>
         </Grid>
 
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <Alert 
             severity="warning"
             sx={{

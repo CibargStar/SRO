@@ -4,7 +4,7 @@
  * Форма редактирования профиля Chrome с валидацией через React Hook Form и Zod.
  */
 
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {

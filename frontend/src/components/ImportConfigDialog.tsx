@@ -10,7 +10,7 @@
  * Поддерживает сохранение конфигураций и загрузку из шаблонов.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,

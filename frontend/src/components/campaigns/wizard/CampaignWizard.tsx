@@ -1,4 +1,3 @@
-import React from 'react';
 import { Stepper, Step, StepLabel, Typography, Paper } from '@mui/material';
 
 interface CampaignWizardProps {

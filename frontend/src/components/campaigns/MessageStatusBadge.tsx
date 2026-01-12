@@ -4,7 +4,6 @@
  * Отображает статус конкретного сообщения (PENDING, SENT, FAILED и т.д.).
  */
 
-import React from 'react';
 import { Chip, type ChipProps } from '@mui/material';
 import {
   Schedule as PendingIcon,

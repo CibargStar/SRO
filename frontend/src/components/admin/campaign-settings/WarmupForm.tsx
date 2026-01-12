@@ -1,4 +1,3 @@
-import React from 'react';
 import { Grid, FormControlLabel, Switch, Typography } from '@mui/material';
 import { StyledTextField } from '@/components/common';
 import type { UpdateGlobalSettingsInput } from '@/types/campaign';
@@ -13,7 +12,7 @@ interface Props {
 export function WarmupForm({ form, onChange }: Props) {
   return (
     <Grid container spacing={2}>
-      <Grid item xs={12} md={4}>
+      <Grid size={{ xs: 12, md: 4 }}>
         <FormControlLabel
           control={
             <Switch
@@ -32,7 +31,7 @@ export function WarmupForm({ form, onChange }: Props) {
           label={<Typography sx={{ color: '#f5f5f5' }}>Прогрев профилей</Typography>}
         />
       </Grid>
-      <Grid item xs={12} md={4}>
+      <Grid size={{ xs: 12, md: 4 }}>
         <StyledTextField
           label="Лимит прогрева день 1-3"
           type="number"
@@ -41,7 +40,7 @@ export function WarmupForm({ form, onChange }: Props) {
           onChange={(e) => onChange('warmupDay1To3Limit', e.target.value === '' ? undefined : Number(e.target.value))}
         />
       </Grid>
-      <Grid item xs={12} md={4}>
+      <Grid size={{ xs: 12, md: 4 }}>
         <StyledTextField
           label="Лимит прогрева день 4-7"
           type="number"

@@ -2,7 +2,7 @@
  * Drag&drop загрузчик файлов с предпросмотром и базовой валидацией.
  */
 
-import React, { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   Box,
   Button,

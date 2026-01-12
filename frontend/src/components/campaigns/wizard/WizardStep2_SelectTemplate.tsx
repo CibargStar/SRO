@@ -1,5 +1,4 @@
-import React from 'react';
-import { Box, Grid, Alert, CircularProgress, Typography, Stack, Card, CardContent, CardActionArea, Chip } from '@mui/material';
+import { Box, Alert, CircularProgress, Typography, Stack, Card, CardContent, CardActionArea, Chip, Grid } from '@mui/material';
 import CheckIcon from '@mui/icons-material/Check';
 import ShuffleIcon from '@mui/icons-material/Shuffle';
 import { useFormContext } from 'react-hook-form';
@@ -88,7 +87,7 @@ export function WizardStep2_SelectTemplate({ templatesLoading, filteredTemplates
             const selectionIndex = getSelectionIndex(template.id);
             
             return (
-              <Grid item xs={12} sm={6} md={4} key={template.id}>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }} key={template.id}>
                 <Card
                   sx={{
                     backgroundColor: selected 

@@ -147,7 +147,7 @@ export const corsMiddleware = cors({
  * 
  * Настройки:
  * - windowMs: 15 минут (900000 мс)
- * - max: 100 запросов за окно времени
+ * - max: 500 запросов за окно времени (увеличено с 100 для более мягкого лимита)
  * - standardHeaders: возвращает заголовки RateLimit-* (RFC 7231)
  * - legacyHeaders: отключает устаревшие заголовки X-RateLimit-*
  * 
@@ -155,7 +155,7 @@ export const corsMiddleware = cors({
  */
 export const rateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 500, // limit each IP to 500 requests per windowMs (увеличено с 100)
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true, // Возвращает RateLimit-* заголовки
   legacyHeaders: false, // Отключает X-RateLimit-* заголовки
@@ -168,11 +168,11 @@ export const rateLimiter = rateLimit({
  * 
  * Настройки:
  * - windowMs: 15 минут (900000 мс)
- * - max: 5 попыток за окно времени
+ * - max: 15 попыток за окно времени (увеличено с 5 для более мягкого лимита)
  * - message: сообщение об ошибке
  * 
  * Безопасность:
- * - Очень строгий лимит для защиты от brute force
+ * - Строгий лимит для защиты от brute force (сохраняет защиту, но более мягкий)
  * - Применяется только к маршруту /auth/login
  * - Блокирует IP после превышения лимита
  * 
@@ -183,7 +183,7 @@ export const rateLimiter = rateLimit({
  */
 export const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // limit each IP to 5 login attempts per windowMs
+  max: 15, // limit each IP to 15 login attempts per windowMs (увеличено с 5)
   message: {
     error: 'Too many login attempts from this IP, please try again later.',
     retryAfter: '15 minutes',
@@ -199,11 +199,11 @@ export const authRateLimiter = rateLimit({
  * 
  * Настройки:
  * - windowMs: 1 минута (60000 мс)
- * - max: 10 запросов за окно времени
+ * - max: 50 запросов за окно времени (увеличено с 10 для более мягкого лимита)
  * - message: сообщение об ошибке
  * 
  * Безопасность:
- * - Строгий лимит для защиты от brute force атак на refresh токены
+ * - Лимит для защиты от brute force атак на refresh токены (сохраняет защиту, но более мягкий)
  * - Применяется только к маршруту /auth/refresh
  * - Блокирует IP после превышения лимита
  * - Более строгий, чем глобальный лимит, но менее строгий, чем для login
@@ -215,7 +215,7 @@ export const authRateLimiter = rateLimit({
  */
 export const refreshRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 10, // limit each IP to 10 refresh attempts per minute
+  max: 50, // limit each IP to 50 refresh attempts per minute (увеличено с 10)
   message: {
     error: 'Too many refresh attempts from this IP, please try again later.',
     retryAfter: '1 minute',
@@ -229,10 +229,11 @@ export const refreshRateLimiter = rateLimit({
 /**
  * Лимитер для чувствительных действий с кампаниями (создание/старт/управление)
  * Более строгий, чем глобальный, чтобы избежать flood операций.
+ * Лимит увеличен для более мягкого ограничения.
  */
 export const campaignActionRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 минута
-  max: 30, // максимум 30 действий в минуту с одного IP
+  max: 100, // максимум 100 действий в минуту с одного IP (увеличено с 30)
   message: {
     error: 'Too many campaign actions, please slow down.',
     retryAfter: '1 minute',

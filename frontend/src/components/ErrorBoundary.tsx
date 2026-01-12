@@ -11,7 +11,7 @@
  * - Самих Error Boundary компонентах
  */
 
-import React, { Component, type ReactNode } from 'react';
+import { Component, type ReactNode } from 'react';
 import { Box, Typography, Button, Paper, Alert } from '@mui/material';
 
 interface Props {

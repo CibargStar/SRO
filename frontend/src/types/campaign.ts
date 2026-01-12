@@ -26,7 +26,8 @@ export type CampaignStatus =
   | 'PAUSED'
   | 'COMPLETED'
   | 'CANCELLED'
-  | 'ERROR';
+  | 'ERROR'
+  | 'ARCHIVED';
 
 /**
  * Статус профиля в кампании
@@ -752,6 +753,7 @@ export const CAMPAIGN_STATUS_LABELS: Record<CampaignStatus, string> = {
   COMPLETED: 'Завершена',
   CANCELLED: 'Отменена',
   ERROR: 'Ошибка',
+  ARCHIVED: 'Архивирована',
 };
 
 /**
@@ -766,6 +768,7 @@ export const CAMPAIGN_STATUS_COLORS: Record<CampaignStatus, 'default' | 'primary
   COMPLETED: 'success',
   CANCELLED: 'default',
   ERROR: 'error',
+  ARCHIVED: 'default',
 };
 
 /**

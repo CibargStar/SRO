@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Box, Stack, CircularProgress, Alert, Typography, Divider } from '@mui/material';
 import { usePreviewTemplateMutation } from '@/hooks/useTemplates';
 import { StyledButton } from '@/components/common/FormStyles';

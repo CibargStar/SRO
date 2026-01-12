@@ -1,7 +1,6 @@
-import React from 'react';
 import { Box, LinearProgress, Stack, Typography, Chip } from '@mui/material';
 import type { CampaignProgress } from '@/types/campaign';
-import { CAMPAIGN_PROFILE_STATUS_LABELS, CAMPAIGN_PROFILE_STATUS_COLORS } from '@/types/campaign';
+import { CAMPAIGN_PROFILE_STATUS_LABELS } from '@/types/campaign';
 
 interface ProfilesProgressProps {
   profiles: CampaignProgress['profilesProgress'];

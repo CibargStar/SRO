@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, Typography, Divider } from '@mui/material';
 import { Controller, useFormContext } from 'react-hook-form';
 import type { ClientGroup } from '@/types';
@@ -31,7 +30,7 @@ export function WizardStep3_SelectBase({ clientGroupsData, groupsLoading }: Prop
               required
               error={!!errors.clientGroupId}
               helperText={
-                errors.clientGroupId?.message ||
+                (errors.clientGroupId?.message as string | undefined) ||
                 (!groupsLoading && (!clientGroupsData || clientGroupsData.length === 0)
                   ? 'Создайте группу клиентов в разделе Клиенты'
                   : undefined)

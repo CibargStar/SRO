@@ -1,4 +1,3 @@
-import React from 'react';
 import { Alert, Typography } from '@mui/material';
 import { Controller, useFormContext } from 'react-hook-form';
 import { ProfileSelector } from '../ProfileSelector';
@@ -35,7 +34,7 @@ export function WizardStep4_SelectProfiles() {
             border: '1px solid rgba(244, 67, 54, 0.2)',
           }}
         >
-          {errors.profileIds.message}
+          {(errors.profileIds as { message?: string })?.message || 'Выберите хотя бы один профиль'}
         </Alert>
       )}
     </>

@@ -4,7 +4,6 @@
  * Отображает текущий статус кампании с соответствующим цветом.
  */
 
-import React from 'react';
 import { Chip, type ChipProps } from '@mui/material';
 import {
   PlayArrow as RunningIcon,
@@ -15,6 +14,7 @@ import {
   Schedule as ScheduledIcon,
   Drafts as DraftIcon,
   HourglassEmpty as QueuedIcon,
+  Archive as ArchivedIcon,
 } from '@mui/icons-material';
 import type { CampaignStatus } from '@/types/campaign';
 import { CAMPAIGN_STATUS_LABELS, CAMPAIGN_STATUS_COLORS } from '@/types/campaign';
@@ -33,6 +33,7 @@ const STATUS_ICONS: Record<CampaignStatus, React.ReactElement | undefined> = {
   COMPLETED: <CompletedIcon fontSize="small" />,
   CANCELLED: <CancelledIcon fontSize="small" />,
   ERROR: <ErrorIcon fontSize="small" />,
+  ARCHIVED: <ArchivedIcon fontSize="small" />,
 };
 
 export function CampaignStatusBadge({

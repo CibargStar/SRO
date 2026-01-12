@@ -2,7 +2,6 @@
  * Карточка шаблона для отображения в списке
  */
 
-import React from 'react';
 import {
   Card,
   CardContent,

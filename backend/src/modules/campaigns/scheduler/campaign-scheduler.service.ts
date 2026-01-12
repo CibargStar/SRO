@@ -18,18 +18,26 @@ import { CampaignRepository } from '../campaigns.repository';
 // Типы
 // ============================================
 
+/**
+ * Конфигурация расписания кампании
+ * Должна соответствовать схеме из campaigns.schemas.ts
+ */
 export interface ScheduleConfig {
-  startAt?: string; // ISO date for scheduled start
-  workHoursStart?: number; // 0-23, e.g., 9
-  workHoursEnd?: number; // 0-23, e.g., 18
-  workDays?: number[]; // 0-6 (Sunday-Saturday), e.g., [1,2,3,4,5]
-  timezone?: string; // e.g., 'Europe/Moscow'
-  recurrence?: {
-    type: 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY';
-    interval?: number; // every N days/weeks/months
-    endAt?: string; // ISO date when recurrence ends
-    maxRuns?: number; // maximum number of runs
-  };
+  // Время работы (рабочие часы)
+  workHoursEnabled: boolean;
+  workHoursStart?: string; // HH:MM format
+  workHoursEnd?: string; // HH:MM format
+  
+  // Рабочие дни (0 = Воскресенье, 1 = Понедельник, ..., 6 = Суббота)
+  workDaysEnabled: boolean;
+  workDays?: number[];
+  
+  // Периодичность
+  recurrence: 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY';
+  recurrenceEndDate?: string; // ISO date
+  
+  // Таймзона
+  timezone: string;
 }
 
 export interface GlobalSettings {
@@ -428,18 +436,6 @@ export class CampaignSchedulerService {
     }
   }
 
-  private safeParseWorkDays(value: string): number[] {
-    try {
-      const parsed = JSON.parse(value);
-      if (Array.isArray(parsed)) {
-        return parsed.filter((v) => typeof v === 'number');
-      }
-    } catch (e) {
-      logger.warn('Failed to parse defaultWorkDays, using weekdays', { value });
-    }
-    return [1, 2, 3, 4, 5];
-  }
-
   /**
    * Очистка старых кампаний
    */
@@ -520,7 +516,7 @@ export class CampaignSchedulerService {
     // Если запланированное время в прошлом, вычисляем следующее время
     const now = new Date();
     if (campaign.scheduledAt <= now) {
-      if (scheduleConfig?.recurrence?.type === 'NONE' || !scheduleConfig?.recurrence) {
+      if (!scheduleConfig?.recurrence || scheduleConfig.recurrence === 'NONE') {
         return null; // Нет рекуррентности
       }
 
@@ -536,19 +532,19 @@ export class CampaignSchedulerService {
    */
   private calculateNextRecurrence(baseDate: Date, scheduleConfig: ScheduleConfig): Date | null {
     const recurrence = scheduleConfig.recurrence;
-    if (!recurrence || recurrence.type === 'NONE') return null;
+    if (!recurrence || recurrence === 'NONE') return null;
 
     const now = new Date();
     let nextDate = new Date(baseDate);
-    const interval = recurrence.interval || 1;
+    const interval = 1; // Интервал всегда 1 (каждый день/неделю/месяц)
 
     // Проверяем максимальную дату
-    if (recurrence.endAt && new Date(recurrence.endAt) < now) {
+    if (scheduleConfig.recurrenceEndDate && new Date(scheduleConfig.recurrenceEndDate) < now) {
       return null;
     }
 
     while (nextDate <= now) {
-      switch (recurrence.type) {
+      switch (recurrence) {
         case 'DAILY':
           nextDate.setDate(nextDate.getDate() + interval);
           break;
@@ -562,7 +558,7 @@ export class CampaignSchedulerService {
     }
 
     // Проверяем, не превышена ли конечная дата
-    if (recurrence.endAt && nextDate > new Date(recurrence.endAt)) {
+    if (scheduleConfig.recurrenceEndDate && nextDate > new Date(scheduleConfig.recurrenceEndDate)) {
       return null;
     }
 

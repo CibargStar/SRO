@@ -8,7 +8,7 @@
  * ВКЛЮЧАЕТ автообновление статуса и индикатор загрузки.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,

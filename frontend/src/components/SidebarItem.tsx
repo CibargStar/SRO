@@ -20,7 +20,6 @@
  * ```
  */
 
-import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Box, Button, Typography } from '@mui/material';
 import { styled } from '@mui/material/styles';

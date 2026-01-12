@@ -5,7 +5,6 @@
  * Поддерживает отображение статуса "Требуется пароль" для Telegram 2FA.
  */
 
-import React from 'react';
 import { Chip, Tooltip } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';

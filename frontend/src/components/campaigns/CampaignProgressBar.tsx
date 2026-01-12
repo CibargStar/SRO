@@ -4,7 +4,6 @@
  * Отображает прогресс выполнения кампании с процентами и статистикой.
  */
 
-import React from 'react';
 import {
   Box,
   LinearProgress,

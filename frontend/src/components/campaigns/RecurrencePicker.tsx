@@ -1,4 +1,3 @@
-import React from 'react';
 import { FormControl, InputLabel, MenuItem, Stack } from '@mui/material';
 import { StyledSelect, StyledTextField, MenuProps, selectInputLabelStyles } from '@/components/common';
 import type { ScheduleConfig, RecurrenceType } from '@/types/campaign';

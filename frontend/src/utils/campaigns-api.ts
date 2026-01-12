@@ -127,11 +127,7 @@ export async function fetchWithAutoRefresh(url: string, options: RequestInit = {
           }
 
           const data = await refreshResponse.json();
-          updateTokens({
-            accessToken: data.accessToken,
-            refreshToken: data.refreshToken,
-            expiresIn: data.expiresIn,
-          });
+          updateTokens(data.accessToken, data.refreshToken);
 
           return data.accessToken;
         } finally {

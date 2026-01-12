@@ -2,7 +2,7 @@
  * Диалог создания шаблона сообщений
  */
 
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
@@ -29,7 +29,8 @@ import { dialogPaperProps, dialogTitleStyles, dialogContentStyles, dialogActions
 import { LOADING_ICON_SIZE } from '../common/Constants';
 import { createTemplateSchema, type CreateTemplateFormData } from '@/schemas/template.schema';
 import { useCreateTemplate, useTemplateCategories } from '@/hooks/useTemplates';
-import type { TemplateType, MessengerTarget } from '@/types/template';
+import type { TemplateType } from '@/types/template';
+import type { MessengerTarget } from '@/types/campaign';
 
 interface CreateTemplateDialogProps {
   open: boolean;

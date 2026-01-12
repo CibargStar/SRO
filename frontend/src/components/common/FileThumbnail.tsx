@@ -2,7 +2,7 @@
  * Универсальный превью-компонент для файлов (из File или сохранённых на сервере).
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Box, IconButton, Tooltip, Typography } from '@mui/material';
 import {
   Close as CloseIcon,

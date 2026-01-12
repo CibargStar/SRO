@@ -1,4 +1,3 @@
-import React from 'react';
 import { Grid, FormControlLabel, Switch, Typography } from '@mui/material';
 import { StyledTextField } from '@/components/common';
 import type { UpdateGlobalSettingsInput } from '@/types/campaign';
@@ -13,7 +12,7 @@ interface Props {
 export function TypingSimulationForm({ form, onChange }: Props) {
   return (
     <Grid container spacing={2}>
-      <Grid item xs={12} md={6}>
+      <Grid size={{ xs: 12, md: 6 }}>
         <FormControlLabel
           control={
             <Switch
@@ -32,7 +31,7 @@ export function TypingSimulationForm({ form, onChange }: Props) {
           label={<Typography sx={{ color: '#f5f5f5' }}>Имитация набора</Typography>}
         />
       </Grid>
-      <Grid item xs={12} md={6}>
+      <Grid size={{ xs: 12, md: 6 }}>
         <StyledTextField
           label="Скорость набора (симв/сек)"
           type="number"

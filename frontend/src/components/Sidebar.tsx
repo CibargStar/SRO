@@ -22,7 +22,7 @@
  * ```
  */
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Box } from '@mui/material';
 import { styled } from '@mui/material/styles';

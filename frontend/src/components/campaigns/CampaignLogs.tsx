@@ -75,7 +75,7 @@ function LogLevelIcon({ level }: { level: LogLevel }) {
 }
 
 export function CampaignLogs({
-  campaignId,
+  campaignId: _campaignId,
   logs,
   totalCount,
   totalPages,
@@ -90,8 +90,8 @@ export function CampaignLogs({
     onQueryChange({ ...query, page: newPage });
   };
 
-  const handleLevelChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const value = event.target.value;
+  const handleLevelChange = (event: { target: { value: unknown } }) => {
+    const value = event.target.value as string;
     onQueryChange({
       ...query,
       level: value === '' ? undefined : value as LogLevel,

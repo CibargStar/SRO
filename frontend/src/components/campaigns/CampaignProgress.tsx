@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, Grid, Paper, Stack, Typography } from '@mui/material';
 import type { Campaign, CampaignProgress as Progress } from '@/types/campaign';
 import { ProgressBar } from './ProgressBar';
@@ -54,13 +53,13 @@ export function CampaignProgress({ campaign, progress, isLoading }: CampaignProg
       </Stack>
 
       <Grid container spacing={3}>
-        <Grid item xs={12} md={7}>
+        <Grid size={{ xs: 12, md: 7 }}>
           <ProgressBar total={total} processed={processed} success={success} failed={failed} skipped={skipped} />
           <Box sx={{ mt: 2 }}>
             <ProfilesProgress profiles={profiles} />
           </Box>
         </Grid>
-        <Grid item xs={12} md={5}>
+        <Grid size={{ xs: 12, md: 5 }}>
           <Stack spacing={2}>
             <StatsCards success={success} failed={failed} skipped={skipped} />
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>

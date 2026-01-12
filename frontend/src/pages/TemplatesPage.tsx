@@ -8,7 +8,7 @@
  * - Дублирование и перемещение шаблонов
  */
 
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -63,7 +63,8 @@ import {
   MoveToCategoryDialog,
   TemplatePreviewDialog,
 } from '@/components/templates';
-import type { Template, TemplateCategory, TemplateType, MessengerTarget, ListTemplatesQuery } from '@/types/template';
+import type { Template, TemplateCategory, TemplateType, ListTemplatesQuery } from '@/types/template';
+import type { MessengerTarget } from '@/types/campaign';
 
 const ITEMS_PER_PAGE = 12;
 
@@ -480,7 +481,7 @@ export function TemplatesPage() {
           <>
             <Grid container spacing={2} sx={{ flex: 1, overflow: 'auto' }}>
               {templatesData?.data.map((template) => (
-                <Grid item xs={12} sm={6} md={4} lg={3} key={template.id}>
+                <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={template.id}>
                   <TemplateCard
                     template={template}
                     onEdit={handleEditTemplate}

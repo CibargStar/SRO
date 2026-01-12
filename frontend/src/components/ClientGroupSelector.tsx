@@ -4,7 +4,6 @@
  * Компонент для выбора группы клиентов из списка.
  */
 
-import React from 'react';
 import { FormControl, InputLabel, MenuItem, Typography, Box } from '@mui/material';
 import LockIcon from '@mui/icons-material/Lock';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
@@ -58,12 +57,12 @@ export function ClientGroupSelector({
           fullWidth={fullWidth}
           MenuProps={MenuProps}
           displayEmpty={!required}
-          renderValue={(selected) => {
+          renderValue={(selected: unknown) => {
             if (!selected || selected === '') {
               return fullWidth ? 'Не выбрана' : 'Все';
             }
             const group = groups.find(g => g.id === selected);
-            return group?.name || selected;
+            return group?.name || String(selected);
           }}
         >
         {(!required || allowAllOption) && <MenuItem value="">{fullWidth ? 'Не выбрана' : 'Все'}</MenuItem>}

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Box, Checkbox, CircularProgress, FormControlLabel, Stack, Typography } from '@mui/material';
 import { useProfiles } from '@/hooks/useProfiles';
 import { StyledTextField } from '@/components/common';

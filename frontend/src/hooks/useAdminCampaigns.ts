@@ -18,7 +18,7 @@ export function useAdminCampaigns(params: AdminCampaignsQuery) {
   return useQuery<AdminCampaignsListResponse, ApiError>({
     queryKey: adminCampaignsKeys.list(params),
     queryFn: () => getAllCampaigns(params),
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 

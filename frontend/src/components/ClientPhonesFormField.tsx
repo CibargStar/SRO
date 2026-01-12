@@ -4,7 +4,7 @@
  * Компонент для добавления, редактирования и удаления телефонов в форме создания/редактирования клиента.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Box, IconButton, Chip, Typography, FormControl, InputLabel, MenuItem } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import { StyledTextField, StyledSelect } from './common/FormStyles';

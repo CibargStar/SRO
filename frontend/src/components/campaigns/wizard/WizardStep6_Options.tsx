@@ -1,4 +1,3 @@
-import React from 'react';
 import { Stack, Typography, FormControlLabel, Checkbox, Divider, Box } from '@mui/material';
 import { Controller, useFormContext } from 'react-hook-form';
 import { StyledTextField } from '@/components/common';

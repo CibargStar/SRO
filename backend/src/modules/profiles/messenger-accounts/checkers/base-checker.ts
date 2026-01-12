@@ -206,7 +206,6 @@ export abstract class BaseChecker {
         // Для WhatsApp проверяем наличие основных элементов
         // Код выполняется в браузерном контексте через Puppeteer, поэтому document доступен
         isPageReady = await page.evaluate(() => {
-          // @ts-expect-error - document доступен в браузерном контексте Puppeteer
           const doc = document;
           if (!doc) return false;
           return !!(doc.querySelector('#side') || doc.querySelector('canvas') || doc.querySelector('[data-ref]'));

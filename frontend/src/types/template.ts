@@ -4,6 +4,8 @@
  * Определяет все типы данных, используемые в модуле шаблонов.
  */
 
+import type { MessengerTarget } from './campaign';
+
 /**
  * Тип шаблона
  */
@@ -19,10 +21,7 @@ export type TemplateItemType = 'TEXT' | 'FILE';
  */
 export type FileType = 'IMAGE' | 'VIDEO' | 'DOCUMENT';
 
-/**
- * Целевой мессенджер для шаблона
- */
-export type MessengerTarget = 'WHATSAPP_ONLY' | 'TELEGRAM_ONLY' | 'UNIVERSAL';
+// MessengerTarget imported from campaign.ts
 
 /**
  * Категория шаблонов

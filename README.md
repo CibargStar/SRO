@@ -156,7 +156,7 @@ docker-compose build --no-cache
 - Access токен в Authorization header (`Authorization: Bearer <token>`)
 - Refresh токен в теле запроса (body)
 - Ротация refresh токенов (старый токен инвалидируется при refresh)
-- Защита от brute force (rate limiting: 5 попыток / 15 минут для `/auth/login`)
+- Защита от brute force (rate limiting: 15 попыток / 15 минут для `/auth/login`)
 - Хеширование паролей через argon2id
 - Инвалидация токенов при смене пароля (passwordVersion)
 - Защита от создания/обновления ROOT через API

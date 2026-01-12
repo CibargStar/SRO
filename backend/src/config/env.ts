@@ -18,7 +18,7 @@ if (existsSync('.env.example')) {
   const dotenvSafe = require('dotenv-safe');
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
   dotenvSafe.config({
-    allowEmptyValues: false,
+    allowEmptyValues: true, // Разрешаем пустые значения для опциональных переменных (например, TELEGRAM_BOT_TOKEN)
     example: '.env.example',
   });
 } else {

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, Typography } from '@mui/material';
 import type { FileType, TemplateItemType } from '@/types/template';
 import { FileThumbnail } from '@/components/common';

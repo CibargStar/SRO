@@ -5,7 +5,7 @@
  * Включает автообновление QR кода и автозакрытие при успешном входе.
  */
 
-import React, { useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,

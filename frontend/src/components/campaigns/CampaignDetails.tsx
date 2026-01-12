@@ -4,7 +4,6 @@
  * Компонент для отображения общей информации о кампании
  */
 
-import React from 'react';
 import {
   Box,
   Paper,
@@ -30,12 +29,9 @@ import {
 } from '@mui/icons-material';
 import type { Campaign } from '@/types/campaign';
 import {
-  CAMPAIGN_TYPE_LABELS,
-  MESSENGER_TARGET_LABELS,
   UNIVERSAL_TARGET_LABELS,
   WEEK_DAYS,
 } from '@/types/campaign';
-import { CampaignStatusBadge } from './CampaignStatusBadge';
 import { CampaignTypeBadge } from './CampaignTypeBadge';
 import { MessengerTargetBadge } from './MessengerTargetBadge';
 
@@ -131,10 +127,10 @@ export function CampaignDetails({ campaign, isLoading }: CampaignDetailsProps) {
       <Paper sx={{ p: 3.5, backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '16px', border: 'none' }}>
         <Skeleton variant="text" width={200} height={32} sx={{ mb: 2 }} />
         <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Skeleton variant="rectangular" height={200} sx={{ borderRadius: '12px' }} />
           </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Skeleton variant="rectangular" height={200} sx={{ borderRadius: '12px' }} />
           </Grid>
         </Grid>
@@ -202,7 +198,7 @@ export function CampaignDetails({ campaign, isLoading }: CampaignDetailsProps) {
 
       <Grid container spacing={3}>
         {/* Левая колонка - основная информация */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Box sx={{ 
             p: 2.5, 
             backgroundColor: 'rgba(255, 255, 255, 0.03)', 
@@ -213,28 +209,28 @@ export function CampaignDetails({ campaign, isLoading }: CampaignDetailsProps) {
               Параметры кампании
             </Typography>
             <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <InfoRow
                   icon={<TemplateIcon fontSize="small" />}
                   label="Шаблон"
                   value={campaign.template?.name || campaign.templateId}
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <InfoRow
                   icon={<GroupIcon fontSize="small" />}
                   label="Группа клиентов"
                   value={campaign.clientGroup?.name || campaign.clientGroupId}
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <InfoRow
                   icon={<ContactsIcon fontSize="small" />}
                   label="Контактов"
                   value={campaign.totalContacts}
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <InfoRow
                   icon={<ProfileIcon fontSize="small" />}
                   label="Профилей"
@@ -291,7 +287,7 @@ export function CampaignDetails({ campaign, isLoading }: CampaignDetailsProps) {
         </Grid>
 
         {/* Правая колонка - настройки */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           {/* Расписание */}
           {hasScheduleConfig && campaign.scheduleConfig && (
             <Box sx={{ 

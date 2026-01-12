@@ -4,7 +4,6 @@
  * Отображает краткую информацию о кампании в виде карточки.
  */
 
-import React from 'react';
 import {
   Card,
   CardContent,

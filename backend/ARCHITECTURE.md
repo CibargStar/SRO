@@ -277,7 +277,7 @@ POST   /api/auth/refresh        # Обновление токенов (refreshTo
 ```
 
 **Middleware:**
-- `/api/auth/login` - `authRateLimiter` (5 попыток / 15 минут) + `validateBody(loginSchema)`
+- `/api/auth/login` - `authRateLimiter` (15 попыток / 15 минут) + `validateBody(loginSchema)`
 - `/api/auth/refresh` - `validateBody(refreshSchema)`
 - `/api/auth/logout` - `validateBody(refreshSchema)`
 
@@ -307,10 +307,10 @@ PATCH  /api/users/:id           # Изменение пользователя (�
 ### 5.1. Rate Limiting
 
 **Общий rate limiter (уже есть):**
-- 100 запросов / 15 минут с одного IP
+- 500 запросов / 15 минут с одного IP
 
 **Строгий rate limiter для `/api/auth/login`:**
-- 5 попыток / 15 минут с одного IP
+- 15 попыток / 15 минут с одного IP
 - Защита от brute force атак
 - Возвращает 429 Too Many Requests
 
@@ -319,7 +319,7 @@ PATCH  /api/users/:id           # Изменение пользователя (�
 // src/middleware/rate-limit/auth-rate-limit.ts
 export const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,  // 15 минут
-  max: 5,                     // 5 попыток
+  max: 15,                    // 15 попыток
   message: 'Too many login attempts, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
@@ -706,7 +706,7 @@ frontend/src/
 - [ ] ROOT_PASSWORD соответствует требованиям (мин. 12 символов, заглавные/строчные, цифры, спецсимволы)
 - [ ] Access token живет ≤ 1 часа (рекомендуется 15 минут)
 - [ ] Refresh token живет дольше Access token (рекомендуется 7 дней)
-- [ ] Rate limiting настроен для `/api/auth/login` (5 попыток / 15 минут)
+- [ ] Rate limiting настроен для `/api/auth/login` (15 попыток / 15 минут)
 - [ ] CORS настроен правильно (не `*`, только разрешенные origins)
 - [ ] ROOT не может быть удален/изменен через API
 - [ ] Нельзя создать ROOT через API

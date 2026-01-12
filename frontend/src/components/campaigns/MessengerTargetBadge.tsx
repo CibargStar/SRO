@@ -4,7 +4,6 @@
  * Отображает целевой мессенджер (WhatsApp, Telegram или Универсальный).
  */
 
-import React from 'react';
 import { Chip, type ChipProps, styled } from '@mui/material';
 import type { MessengerTarget } from '@/types/campaign';
 import { MESSENGER_TARGET_LABELS } from '@/types/campaign';
@@ -14,7 +13,7 @@ interface MessengerTargetBadgeProps extends Omit<ChipProps, 'color' | 'label'> {
 }
 
 // WhatsApp зеленый
-const WhatsAppChip = styled(Chip)(({ theme }) => ({
+const WhatsAppChip = styled(Chip)(() => ({
   backgroundColor: '#25D366',
   color: '#fff',
   '&:hover': {
@@ -23,7 +22,7 @@ const WhatsAppChip = styled(Chip)(({ theme }) => ({
 }));
 
 // Telegram синий
-const TelegramChip = styled(Chip)(({ theme }) => ({
+const TelegramChip = styled(Chip)(() => ({
   backgroundColor: '#0088CC',
   color: '#fff',
   '&:hover': {
@@ -32,7 +31,7 @@ const TelegramChip = styled(Chip)(({ theme }) => ({
 }));
 
 // Универсальный - фиолетовый градиент
-const UniversalChip = styled(Chip)(({ theme }) => ({
+const UniversalChip = styled(Chip)(() => ({
   background: 'linear-gradient(135deg, #25D366 0%, #0088CC 100%)',
   color: '#fff',
   '&:hover': {

@@ -1,4 +1,3 @@
-import React from 'react';
 import { FormControl, InputLabel, MenuItem } from '@mui/material';
 import { StyledSelect, MenuProps, selectInputLabelStyles } from '@/components/common';
 import type { UpdateGlobalSettingsInput } from '@/types/campaign';

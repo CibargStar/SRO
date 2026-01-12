@@ -1151,7 +1151,7 @@ export async function deleteImportConfig(configId: string): Promise<void> {
   });
 
   if (!response.ok) {
-    throw await handleErrorResponse(response);
+    await handleResponse<void>(response);
   }
 }
 

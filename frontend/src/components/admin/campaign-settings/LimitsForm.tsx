@@ -1,4 +1,3 @@
-import React from 'react';
 import { Grid } from '@mui/material';
 import { StyledTextField } from '@/components/common';
 import type { UpdateGlobalSettingsInput } from '@/types/campaign';
@@ -13,7 +12,7 @@ interface Props {
 export function LimitsForm({ form, onChange }: Props) {
   return (
     <Grid container spacing={2}>
-      <Grid item xs={12} md={6}>
+      <Grid size={{ xs: 12, md: 6 }}>
         <StyledTextField
           label="Макс. контактов на профиль в час"
           type="number"
@@ -22,7 +21,7 @@ export function LimitsForm({ form, onChange }: Props) {
           onChange={(e) => onChange('maxContactsPerProfilePerHour', e.target.value === '' ? undefined : Number(e.target.value))}
         />
       </Grid>
-      <Grid item xs={12} md={6}>
+      <Grid size={{ xs: 12, md: 6 }}>
         <StyledTextField
           label="Макс. контактов на профиль в день"
           type="number"

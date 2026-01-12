@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Box, Alert } from '@mui/material';
 import type { Template } from '@/types/template';
 import { TemplateItemEditor } from './TemplateItemEditor';

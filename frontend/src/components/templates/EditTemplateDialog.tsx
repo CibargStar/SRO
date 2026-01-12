@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { Dialog, DialogContent, DialogActions, MenuItem, CircularProgress, Alert, Box, Typography, FormControl, InputLabel } from '@mui/material';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -162,13 +162,13 @@ export function EditTemplateDialog({ open, template, onClose }: EditTemplateDial
                     </MenuItem>
                   )}
                 </StyledSelect>
-                {errors.categoryId && (
-                  <Typography sx={{ color: '#f44336', mt: 0.5, fontSize: '0.75rem' }}>
-                    {errors.categoryId.message}
-                  </Typography>
-                )}
               )}
             />
+            {errors.categoryId && (
+              <Typography sx={{ color: '#f44336', mt: 0.5, fontSize: '0.75rem' }}>
+                {errors.categoryId.message}
+              </Typography>
+            )}
           </FormControl>
         </DialogContent>
         <DialogActions sx={dialogActionsStyles}>

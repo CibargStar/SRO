@@ -8,6 +8,7 @@
  * - useRefresh - обновление токенов (внутренний хук)
  */
 
+import React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { login, logout, getCurrentUser, refresh } from '@/utils/api';
 import { useAuthStore } from '@/store';
@@ -63,9 +64,9 @@ export function useLogout() {
   const { clearAuth, refreshToken } = useAuthStore();
 
   return useMutation({
-    mutationFn: (token?: string) => {
+    mutationFn: (token?: string | void) => {
       // Используем токен из параметра или из store
-      const tokenToUse = token || refreshToken || '';
+      const tokenToUse = (typeof token === 'string' ? token : null) || refreshToken || '';
       return logout(tokenToUse);
     },
     onSuccess: () => {
@@ -99,17 +100,22 @@ export function useCurrentUser(accessToken?: string) {
   const { updateUser } = useAuthStore();
   const token = accessToken || storeAccessToken;
 
-  return useQuery({
+  const query = useQuery({
     queryKey: authKeys.currentUser(),
     queryFn: () => getCurrentUser(token!),
     enabled: !!token, // Запрос выполняется только если есть токен
     staleTime: 5 * 60 * 1000, // Данные актуальны 5 минут
     retry: false, // Не повторять запрос при ошибке 401
-    onSuccess: (user: User) => {
-      // Обновляем пользователя в store
-      updateUser(user);
-    },
   });
+
+  // Обновляем пользователя в store при успешном запросе
+  React.useEffect(() => {
+    if (query.data) {
+      updateUser(query.data);
+    }
+  }, [query.data, updateUser]);
+
+  return query;
 }
 
 /**

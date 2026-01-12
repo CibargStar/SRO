@@ -9,10 +9,7 @@
  */
 export type MessengerAccountStatus = 'LOGGED_IN' | 'NOT_LOGGED_IN' | 'CHECKING' | 'ERROR' | 'UNKNOWN';
 
-/**
- * Тип мессенджера
- */
-export type MessengerType = 'WHATSAPP' | 'TELEGRAM';
+// MessengerType is defined in campaign.ts
 
 /**
  * Мессенджер (справочник)

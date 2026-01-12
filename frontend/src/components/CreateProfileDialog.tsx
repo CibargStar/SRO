@@ -4,7 +4,6 @@
  * Форма создания нового профиля Chrome с валидацией через React Hook Form и Zod.
  */
 
-import React from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {

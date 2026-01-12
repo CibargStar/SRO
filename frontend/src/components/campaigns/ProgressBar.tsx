@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, LinearProgress, Stack, Typography } from '@mui/material';
 
 interface ProgressBarProps {

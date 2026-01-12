@@ -406,23 +406,17 @@ export class TelegramChecker extends BaseChecker {
     // Определяем тип страницы через evaluate
     // Код выполняется в браузерном контексте через Puppeteer, поэтому document доступен
     const pageType = await page.evaluate(() => {
-      // @ts-expect-error - document доступен в браузерном контексте Puppeteer
       const passwordActive = document.querySelector('.page-password.active');
-      // @ts-expect-error - document доступен в браузерном контексте Puppeteer
       const qrActive = document.querySelector('.page-signQR.active');
       // Ищем QR canvas с разными селекторами
-      // @ts-expect-error - document доступен в браузерном контексте Puppeteer
       const qrCanvas1 = document.querySelector('canvas.qr-canvas');
-      // @ts-expect-error - document доступен в браузерном контексте Puppeteer
       const qrCanvas2 = document.querySelector('.qr-canvas');
-      // @ts-expect-error - document доступен в браузерном контексте Puppeteer
       const qrCanvas3 = document.querySelector('.qr-container canvas');
       const qrCanvas = qrCanvas1 || qrCanvas2 || qrCanvas3;
       
       if (passwordActive) return 'password';
       if (qrActive || qrCanvas) return 'qr';
       return 'unknown';
-      // @ts-expect-error - код выполняется в браузерном контексте
     });
 
     logger.debug('Telegram page type detected', { profileId: context.profileId, pageType });

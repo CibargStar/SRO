@@ -2,10 +2,9 @@
  * Badge для отображения целевого мессенджера шаблона (WhatsApp/Telegram/Universal)
  */
 
-import React from 'react';
 import { Chip, type ChipProps } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import type { MessengerTarget } from '@/types/template';
+import type { MessengerTarget } from '@/types/campaign';
 
 interface MessengerTargetBadgeProps extends Omit<ChipProps, 'label'> {
   target: MessengerTarget;

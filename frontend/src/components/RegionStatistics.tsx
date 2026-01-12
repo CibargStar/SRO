@@ -5,7 +5,7 @@
  * Позволяет переключаться между пользователями для просмотра статистики по их базам.
  */
 
-import React, { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import {
   Box,
   Typography,

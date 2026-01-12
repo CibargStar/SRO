@@ -4,7 +4,6 @@
  * Отображает тип кампании (ONE_TIME или SCHEDULED).
  */
 
-import React from 'react';
 import { Chip, type ChipProps } from '@mui/material';
 import {
   FlashOn as OneTimeIcon,

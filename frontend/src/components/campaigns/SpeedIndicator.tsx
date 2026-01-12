@@ -1,4 +1,3 @@
-import React from 'react';
 import { Stack, Typography, Chip } from '@mui/material';
 
 interface SpeedIndicatorProps {

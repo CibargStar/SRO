@@ -4,7 +4,7 @@
  * Компонент для отображения списка сообщений кампании
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   Box,
   Paper,
@@ -65,7 +65,7 @@ function formatDateTime(dateString: string | null | undefined): string {
 }
 
 export function CampaignMessages({
-  campaignId,
+  campaignId: _campaignId,
   messages,
   totalCount,
   isLoading,
@@ -83,8 +83,8 @@ export function CampaignMessages({
     onQueryChange({ ...query, limit: parseInt(event.target.value, 10), page: 1 });
   };
 
-  const handleStatusChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const value = event.target.value;
+  const handleStatusChange = (event: { target: { value: unknown } }) => {
+    const value = event.target.value as string;
     onQueryChange({
       ...query,
       status: value === '' ? undefined : value as MessageStatus,
@@ -92,8 +92,8 @@ export function CampaignMessages({
     });
   };
 
-  const handleMessengerChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const value = event.target.value;
+  const handleMessengerChange = (event: { target: { value: unknown } }) => {
+    const value = event.target.value as string;
     onQueryChange({
       ...query,
       messenger: value === '' ? undefined : value as MessengerType,

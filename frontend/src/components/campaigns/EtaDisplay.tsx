@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, Typography, Chip, Stack } from '@mui/material';
 
 interface EtaDisplayProps {

@@ -4,7 +4,6 @@
  * Отображает статус профиля в виде цветного Chip с иконкой.
  */
 
-import React from 'react';
 import { Chip, Tooltip } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';

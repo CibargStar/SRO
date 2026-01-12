@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box } from '@mui/material';
 import { Controller, useFormContext } from 'react-hook-form';
 import { ScheduleConfigurator } from '../ScheduleConfigurator';

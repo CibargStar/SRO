@@ -39,9 +39,9 @@ async function refreshTokens(): Promise<void> {
     return;
   }
 
-  const { refreshToken, updateTokens, logout } = useAuthStore.getState();
+  const { refreshToken, updateTokens, clearAuth } = useAuthStore.getState();
   if (!refreshToken || !isValidJWTFormat(refreshToken)) {
-    logout();
+    clearAuth();
     throw { message: 'Unauthorized' } as ApiError;
   }
 
@@ -50,8 +50,8 @@ async function refreshTokens(): Promise<void> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refreshToken }),
   })
-    .then(handleResponse)
-    .then((data: { accessToken: string; refreshToken: string }) => {
+    .then(handleResponse<{ accessToken: string; refreshToken: string }>)
+    .then((data) => {
       updateTokens(data.accessToken, data.refreshToken);
     })
     .finally(() => {
@@ -62,10 +62,10 @@ async function refreshTokens(): Promise<void> {
 }
 
 async function authorizedRequest(input: RequestInfo, init: RequestInit = {}): Promise<Response> {
-  const { accessToken, refreshToken, logout } = useAuthStore.getState();
+  const { accessToken, refreshToken, clearAuth } = useAuthStore.getState();
 
   if (!accessToken || !isValidJWTFormat(accessToken)) {
-    logout();
+    clearAuth();
     throw { message: 'Unauthorized' } as ApiError;
   }
 
@@ -87,7 +87,7 @@ async function authorizedRequest(input: RequestInfo, init: RequestInit = {}): Pr
   }
 
   if (response.status === 401) {
-    logout();
+    useAuthStore.getState().clearAuth();
   }
 
   return response;

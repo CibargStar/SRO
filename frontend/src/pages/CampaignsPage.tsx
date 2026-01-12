@@ -8,7 +8,7 @@
  * - Запуска, паузы, отмены кампаний
  */
 
-import React, { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -21,11 +21,6 @@ import {
   MenuItem,
   Pagination,
   Stack,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  DialogContentText,
   Tabs,
   Tab,
   Paper,
@@ -38,7 +33,7 @@ import {
   Search as SearchIcon,
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
-import { StyledButton, StyledTextField, StyledSelect, MenuProps, selectInputLabelStyles, CancelButton, LOADING_ICON_SIZE } from '@/components/common';
+import { StyledButton, StyledTextField, StyledSelect, MenuProps, selectInputLabelStyles } from '@/components/common';
 import { useNavigate } from 'react-router-dom';
 import {
   useCampaigns,
@@ -178,13 +173,6 @@ export function CampaignsPage() {
     setDeleteDialogCampaign(campaign);
   }, []);
 
-  const handleConfirmDelete = useCallback(async () => {
-    if (deleteDialogCampaign) {
-      await deleteMutation.mutateAsync(deleteDialogCampaign.id);
-      setDeleteDialogCampaign(null);
-    }
-  }, [deleteDialogCampaign, deleteMutation]);
-
   const handleDuplicate = useCallback(async (campaign: Campaign) => {
     await duplicateMutation.mutateAsync({ campaignId: campaign.id });
   }, [duplicateMutation]);
@@ -208,13 +196,6 @@ export function CampaignsPage() {
   const handleCancel = useCallback((campaign: Campaign) => {
     setCancelDialogCampaign(campaign);
   }, []);
-
-  const handleConfirmCancel = useCallback(async () => {
-    if (cancelDialogCampaign) {
-      await cancelMutation.mutateAsync(cancelDialogCampaign.id);
-      setCancelDialogCampaign(null);
-    }
-  }, [cancelDialogCampaign, cancelMutation]);
 
   const handleTabChange = useCallback((_: React.SyntheticEvent, newValue: TabValue) => {
     setTabValue(newValue);
@@ -329,7 +310,7 @@ export function CampaignsPage() {
         <Paper sx={{ p: 2.5, mb: 3, backgroundColor: 'rgba(255, 255, 255, 0.06)', borderRadius: '16px', border: 'none' }}>
           <Grid container spacing={2} alignItems="center">
             {/* Поиск */}
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <StyledTextField
                 fullWidth
                 size="small"
@@ -347,7 +328,7 @@ export function CampaignsPage() {
             </Grid>
 
             {/* Фильтр по статусу */}
-            <Grid item xs={12} sm={6} md={2}>
+            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
               <FormControl fullWidth size="small">
                 <InputLabel sx={selectInputLabelStyles}>Статус</InputLabel>
                 <StyledSelect
@@ -369,7 +350,7 @@ export function CampaignsPage() {
             </Grid>
 
             {/* Фильтр по типу */}
-            <Grid item xs={12} sm={6} md={2}>
+            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
               <FormControl fullWidth size="small">
                 <InputLabel sx={selectInputLabelStyles}>Тип</InputLabel>
                 <StyledSelect
@@ -391,7 +372,7 @@ export function CampaignsPage() {
             </Grid>
 
             {/* Фильтр по мессенджеру */}
-            <Grid item xs={12} sm={6} md={2}>
+            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
               <FormControl fullWidth size="small">
                 <InputLabel sx={selectInputLabelStyles}>Мессенджер</InputLabel>
                 <StyledSelect
@@ -413,7 +394,7 @@ export function CampaignsPage() {
             </Grid>
 
             {/* Кнопка обновления */}
-            <Grid item xs={12} sm={6} md={2}>
+            <Grid size={{ xs: 12, sm: 6, md: 2 }}>
               <Tooltip title="Обновить список">
                 <IconButton
                   onClick={() => refetch()}
@@ -481,7 +462,7 @@ export function CampaignsPage() {
               <>
                 <Grid container spacing={3}>
                   {data.data.map((campaign) => (
-                    <Grid item xs={12} sm={6} md={4} key={campaign.id}>
+                    <Grid size={{ xs: 12, sm: 6, md: 4 }} key={campaign.id}>
                       <CampaignCard
                         campaign={campaign}
                         onView={handleView}

@@ -12,8 +12,6 @@ import {
   Dialog,
   DialogContent,
   DialogActions,
-  Button,
-  TextField,
   Box,
   Alert,
   CircularProgress,
@@ -24,7 +22,7 @@ import {
 } from '@mui/material';
 import { StyledSelect, MenuProps, selectInputLabelStyles } from './common/SelectStyles';
 import { StyledTextField, StyledButton, CancelButton } from './common/FormStyles';
-import { dialogPaperProps, dialogTitleStyles, dialogContentStyles, dialogActionsStyles } from './common/DialogStyles';
+import { dialogPaperProps, dialogTitleStyles, dialogContentStyles } from './common/DialogStyles';
 import { LOADING_ICON_SIZE } from './common/Constants';
 import { createClientSchema, type CreateClientFormData } from '@/schemas/client.schema';
 import { useCreateClient } from '@/hooks/useClients';
@@ -62,9 +60,9 @@ export function CreateClientDialog({ open, onClose, userId: propUserId }: Create
     defaultValues: {
       lastName: '',
       firstName: '',
-      middleName: null,
-      regionId: null,
-      groupId: null,
+      middleName: undefined,
+      regionId: undefined,
+      groupId: '',
       status: 'NEW',
       phones: [],
     },

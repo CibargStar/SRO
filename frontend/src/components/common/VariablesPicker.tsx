@@ -2,7 +2,6 @@
  * Селектор переменных для вставки в текст шаблона.
  */
 
-import React from 'react';
 import { Box, Chip, Stack, Tooltip, Typography } from '@mui/material';
 import { TEMPLATE_VARIABLES, type TemplateVariableInfo } from '@/types/template';
 

@@ -2,7 +2,7 @@
  * Текстовое поле с поддержкой вставки переменных и визуальными подсказками.
  */
 
-import React, { useCallback, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { Box, Typography } from '@mui/material';
 import { StyledTextField } from './FormStyles';
 import { VariablesPicker } from './VariablesPicker';

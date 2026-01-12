@@ -15,8 +15,6 @@ import logger from '../../../../config/logger';
 
 // Глобальные объекты браузера для TypeScript без DOM либ
 // Код выполняется в браузерном контексте через Puppeteer, поэтому document доступен
-// @ts-expect-error - document доступен в браузерном контексте Puppeteer
-declare const document: Document;
 
 /**
  * Селекторы DOM для WhatsApp Web
@@ -216,7 +214,6 @@ export class WhatsAppChecker extends BaseChecker {
           if (element) {
             // Проверяем, что canvas имеет содержимое
             const canvasHasContent = await page.evaluate((sel) => {
-              // @ts-expect-error - HTMLCanvasElement доступен в браузерном контексте Puppeteer
               const canvas = document.querySelector(sel) as HTMLCanvasElement;
               if (!canvas) return false;
               return canvas.width > 0 && canvas.height > 0;

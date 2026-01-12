@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   Table,
   TableBody,
@@ -10,7 +9,6 @@ import {
   IconButton,
   Tooltip,
   Typography,
-  Box,
   Chip,
 } from '@mui/material';
 import { Edit as EditIcon } from '@mui/icons-material';

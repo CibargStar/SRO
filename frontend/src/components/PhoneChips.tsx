@@ -6,7 +6,6 @@
  * Каждый номер отображается в отдельной "ячейке".
  */
 
-import React from 'react';
 import { Box, Chip, Typography, Tooltip } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import type { ClientPhone, MessengerStatus } from '@/types';

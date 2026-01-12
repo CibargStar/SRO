@@ -25,7 +25,7 @@ const router = Router();
  *       Аутентификация пользователя по email и паролю.
  *       При успешном входе возвращает access и refresh токены.
  *       
- *       **Rate Limiting:** 5 попыток / 15 минут с одного IP
+ *       **Rate Limiting:** 15 попыток / 15 минут с одного IP
  *       
  *       **Безопасность:** При любой ошибке возвращает общее сообщение "Invalid credentials" (401)
  *     tags: [Auth]
@@ -106,7 +106,7 @@ router.post('/login', authRateLimiter, validateBody(loginSchema), loginHandler);
  *       
  *       **Важно:** После смены пароля все refresh токены инвалидируются через passwordVersion.
  *       
- *       **Rate Limiting:** 10 запросов / 1 минута с одного IP
+ *       **Rate Limiting:** 50 запросов / 1 минута с одного IP
  *     tags: [Auth]
  *     requestBody:
  *       required: true

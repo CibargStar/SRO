@@ -4,7 +4,6 @@
  * Диалог подтверждения отмены кампании
  */
 
-import React from 'react';
 import {
   Dialog,
   DialogTitle,
