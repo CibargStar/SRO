@@ -574,8 +574,9 @@ model Template {
   updatedAt DateTime @updatedAt
 
   // Связи
-  items     TemplateItem[] // Элементы шаблона (сообщения, файлы)
-  campaigns Campaign[] // Кампании, использующие этот шаблон
+  items             TemplateItem[] // Элементы шаблона (сообщения, файлы)
+  campaigns         Campaign[] // Кампании, использующие этот шаблон (обратная совместимость - первый шаблон)
+  campaignTemplates CampaignTemplate[] // Связь с кампаниями через промежуточную таблицу
 
   @@index([userId]) // Быстрый поиск шаблонов пользователя
   @@index([categoryId]) // Быстрый поиск по категории
@@ -671,9 +672,10 @@ model Campaign {
   updatedAt DateTime @updatedAt
 
   // Связи
-  profiles CampaignProfile[] // Профили, участвующие в кампании
-  messages CampaignMessage[] // Сообщения (очередь)
-  logs     CampaignLog[] // Логи событий
+  profiles          CampaignProfile[] // Профили, участвующие в кампании
+  messages          CampaignMessage[] // Сообщения (очередь)
+  logs              CampaignLog[] // Логи событий
+  campaignTemplates CampaignTemplate[] // Шаблоны кампании (множественный выбор)
 
   @@index([userId]) // Быстрый поиск кампаний пользователя
   @@index([status]) // Поиск по статусу
@@ -683,6 +685,29 @@ model Campaign {
   @@index([archivedAt]) // Поиск архивных
   @@index([createdAt]) // Сортировка по дате создания
   @@map("campaigns")
+}
+
+/// Связь кампании с шаблонами (многие-ко-многим)
+/// Позволяет выбрать несколько шаблонов для одной кампании
+/// При рассылке шаблоны используются по очереди (round-robin) по orderIndex
+model CampaignTemplate {
+  id         String   @id @default(uuid())
+  campaignId String // ID кампании
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  templateId String // ID шаблона
+  template   Template @relation(fields: [templateId], references: [id], onDelete: Restrict)
+
+  // Порядок использования шаблона при ротации (0, 1, 2, ...)
+  orderIndex Int @default(0)
+
+  createdAt DateTime @default(now())
+
+  // Уникальность: один шаблон - одно вхождение в кампанию
+  @@unique([campaignId, templateId])
+  @@index([campaignId]) // Быстрый поиск шаблонов кампании
+  @@index([templateId]) // Поиск кампаний по шаблону
+  @@index([campaignId, orderIndex]) // Сортировка шаблонов по порядку
+  @@map("campaign_templates")
 }
 
 /// Профиль в кампании

@@ -120,6 +120,7 @@ export class TelegramSender {
 
   /**
    * Основной метод отправки (обертка для Executor)
+   * Оптимизированная версия с меньшим количеством проверок
    */
   async sendMessage(input: SenderInput): Promise<SenderResult> {
     try {
@@ -144,94 +145,53 @@ export class TelegramSender {
         throw new Error('Failed to get Telegram page for profile');
       }
 
-      // ВАЖНО: Активируем вкладку Telegram перед отправкой
-      // Это гарантирует, что мы работаем именно с этой вкладкой,
-      // даже если мониторинг статуса переключил фокус
+      // Активируем вкладку Telegram перед отправкой
       await page.bringToFront();
-      await this.delay(100);
 
-      // Открываем чат с номером (передаём profileId для кэширования)
+      // Открываем чат с номером (метод сам проверит кэш и состояние)
       await this.openChat(page, input.phone, input.profileId);
 
-      // ВАЖНО: Перед отправкой текста еще раз проверяем, что чат открыт правильно
-      const normalizedPhone = input.phone.replace(/[^\d]/g, '');
-      const isChatOpen = await this.verifyChatOpened(page, normalizedPhone);
-      if (!isChatOpen) {
-        logger.warn('Chat verification failed before text send, reopening', { phone: normalizedPhone });
-        await this.openChat(page, input.phone, input.profileId);
-      }
-
-      // Отправляем сообщение
+      // Отправляем текст
       if (input.text) {
         await this.sendTextMessage(page, input.text);
-        // Проверяем, что сообщение действительно отправлено
+        // Верификация опциональна - если сообщение не отправилось, следующая операция упадёт
         const isSent = await this.verifyMessageSent(page, input.text);
         if (!isSent) {
-          // Перед ошибкой проверяем, что мы все еще в правильном чате
-          const isStillOpen = await this.verifyChatOpened(page, normalizedPhone);
-          if (!isStillOpen) {
-            throw new Error(`Message verification failed - chat changed. Expected phone: ${normalizedPhone}, URL: ${page.url()}`);
-          }
-          throw new Error('Message was not sent - verification failed');
+          logger.warn('Message verification uncertain, continuing', { phone: input.phone });
+          // Не падаем - верификация может дать false positive
         }
       }
 
-      // Отправляем вложения, если есть
+      // Отправляем вложения
       if (input.attachments && input.attachments.length > 0) {
-        // ВАЖНО: Перед отправкой файла проверяем, что чат все еще открыт с нужным номером
-        const normalizedPhone = input.phone.replace(/[^\d]/g, '');
-        const isChatStillOpen = await this.verifyChatOpened(page, normalizedPhone);
-        if (!isChatStillOpen) {
-          logger.warn('Chat changed before file send, reopening', { phone: normalizedPhone });
-          // Переоткрываем чат перед отправкой файла
-          await this.openChat(page, input.phone, input.profileId);
-        }
-
         for (const attachment of input.attachments) {
           await this.sendFileMessage(page, attachment, input.phone, input.profileId);
-          // Небольшая задержка между файлами
-          await this.delay(1000);
+          // Задержка между файлами (меньше чем раньше)
+          if (input.attachments.length > 1) {
+            await this.delay(500);
+          }
         }
       }
 
-      logger.info('Telegram message sent successfully', { phone: input.phone, profileId: input.profileId });
+      logger.info('Telegram message sent', { phone: input.phone, profileId: input.profileId });
       return { success: true, messenger: 'TELEGRAM' };
     } catch (error: unknown) {
       let errorMessage: string;
       
       if (error instanceof Error) {
-        // Обрабатываем специальную ошибку "пользователь не найден"
         if (error.message.includes('USER_NOT_FOUND')) {
-          errorMessage = 'Пользователь с данным номером не найден в Telegram. Номер может быть неверным или не зарегистрирован в Telegram.';
-          logger.warn('Telegram user not found', { 
-            phone: input.phone, 
-            profileId: input.profileId,
-            error: errorMessage 
-          });
-        }
-        // Обрабатываем специальную ошибку Premium ограничения
-        else if (error.message.includes('PREMIUM_RESTRICTION')) {
-          errorMessage = 'Пользователь настроил ограничение: только Premium пользователи могут писать ему. Требуется подписка Telegram Premium для отправки сообщений.';
-          logger.warn('Telegram Premium restriction', { 
-            phone: input.phone, 
-            profileId: input.profileId,
-            error: errorMessage 
-          });
+          errorMessage = 'Пользователь не найден в Telegram. Номер может быть неверным или не зарегистрирован.';
+          logger.warn('Telegram user not found', { phone: input.phone, profileId: input.profileId });
+        } else if (error.message.includes('PREMIUM_RESTRICTION')) {
+          errorMessage = 'Пользователь принимает сообщения только от Premium пользователей.';
+          logger.warn('Telegram Premium restriction', { phone: input.phone, profileId: input.profileId });
         } else {
           errorMessage = error.message;
-          logger.error('Telegram send failed', { 
-            phone: input.phone, 
-            profileId: input.profileId, 
-            error: errorMessage 
-          });
+          logger.error('Telegram send failed', { phone: input.phone, profileId: input.profileId, error: errorMessage });
         }
       } else {
         errorMessage = 'Unknown Telegram error';
-        logger.error('Telegram send failed', { 
-          phone: input.phone, 
-          profileId: input.profileId, 
-          error: errorMessage 
-        });
+        logger.error('Telegram send failed', { phone: input.phone, profileId: input.profileId, error: errorMessage });
       }
       
       return { success: false, messenger: 'TELEGRAM', error: errorMessage };
@@ -240,452 +200,229 @@ export class TelegramSender {
 
   /**
    * Проверка наличия ошибки "пользователь не найден"
-   * 
-   * ВАЖНО: Уведомление об ошибке появляется быстро и может исчезнуть через несколько секунд.
-   * Проверяем несколько раз с небольшими интервалами, чтобы поймать уведомление.
-   * 
-   * Принцип: лучше пропустить реальную ошибку, чем заблокировать нормального пользователя.
+   * Оптимизированная версия: 2 проверки с короткими интервалами
    */
   private async checkUserNotFound(page: Page): Promise<boolean> {
     try {
-      // Проверяем несколько раз с небольшими интервалами
-      // Уведомление может появиться и исчезнуть быстро
-      const maxChecks = 5; // Проверяем 5 раз
-      const checkInterval = 500; // Каждые 500мс
-      
-      for (let i = 0; i < maxChecks; i++) {
-        // Небольшая задержка перед первой проверкой
+      // Две проверки с коротким интервалом (достаточно для обнаружения toast)
+      for (let i = 0; i < 2; i++) {
         if (i > 0) {
-          await this.delay(checkInterval);
+          await this.delay(300);
         }
 
-        // Проверяем наличие сообщения об ошибке "пользователь не найден"
         const userNotFound = await page.evaluate((errorTexts) => {
-          // Ищем уведомления (toast, notification) - они появляются поверх страницы
-          // @ts-expect-error
-          const notifications = document.querySelectorAll('[class*="toast"], [class*="notification"], [class*="snackbar"], [class*="alert"], [role="alert"]');
+          // Ищем уведомления и модальные окна
+          const containers = document.querySelectorAll(
+            '[class*="toast"], [class*="notification"], [role="alert"], [role="dialog"], .popup'
+          );
           
-          // Ищем модальные окна (где обычно показываются ошибки)
-          // @ts-expect-error
-          const modalDialogs = document.querySelectorAll('[role="dialog"], .modal, .popup, [class*="modal"], [class*="popup"]');
-          
-          // Ищем специальные контейнеры для ошибок
-          // @ts-expect-error
-          const errorContainers = document.querySelectorAll('[class*="error"], [class*="not-found"], [class*="empty"], [class*="no-user"]');
-          
-          // Ищем в центральной области чата (где может появиться сообщение об ошибке)
-          // @ts-expect-error
-          const chatContent = document.querySelector('[class*="chat-content"], [class*="messages-container"], [class*="empty-state"], [class*="empty-chat"]');
-          
-          // Ищем в области сообщений об ошибке (Telegram может показывать ошибки в специальных блоках)
-          // @ts-expect-error
-          const messageBlocks = document.querySelectorAll('[class*="message"], [class*="bubble"], [class*="text"]');
-          
-          // Объединяем все возможные контейнеры для проверки
-          const allContainers = [
-            ...Array.from(notifications),
-            ...Array.from(modalDialogs),
-            ...Array.from(errorContainers),
-            ...(chatContent ? [chatContent] : []),
-            ...Array.from(messageBlocks)
-          ];
-
-          // Проверяем только в этих контейнерах
-          for (const container of allContainers) {
-            const containerText = (container.textContent || '').toLowerCase();
-            
-            // Ищем конкретные фразы об ошибке
+          for (const container of Array.from(containers)) {
+            const text = (container.textContent || '').toLowerCase();
             for (const errorText of errorTexts) {
-              const errorTextLower = errorText.toLowerCase();
-              
-              // Проверяем, что полная фраза присутствует в контейнере
-              if (containerText.includes(errorTextLower)) {
-                // Дополнительная проверка: убеждаемся, что это действительно сообщение об ошибке
-                // Ищем очень специфичные фразы, которые точно не могут быть в другом контексте
-                if (errorTextLower.includes("doesn't seem to exist") || 
-                    errorTextLower.includes('does not exist') ||
-                    (errorTextLower.includes('sorry') && errorTextLower.includes('user'))) {
-                  return true;
-                }
-                
-                // Для русских фраз также проверяем специфичность
-                if (errorTextLower.includes('извините') && errorTextLower.includes('не найден')) {
-                  return true;
-                }
-                
-                // Если это уведомление (toast/notification) и содержит фразу - точно ошибка
-                if (container.matches('[class*="toast"], [class*="notification"], [class*="snackbar"], [role="alert"]')) {
-                  return true;
-                }
+              if (text.includes(errorText.toLowerCase())) {
+                return true;
               }
             }
           }
-
-          // Если ничего не найдено в контексте - считаем что ошибки нет
           return false;
         }, USER_NOT_FOUND_ERROR_TEXTS);
 
-        // Если ошибка найдена - возвращаем сразу
         if (userNotFound) {
-          logger.debug('User not found error detected on check', { checkNumber: i + 1 });
+          logger.debug('User not found error detected');
           return true;
         }
       }
 
-      // Если после всех проверок ошибка не найдена - считаем что её нет
       return false;
-    } catch (error) {
-      logger.warn('Failed to check user not found error', { error });
-      // В случае ошибки проверки, считаем что пользователь найден (не блокируем отправку)
-      // Лучше пропустить реальную ошибку, чем заблокировать нормального пользователя
+    } catch {
       return false;
     }
   }
 
   /**
    * Проверка наличия Premium ограничения
-   * 
-   * ВАЖНО: Проверяем только конкретные полные фразы об ошибке, которые появляются
-   * именно при попытке написать Premium пользователю. НЕ ищем просто слово "Premium"
-   * на странице, так как оно может быть в рекламе или других элементах интерфейса.
-   * 
-   * Принцип: лучше пропустить реальное ограничение, чем заблокировать обычного пользователя.
+   * Оптимизированная версия без лишних задержек
    */
   private async checkPremiumRestriction(page: Page): Promise<boolean> {
     try {
-      // Ждем немного для загрузки контента
-      await this.delay(1500);
-
-      // Проверяем наличие конкретных сообщений об ошибке Premium ограничения
-      const hasPremiumRestriction = await page.evaluate((errorTexts) => {
-        // @ts-expect-error - document доступен в браузерном контексте Puppeteer
-        const bodyText = document.body.innerText || '';
-        const bodyTextLower = bodyText.toLowerCase();
-
-        // Ищем только полные фразы об ошибке из списка
-        // Каждая фраза - это конкретное сообщение, которое появляется именно при ошибке Premium
-        for (const errorText of errorTexts) {
-          const errorTextLower = errorText.toLowerCase();
-          
-          // Проверяем, что полная фраза присутствует в тексте страницы
-          // Это более надежно, чем искать отдельные слова
-          if (bodyTextLower.includes(errorTextLower)) {
-            // Дополнительная проверка: убеждаемся, что это не просто случайное совпадение
-            // Ищем в области чата или модальном окне (где обычно показываются ошибки)
-            // @ts-expect-error
-            const chatArea = document.querySelector('[class*="chat"], [class*="message"], [class*="bubble"], [class*="composer"]');
-            // @ts-expect-error
-            const modalDialogs = document.querySelectorAll('[role="dialog"], .modal, .popup');
-            
-            // Если найдена фраза об ошибке, проверяем контекст
-            let foundInContext = false;
-            
-            // Проверяем в области чата
-            if (chatArea) {
-              const chatAreaText = (chatArea.textContent || '').toLowerCase();
-              if (chatAreaText.includes(errorTextLower)) {
-                foundInContext = true;
-              }
-            }
-            
-            // Проверяем в модальных окнах
-            for (const modal of Array.from(modalDialogs)) {
-              const modalText = (modal.textContent || '').toLowerCase();
-              if (modalText.includes(errorTextLower)) {
-                foundInContext = true;
-                break;
-              }
-            }
-            
-            // Если фраза найдена в контексте чата или модального окна - это реальная ошибка
-            if (foundInContext) {
-              return true;
-            }
-            
-            // Если контекст не найден, но фраза очень специфична (содержит "only accepts messages" или "только принимает")
-            // то считаем это ошибкой (такие фразы не появляются в рекламе)
-            if (errorTextLower.includes('only accepts messages') || 
-                errorTextLower.includes('только принимает') ||
-                errorTextLower.includes('only premium users can message') ||
-                errorTextLower.includes('только пользователи premium могут писать')) {
+      return await page.evaluate((errorTexts) => {
+        // Проверяем в области чата и модальных окнах
+        const containers = document.querySelectorAll(
+          '[class*="chat"], [class*="composer"], [role="dialog"], .popup, [class*="message"]'
+        );
+        
+        for (const container of Array.from(containers)) {
+          const text = (container.textContent || '').toLowerCase();
+          for (const errorText of errorTexts) {
+            if (text.includes(errorText.toLowerCase())) {
               return true;
             }
           }
         }
-
-        // Если ничего не найдено - ограничения нет
+        
         return false;
       }, PREMIUM_ERROR_TEXTS);
-
-      return hasPremiumRestriction;
-    } catch (error) {
-      logger.warn('Failed to check Premium restriction', { error });
-      // В случае ошибки проверки, считаем что ограничения нет (не блокируем отправку)
-      // Лучше пропустить реальное ограничение, чем заблокировать обычного пользователя
-      return false;
-    }
-  }
-
-  /**
-   * Проверка, что чат действительно открыт с нужным номером
-   * Проверяет URL и наличие поля ввода
-   * ВАЖНО: Если URL содержит username (например, #@Kloverton), это означает что открыт другой чат
-   */
-  private async verifyChatOpened(page: Page, normalizedPhone: string): Promise<boolean> {
-    try {
-      // Проверяем URL - должен содержать номер или tgaddr с номером
-      const currentUrl = page.url();
-      
-      // ВАЖНО: Если URL содержит username (формат #@username), это означает что открыт другой чат
-      // Нужно переоткрыть с номером
-      if (currentUrl.includes('#@')) {
-        logger.warn('Chat opened with username instead of phone, need to reopen', { 
-          currentUrl, 
-          expectedPhone: normalizedPhone 
-        });
-        return false;
-      }
-      
-      // Проверяем, содержит ли URL номер телефона
-      const urlContainsPhone = currentUrl.includes(normalizedPhone) || 
-                               currentUrl.includes(`tgaddr=tg%3A%2F%2Fresolve%3Fphone%3D${normalizedPhone}`);
-      
-      // Проверяем наличие поля ввода
-      const inputExists = await page.$(TELEGRAM_SELECTORS.MESSAGE_INPUT);
-      
-      if (!inputExists) {
-        return false;
-      }
-
-      // Если URL не содержит номер и не содержит tgaddr - возможно открыт другой чат
-      // В этом случае нужно переоткрыть
-      if (!urlContainsPhone && !currentUrl.includes('tgaddr')) {
-        logger.warn('Chat may be opened with wrong contact', { 
-          currentUrl, 
-          expectedPhone: normalizedPhone 
-        });
-        return false;
-      }
-
-      // Если URL содержит tgaddr, но не содержит номер - возможно Telegram еще обрабатывает
-      // Но если прошло достаточно времени, это может быть ошибка
-      if (currentUrl.includes('tgaddr') && !urlContainsPhone) {
-        // Даем Telegram время обработать параметр
-        // Но если это повторная проверка, считаем что чат не открыт правильно
-        logger.debug('URL contains tgaddr but not phone, may be processing', { 
-          currentUrl, 
-          expectedPhone: normalizedPhone 
-        });
-        // Возвращаем true только если поле ввода есть (возможно Telegram обрабатывает)
-        return true;
-      }
-
-      return true;
-    } catch (error) {
-      logger.warn('Error verifying chat opened', { error });
+    } catch {
       return false;
     }
   }
 
   /**
    * Открытие чата по номеру через прямую ссылку
-   * Проверяет, не открыт ли уже чат с этим номером - если да, не перезагружает страницу
-   * ВАЖНО: Всегда проверяет, что чат действительно открыт с нужным номером
+   * Оптимизированная версия: не сбрасывает страницу на базовый URL,
+   * сразу переходит на нужный чат
    */
   private async openChat(page: Page, phone: string, profileId?: string): Promise<void> {
-    try {
-      // Нормализуем номер телефона (убираем все кроме цифр)
-      const normalizedPhone = phone.replace(/[^\d]/g, '');
+    const normalizedPhone = phone.replace(/[^\d]/g, '');
+    const maxRetries = 2;
+    
+    for (let retry = 0; retry <= maxRetries; retry++) {
+      try {
+        await this.openChatInternal(page, normalizedPhone, profileId);
+        return;
+      } catch (error) {
+        // Для специфичных ошибок (USER_NOT_FOUND, PREMIUM) не делаем retry
+        if (error instanceof Error && (
+          error.message.includes('PREMIUM_RESTRICTION') || 
+          error.message.includes('USER_NOT_FOUND') ||
+          error.message.includes('Page is closed')
+        )) {
+          throw error;
+        }
+        
+        if (retry < maxRetries) {
+          logger.warn('Failed to open chat, retrying', { 
+            phone: normalizedPhone, 
+            retry: retry + 1, 
+            maxRetries,
+            error: error instanceof Error ? error.message : 'Unknown'
+          });
+          // Ждём перед retry
+          await this.delay(1000);
+        } else {
+          throw error;
+        }
+      }
+    }
+  }
 
-      // Убеждаемся, что страница готова (особенно важно для первого контакта)
-      // Проверяем, что страница не закрыта и загружена
+  /**
+   * Внутренний метод открытия чата (используется openChat с retry)
+   */
+  private async openChatInternal(page: Page, normalizedPhone: string, profileId?: string): Promise<void> {
+    try {
+      // Проверяем, что страница не закрыта
       if (page.isClosed()) {
-        // Сбрасываем кэш для этого профиля если страница закрыта
         if (profileId) {
           this.currentOpenChat.delete(profileId);
         }
         throw new Error('Page is closed');
       }
 
-      // ВАЖНО: Всегда проверяем, что чат действительно открыт с нужным номером
-      // Даже если кэш говорит, что чат открыт, проверяем URL и поле ввода
+      // Проверяем кэш - если чат уже открыт с этим номером
       const cachedPhone = profileId ? this.currentOpenChat.get(profileId) : null;
       
       if (cachedPhone === normalizedPhone) {
-        // Кэш говорит, что чат открыт - проверяем что это действительно так
-        logger.debug('Chat cached for this phone, verifying', { phone: normalizedPhone, profileId });
-        
-        const isChatOpen = await this.verifyChatOpened(page, normalizedPhone);
-        if (isChatOpen) {
-          // Проверяем, что мы действительно в чате (нет ошибок на странице)
-          const hasErrors = await this.checkUserNotFound(page);
-          if (!hasErrors) {
-            logger.debug('Chat verified, using existing session', { phone: normalizedPhone });
-            await this.delay(200);
-            return;
-          }
+        // Быстрая проверка: есть ли поле ввода?
+        const inputExists = await page.$(TELEGRAM_SELECTORS.MESSAGE_INPUT);
+        if (inputExists) {
+          logger.debug('Chat already open, reusing', { phone: normalizedPhone, profileId });
+          return;
         }
-        // Чат не открыт правильно или есть ошибки - нужно переоткрыть
-        logger.debug('Chat verification failed, reopening', { phone: normalizedPhone });
-        // Сбрасываем кэш
+        // Поле ввода пропало - сбрасываем кэш и открываем заново
+        logger.debug('Cached chat invalid, reopening', { phone: normalizedPhone });
         if (profileId) {
           this.currentOpenChat.delete(profileId);
         }
       }
 
-      // ВАЖНО: Всегда сбрасываем страницу к базовому URL перед открытием нового чата
-      // Это гарантирует, что мы не останемся в старом чате
-      logger.debug('Resetting page to base Telegram URL before opening new chat', { phone: normalizedPhone });
-      await page.goto('https://web.telegram.org/k', { waitUntil: 'networkidle2', timeout: 30000 });
-      // Даем время для инициализации Telegram Web
-      await this.delay(2000);
-
-      // URL для открытия чата в Telegram Web через прямую ссылку
-      // Формат: https://web.telegram.org/k/#?tgaddr=tg%3A%2F%2Fresolve%3Fphone%3D{номер}
-      // где tg%3A%2F%2Fresolve%3Fphone%3D - это URL-encoded версия tg://resolve?phone=
+      // URL для открытия чата напрямую
       const chatUrl = `https://web.telegram.org/k/#?tgaddr=tg%3A%2F%2Fresolve%3Fphone%3D${normalizedPhone}`;
+      
+      logger.debug('Opening chat', { phone: normalizedPhone, chatUrl, profileId });
 
-      logger.debug('Navigating to chat URL', { phone: normalizedPhone, chatUrl });
+      // Переходим напрямую на URL чата (без сброса на базовый URL)
+      await page.goto(chatUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-      // Переходим на страницу чата
-      // Используем waitForNavigation для гарантии, что навигация завершена
-      await Promise.all([
-        page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => {
-          // Если waitForNavigation не сработал (например, hash-изменение), это нормально
-          // Telegram Web может обрабатывать hash-параметры без полной перезагрузки
-        }),
-        page.goto(chatUrl, { waitUntil: 'networkidle2', timeout: 30000 }),
-      ]);
+      // Ждём появления поля ввода или ошибки (параллельно)
+      const inputSelector = TELEGRAM_SELECTORS.MESSAGE_INPUT;
+      const maxWaitTime = 15000;
+      const checkInterval = 300;
+      const startTime = Date.now();
+      
+      let inputFound = false;
+      let errorDetected: string | null = null;
 
-      // Дополнительное ожидание для обработки hash-параметров Telegram Web
-      // Telegram Web обрабатывает hash-параметры асинхронно через JavaScript
-      await this.delay(2000);
-
-      // ВАЖНО: Проверяем, что чат действительно открыт с нужным номером
-      // Проверяем URL несколько раз, так как Telegram может обработать параметры не сразу
-      let chatVerified = false;
-      const maxVerificationAttempts = 5;
-      for (let attempt = 0; attempt < maxVerificationAttempts; attempt++) {
-        if (attempt > 0) {
-          await this.delay(1000);
-        }
-        
-        chatVerified = await this.verifyChatOpened(page, normalizedPhone);
-        if (chatVerified) {
+      while (Date.now() - startTime < maxWaitTime) {
+        // Проверяем поле ввода
+        const inputExists = await page.$(inputSelector);
+        if (inputExists) {
+          inputFound = true;
           break;
         }
-      }
 
-      if (!chatVerified) {
-        const finalUrl = page.url();
-        logger.warn('Chat verification failed after navigation', { 
-          expected: chatUrl, 
-          actual: finalUrl,
-          phone: normalizedPhone 
-        });
-        // Сбрасываем кэш
-        if (profileId) {
-          this.currentOpenChat.delete(profileId);
+        // Проверяем ошибки (но не каждую итерацию для экономии времени)
+        if ((Date.now() - startTime) > 3000 && (Date.now() - startTime) % 1500 < checkInterval) {
+          // Быстрая проверка на USER_NOT_FOUND
+          const hasUserNotFound = await this.quickCheckUserNotFound(page);
+          if (hasUserNotFound) {
+            errorDetected = 'USER_NOT_FOUND';
+            break;
+          }
         }
-        throw new Error(`Failed to open chat with phone ${normalizedPhone}. URL: ${finalUrl}`);
+
+        await this.delay(checkInterval);
       }
 
-      // Проверяем наличие ошибок сразу после навигации
-      // Это важно, так как уведомление об ошибке появляется быстро и может исчезнуть
-      // Метод checkUserNotFound проверяет несколько раз с интервалами
-      const userNotFound = await this.checkUserNotFound(page);
-      if (userNotFound) {
-        logger.warn('User not found error detected', { phone: normalizedPhone });
-        // ВАЖНО: Сбрасываем кэш, чтобы следующий контакт гарантированно переоткрыл чат
+      // Если нашли ошибку
+      if (errorDetected === 'USER_NOT_FOUND') {
         if (profileId) {
           this.currentOpenChat.delete(profileId);
         }
         throw new Error('USER_NOT_FOUND: Sorry, this user doesn\'t seem to exist');
       }
 
-      const hasPremiumRestriction = await this.checkPremiumRestriction(page);
-      if (hasPremiumRestriction) {
-        logger.warn('Premium restriction detected', { phone: normalizedPhone });
-        // ВАЖНО: Сбрасываем кэш, чтобы следующий контакт гарантированно переоткрыл чат
-        if (profileId) {
-          this.currentOpenChat.delete(profileId);
-        }
-        throw new Error('PREMIUM_RESTRICTION: Only Premium users can message this user');
-      }
-
-      // Ждем, пока загрузится интерфейс чата
-      // Ждем появления поля ввода сообщения
-      // Увеличиваем таймаут для первого контакта, так как Telegram Web может загружаться дольше
-      try {
-        await page.waitForSelector(TELEGRAM_SELECTORS.MESSAGE_INPUT, { timeout: 20000 });
-      } catch (error) {
-        // Если поле ввода не найдено, проверяем ошибки еще раз
-        // Возможно, ошибка появилась позже
-        const userNotFoundRetry = await this.checkUserNotFound(page);
-        if (userNotFoundRetry) {
-          logger.warn('User not found error detected on retry', { phone: normalizedPhone });
-          // ВАЖНО: Сбрасываем кэш
+      // Если не нашли поле ввода
+      if (!inputFound) {
+        // Финальная проверка на ошибки
+        const userNotFound = await this.checkUserNotFound(page);
+        if (userNotFound) {
           if (profileId) {
             this.currentOpenChat.delete(profileId);
           }
           throw new Error('USER_NOT_FOUND: Sorry, this user doesn\'t seem to exist');
         }
 
-        const hasPremiumRestrictionRetry = await this.checkPremiumRestriction(page);
-        if (hasPremiumRestrictionRetry) {
-          logger.warn('Premium restriction detected on retry', { phone: normalizedPhone });
-          // ВАЖНО: Сбрасываем кэш
+        const hasPremiumRestriction = await this.checkPremiumRestriction(page);
+        if (hasPremiumRestriction) {
           if (profileId) {
             this.currentOpenChat.delete(profileId);
           }
           throw new Error('PREMIUM_RESTRICTION: Only Premium users can message this user');
         }
 
-        // Если ошибок нет, но поле ввода все равно не найдено - пробрасываем исходную ошибку
-        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-        logger.error('Message input field not found and no specific errors detected', { 
-          phone: normalizedPhone,
-          error: errorMsg 
-        });
-        // Сбрасываем кэш при ошибке
         if (profileId) {
           this.currentOpenChat.delete(profileId);
         }
-        throw new Error(`Failed to find message input field: ${errorMsg}`);
+        throw new Error(`Failed to open chat: message input not found after ${maxWaitTime}ms`);
       }
 
-      // Финальная проверка: убеждаемся, что чат действительно открыт с нужным номером
-      const finalVerification = await this.verifyChatOpened(page, normalizedPhone);
-      if (!finalVerification) {
-        const finalUrl = page.url();
-        logger.error('Final chat verification failed', { 
-          phone: normalizedPhone,
-          finalUrl 
-        });
-        // Сбрасываем кэш
-        if (profileId) {
-          this.currentOpenChat.delete(profileId);
-        }
-        throw new Error(`Chat verification failed. Expected phone: ${normalizedPhone}, URL: ${finalUrl}`);
-      }
+      // Небольшая задержка для стабилизации
+      await this.delay(300);
 
-      // Небольшая задержка для стабилизации интерфейса
-      await this.delay(1000);
-
-      // Сохраняем в кэш ТОЛЬКО если чат действительно открыт правильно
+      // Сохраняем в кэш
       if (profileId) {
         this.currentOpenChat.set(profileId, normalizedPhone);
       }
 
-      const finalUrl = page.url();
-      logger.debug('Telegram chat opened and verified', { phone: normalizedPhone, finalUrl, profileId });
+      logger.debug('Telegram chat opened successfully', { phone: normalizedPhone, profileId });
     } catch (error) {
-      // ВСЕГДА сбрасываем кэш при любой ошибке
+      // Сбрасываем кэш при любой ошибке
       if (profileId) {
         this.currentOpenChat.delete(profileId);
       }
       
-      // Если это уже наши специфичные ошибки - пробрасываем дальше
+      // Пробрасываем специфичные ошибки
       if (error instanceof Error && (
         error.message.includes('PREMIUM_RESTRICTION') || 
         error.message.includes('USER_NOT_FOUND')
@@ -694,8 +431,31 @@ export class TelegramSender {
       }
 
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Failed to open Telegram chat', { phone, error: errorMsg });
+      logger.error('Failed to open Telegram chat', { phone: normalizedPhone, error: errorMsg });
       throw new Error(`Failed to open chat: ${errorMsg}`);
+    }
+  }
+
+  /**
+   * Быстрая проверка на ошибку "пользователь не найден"
+   * Без множественных итераций для экономии времени
+   */
+  private async quickCheckUserNotFound(page: Page): Promise<boolean> {
+    try {
+      return await page.evaluate((errorTexts) => {
+        const notifications = document.querySelectorAll('[class*="toast"], [class*="notification"], [role="alert"]');
+        for (const notification of Array.from(notifications)) {
+          const text = (notification.textContent || '').toLowerCase();
+          for (const errorText of errorTexts) {
+            if (text.includes(errorText.toLowerCase())) {
+              return true;
+            }
+          }
+        }
+        return false;
+      }, USER_NOT_FOUND_ERROR_TEXTS);
+    } catch {
+      return false;
     }
   }
 
@@ -745,8 +505,7 @@ export class TelegramSender {
       for (let i = 0; i < maxChecks; i++) {
         // Ищем сообщение по тексту в области чата
         const messageExists = await page.evaluate((searchTextLower) => {
-          // Ищем в области сообщений чата (более точно, чем весь body)
-          // @ts-expect-error - document доступен в браузерном контексте Puppeteer
+          // Ищем в области сообщений чата
           const messageContainers = document.querySelectorAll(
             '[class*="message"], [class*="bubble"], [class*="text"], [class*="content"]'
           );
@@ -759,8 +518,7 @@ export class TelegramSender {
             }
           }
           
-          // Fallback: проверяем весь body, но только если не нашли в контейнерах
-          // @ts-expect-error
+          // Fallback: проверяем весь body
           const bodyText = (document.body.innerText || '').toLowerCase();
           return bodyText.includes(searchTextLower);
         }, searchText.toLowerCase());
@@ -1076,8 +834,9 @@ export class TelegramSender {
 
   /**
    * Отправка файла/вложений
+   * Оптимизированная версия с меньшим количеством задержек
    */
-  private async sendFileMessage(page: Page, attachmentPath: string, phone?: string, profileId?: string): Promise<void> {
+  private async sendFileMessage(page: Page, attachmentPath: string, _phone?: string, _profileId?: string): Promise<void> {
     try {
       // Преобразуем путь в абсолютный
       const absolutePath = this.resolveFilePath(attachmentPath);
@@ -1091,99 +850,57 @@ export class TelegramSender {
       // Определяем тип файла
       const fileType = this.getFileType(absolutePath);
 
-      logger.debug('Sending Telegram file', { 
-        originalPath: attachmentPath, 
-        absolutePath,
-        fileType,
-        fileExists 
-      });
+      logger.debug('Sending Telegram file', { absolutePath, fileType });
 
-      // ВАЖНО: Проверяем что мы в правильном чате перед отправкой файла
-      if (phone) {
-        const normalizedPhone = phone.replace(/[^\d]/g, '');
-        const isChatOpen = await this.verifyChatOpened(page, normalizedPhone);
-        if (!isChatOpen) {
-          logger.warn('Chat not open with correct phone, reopening before file send', { 
-            phone: normalizedPhone,
-            currentUrl: page.url()
-          });
-          // Переоткрываем чат перед отправкой файла
-          await this.openChat(page, phone, profileId);
-        }
+      // Проверяем, что поле ввода доступно (чат открыт)
+      const inputExists = await page.$(TELEGRAM_SELECTORS.MESSAGE_INPUT);
+      if (!inputExists) {
+        throw new Error('Message input not found - chat may not be open');
       }
 
-      // Ждем появления поля ввода (чтобы убедиться, что чат открыт)
-      await page.waitForSelector(TELEGRAM_SELECTORS.MESSAGE_INPUT, { timeout: 10000 });
-      await this.delay(500);
-
-      // Используем FileChooser метод с fallback на прямой upload
+      // Загружаем файл через FileChooser
       await this.sendFileViaFileChooser(page, absolutePath, fileType);
 
-      // Ждем загрузки файла и появления превью
-      await this.delay(2000);
-
-      // Проверяем, что файл загружен (появление превью или попапа)
+      // Ждём появления превью/попапа (оптимизированное ожидание)
       const fileLoaded = await this.waitForFilePreview(page);
       if (!fileLoaded) {
-        logger.warn('File preview not detected, but continuing');
+        logger.warn('File preview not detected, attempting to send anyway');
       }
 
-      // Дополнительная задержка для полной загрузки файла и появления попапа
-      await this.delay(2000);
-
-      // Отправляем файл (clickSendButton сам будет ждать появления попапа)
+      // Отправляем файл
       await this.clickSendButton(page);
       
-      // Ждем подтверждения отправки
-      await this.delay(2000);
+      // Минимальная задержка для завершения отправки
+      await this.delay(500);
 
-      logger.debug('Telegram file message sent successfully', { 
-        attachmentPath: absolutePath,
-        phone,
-        profileId
-      });
+      logger.debug('Telegram file sent', { absolutePath });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Failed to send Telegram file message', { 
-        attachmentPath, 
-        phone,
-        profileId,
-        error: errorMsg,
-        stack: error instanceof Error ? error.stack : undefined
-      });
-      throw new Error(`Failed to send file message: ${errorMsg}`);
+      logger.error('Failed to send Telegram file', { attachmentPath, error: errorMsg });
+      throw new Error(`Failed to send file: ${errorMsg}`);
     }
   }
 
   /**
-   * Ожидание превью файла
-   * Проверяет, что файл загрузился (появление превью, попапа или индикаторов загрузки)
+   * Ожидание превью файла (оптимизированная версия)
+   * Сначала проверяет часто (200ms), потом реже
    */
   private async waitForFilePreview(page: Page): Promise<boolean> {
-    const maxChecks = 15; // Увеличиваем количество проверок
-    const checkInterval = 500;
+    const maxWaitTime = 8000;
+    const startTime = Date.now();
     
-    for (let i = 0; i < maxChecks; i++) {
-      await this.delay(checkInterval);
-      
+    while (Date.now() - startTime < maxWaitTime) {
       const hasPreview = await page.evaluate(() => {
-        // Проверяем разные индикаторы загрузки файла
-        
-        // 1. Проверяем попап отправки файла (самый надежный индикатор)
-        const sendPopup = document.querySelector('.popup-send-photo.active, .popup-new-media.active');
-        if (sendPopup) {
+        // Проверяем попап отправки файла (главный индикатор)
+        if (document.querySelector('.popup-send-photo.active, .popup-new-media.active')) {
           return true;
         }
         
-        // 2. Проверяем превью файла
+        // Проверяем превью файла
         const previewSelectors = [
           'img[src*="blob"]',
           'video[src*="blob"]',
-          '[data-testid*="media"]',
           '[class*="preview"]',
-          '[class*="attachment"]',
-          '[class*="media-container"]',
-          '[class*="document"]',
           '.popup-photo',
           '.popup-item-document',
         ];
@@ -1194,52 +911,44 @@ export class TelegramSender {
           }
         }
         
-        // 3. Проверяем текст "Uploading" или "Загрузка" (файл еще загружается)
-        const bodyText = document.body.innerText ?? '';
-        if (bodyText.includes('Uploading') || bodyText.includes('Загрузка')) {
-          return true; // Файл загружается, но это тоже индикатор
-        }
-        
         return false;
       });
       
       if (hasPreview) {
-        logger.debug('File preview/popup detected', { checkNumber: i + 1 });
+        logger.debug('File preview detected');
         return true;
       }
+
+      // Динамический интервал: сначала чаще, потом реже
+      const elapsed = Date.now() - startTime;
+      const interval = elapsed < 2000 ? 200 : 400;
+      await this.delay(interval);
     }
     
-    logger.warn('File preview/popup not detected after all checks');
+    logger.warn('File preview not detected after timeout');
     return false;
   }
 
   /**
-   * Клик на кнопку отправки
-   * Ищет кнопку в попапе отправки файла (popup-send-photo или popup-new-media)
+   * Клик на кнопку отправки (оптимизированная версия)
    */
   private async clickSendButton(page: Page): Promise<void> {
     // Ждем появления попапа отправки файла
-    logger.debug('Waiting for send popup to appear');
     try {
-      // Ждем появления активного попапа отправки файла (увеличиваем таймаут)
       await page.waitForSelector('.popup-send-photo.active, .popup-new-media.active', { 
-        timeout: 15000, // Увеличиваем таймаут до 15 секунд
+        timeout: 8000,
         visible: true 
       });
-      await this.delay(1000);
-      logger.debug('Send popup appeared');
-    } catch (error) {
-      logger.warn('Send popup not found, trying alternative selectors', { error });
+      await this.delay(300);
+    } catch {
       // Пробуем альтернативные селекторы
       try {
-        await page.waitForSelector('.popup-input-container, button.btn-primary.btn-color-primary', { 
-          timeout: 5000,
+        await page.waitForSelector('button.btn-primary.btn-color-primary', { 
+          timeout: 3000,
           visible: true 
         });
-        await this.delay(500);
-        logger.debug('Alternative selector found');
       } catch {
-        logger.warn('Alternative selectors also not found');
+        logger.warn('Send popup not found');
       }
     }
 

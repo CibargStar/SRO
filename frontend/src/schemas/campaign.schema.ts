@@ -162,9 +162,10 @@ export const createCampaignSchema = z.object({
     .optional()
     .nullable(),
   
-  templateId: z
-    .string({ required_error: 'Выберите шаблон' })
-    .uuid({ message: 'Некорректный шаблон' }),
+  // Множественный выбор шаблонов для ротации (round-robin)
+  templateIds: z
+    .array(z.string().uuid({ message: 'Некорректный шаблон' }))
+    .min(1, { message: 'Выберите хотя бы один шаблон' }),
   
   clientGroupId: z
     .string({ required_error: 'Выберите группу клиентов' })
@@ -207,9 +208,10 @@ export const updateCampaignSchema = z.object({
     .optional()
     .nullable(),
   
-  templateId: z
-    .string()
-    .uuid({ message: 'Некорректный шаблон' })
+  // Множественный выбор шаблонов для ротации (round-robin)
+  templateIds: z
+    .array(z.string().uuid({ message: 'Некорректный шаблон' }))
+    .min(1, { message: 'Выберите хотя бы один шаблон' })
     .optional(),
   
   clientGroupId: z

@@ -50,6 +50,13 @@ type WorkerMessage = {
   } | null;
 };
 
+// Тип для хранения шаблона с его элементами
+interface TemplateWithItems {
+  id: string;
+  name: string;
+  items: Array<{ type: 'TEXT' | 'FILE'; content?: string | null; filePath?: string | null; orderIndex: number }>;
+}
+
 export class ProfileWorker {
   private campaignId: string;
   private profileId: string;
@@ -66,6 +73,13 @@ export class ProfileWorker {
   private typingDelayMs?: { minMs: number; maxMs: number };
   private lastClientId: string | null = null;
   private universalTarget?: UniversalTarget | null;
+  
+  // Множественные шаблоны для ротации (round-robin)
+  private templates: TemplateWithItems[] = [];
+  private currentTemplateIndex: number = 0;
+  private messagesSentCount: number = 0;
+  
+  // Для обратной совместимости - храним текущие активные элементы
   private templateText: string | null = null;
   private templateItems: Array<{ type: 'TEXT' | 'FILE'; content?: string | null; filePath?: string | null; orderIndex: number }> = [];
   private variableParser: VariableParserService;
@@ -504,70 +518,150 @@ export class ProfileWorker {
   }
 
   /**
-   * Загрузка шаблона кампании
-   * Загружает все элементы шаблона (TEXT и FILE) для поддержки мульти шаблонов
+   * Загрузка шаблонов кампании
+   * Загружает все шаблоны из CampaignTemplate (многие-ко-многим связь)
+   * для поддержки ротации шаблонов (round-robin)
    */
   private async loadTemplate(): Promise<void> {
     try {
-      const campaign = await prisma.campaign.findUnique({
-        where: { id: this.campaignId },
+      // Загружаем все шаблоны кампании через связующую таблицу campaign_templates
+      const campaignTemplates = await prisma.campaignTemplate.findMany({
+        where: { campaignId: this.campaignId },
+        orderBy: { orderIndex: 'asc' },
         include: {
           template: {
             include: {
               items: {
-                orderBy: { orderIndex: 'asc' }, // Загружаем все элементы по порядку
+                orderBy: { orderIndex: 'asc' },
               },
             },
           },
         },
       });
 
-      if (!campaign?.template) {
-        logger.warn('Campaign template not found', { 
-          campaignId: this.campaignId 
+      if (campaignTemplates.length === 0) {
+        // Fallback: пробуем загрузить через старую связь templateId (для обратной совместимости)
+        const campaign = await prisma.campaign.findUnique({
+          where: { id: this.campaignId },
+          include: {
+            template: {
+              include: {
+                items: {
+                  orderBy: { orderIndex: 'asc' },
+                },
+              },
+            },
+          },
         });
-        this.templateText = null;
-        this.templateItems = [];
-        return;
+
+        if (!campaign?.template) {
+          logger.warn('Campaign templates not found', { 
+            campaignId: this.campaignId 
+          });
+          this.templates = [];
+          this.templateText = null;
+          this.templateItems = [];
+          return;
+        }
+
+        // Используем единственный шаблон из старой связи
+        this.templates = [{
+          id: campaign.template.id,
+          name: campaign.template.name,
+          items: campaign.template.items.map(item => ({
+            type: item.type as 'TEXT' | 'FILE',
+            content: item.content,
+            filePath: item.filePath,
+            orderIndex: item.orderIndex,
+          })),
+        }];
+      } else {
+        // Сохраняем все шаблоны для ротации
+        this.templates = campaignTemplates.map(ct => ({
+          id: ct.template.id,
+          name: ct.template.name,
+          items: ct.template.items.map(item => ({
+            type: item.type as 'TEXT' | 'FILE',
+            content: item.content,
+            filePath: item.filePath,
+            orderIndex: item.orderIndex,
+          })),
+        }));
       }
 
-      // Сохраняем все элементы шаблона
-      this.templateItems = campaign.template.items.map(item => ({
-        type: item.type as 'TEXT' | 'FILE',
-        content: item.content,
-        filePath: item.filePath,
-        orderIndex: item.orderIndex,
-      }));
+      // Сбрасываем индекс шаблона
+      this.currentTemplateIndex = 0;
+      this.messagesSentCount = 0;
 
-      // Объединяем все TEXT элементы шаблона для обратной совместимости
-      // ВАЖНО: Для WhatsApp лучше отправлять каждую часть отдельным сообщением,
-      // но для обратной совместимости оставляем объединение через \n
-      const textItems = this.templateItems
-        .filter(item => item.type === 'TEXT')
-        .map((item) => item.content || '')
-        .filter((text) => text.trim() !== '')
-        .join('\n')
-        .trim();
+      // Устанавливаем первый шаблон как активный для обратной совместимости
+      this.setActiveTemplate(0);
 
-      this.templateText = textItems || null; // Может быть null, если только FILE элементы
-
-      logger.debug('Campaign template loaded successfully', { 
+      logger.info('Campaign templates loaded successfully', { 
         campaignId: this.campaignId,
-        templateId: campaign.template.id,
-        itemsCount: this.templateItems.length,
-        textItemsCount: this.templateItems.filter(i => i.type === 'TEXT').length,
-        fileItemsCount: this.templateItems.filter(i => i.type === 'FILE').length,
-        textLength: this.templateText?.length || 0
+        templateCount: this.templates.length,
+        templateNames: this.templates.map(t => t.name),
+        totalItemsCount: this.templates.reduce((sum, t) => sum + t.items.length, 0),
       });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Failed to load campaign template', { 
+      logger.error('Failed to load campaign templates', { 
         error: errorMsg,
         campaignId: this.campaignId 
       });
+      this.templates = [];
       this.templateText = null;
       this.templateItems = [];
     }
+  }
+
+  /**
+   * Выбор следующего шаблона для отправки (round-robin)
+   * Возвращает индекс выбранного шаблона
+   */
+  private selectNextTemplate(): number {
+    if (this.templates.length === 0) {
+      return 0;
+    }
+
+    // Round-robin: берём следующий шаблон по кругу
+    const selectedIndex = this.currentTemplateIndex;
+    this.currentTemplateIndex = (this.currentTemplateIndex + 1) % this.templates.length;
+    this.messagesSentCount++;
+
+    // Устанавливаем выбранный шаблон как активный
+    this.setActiveTemplate(selectedIndex);
+
+    logger.debug('Template selected for message (round-robin)', {
+      campaignId: this.campaignId,
+      selectedTemplateIndex: selectedIndex,
+      selectedTemplateName: this.templates[selectedIndex]?.name,
+      nextTemplateIndex: this.currentTemplateIndex,
+      totalMessagesSent: this.messagesSentCount,
+    });
+
+    return selectedIndex;
+  }
+
+  /**
+   * Установка активного шаблона (для использования в getProcessedTemplateItems)
+   */
+  private setActiveTemplate(index: number): void {
+    if (index < 0 || index >= this.templates.length) {
+      return;
+    }
+
+    const template = this.templates[index];
+    this.templateItems = template.items;
+
+    // Объединяем все TEXT элементы для обратной совместимости
+    const textItems = this.templateItems
+      .filter(item => item.type === 'TEXT')
+      .map((item) => item.content || '')
+      .filter((text) => text.trim() !== '')
+      .join('\n')
+      .trim();
+
+    this.templateText = textItems || null;
   }
 
   /**
@@ -606,11 +700,17 @@ export class ProfileWorker {
   /**
    * Получение обработанных элементов шаблона с подстановкой переменных клиента
    * Возвращает массив элементов (TEXT и FILE) в порядке orderIndex
+   * Автоматически выбирает следующий шаблон через round-robin ротацию
    */
   private async getProcessedTemplateItems(
     client: WorkerMessage['client'],
     phone: string
   ): Promise<Array<{ type: 'TEXT' | 'FILE'; content?: string; filePath?: string }>> {
+    // Выбираем следующий шаблон (round-robin) перед обработкой
+    if (this.templates.length > 1) {
+      this.selectNextTemplate();
+    }
+
     // Если шаблон не загружен, возвращаем пустой массив
     if (this.templateItems.length === 0) {
       return [];

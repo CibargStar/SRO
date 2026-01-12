@@ -176,9 +176,10 @@ export const createCampaignSchema = z.object({
     .optional()
     .nullable(),
   
-  templateId: z
-    .string({ required_error: 'ID шаблона обязателен' })
-    .uuid({ message: 'Некорректный формат ID шаблона' }),
+  // Шаблоны для рассылки (множественный выбор, ротация round-robin)
+  templateIds: z
+    .array(z.string().uuid({ message: 'Некорректный формат ID шаблона' }))
+    .min(1, { message: 'Необходимо выбрать хотя бы один шаблон' }),
   
   clientGroupId: z
     .string({ required_error: 'ID группы клиентов обязателен' })
@@ -225,9 +226,10 @@ export const updateCampaignSchema = z
       .optional()
       .nullable(),
     
-    templateId: z
-      .string()
-      .uuid({ message: 'Некорректный формат ID шаблона' })
+    // Шаблоны для рассылки (множественный выбор, ротация round-robin)
+    templateIds: z
+      .array(z.string().uuid({ message: 'Некорректный формат ID шаблона' }))
+      .min(1, { message: 'Необходимо выбрать хотя бы один шаблон' })
       .optional(),
     
     clientGroupId: z

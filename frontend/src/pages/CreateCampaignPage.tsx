@@ -46,7 +46,7 @@ import { createCampaignSchema } from '@/schemas/campaign.schema';
 // Шаги мастера
 const WIZARD_STEPS = [
   { label: 'Основное', description: 'Название и тип' },
-  { label: 'Шаблон', description: 'Выберите шаблон' },
+  { label: 'Шаблоны', description: 'Выберите шаблоны' },
   { label: 'База', description: 'Группа клиентов' },
   { label: 'Профили', description: 'Выберите профили' },
   { label: 'Расписание', description: 'Рабочие часы и дни' },
@@ -60,7 +60,7 @@ interface CampaignFormData {
   campaignType: CampaignType;
   messengerType: MessengerTarget;
   universalTarget: UniversalTarget | null;
-  templateId: string;
+  templateIds: string[];
   clientGroupId: string;
   profileIds: string[];
   scheduledAt: string | null;
@@ -72,7 +72,7 @@ interface CampaignFormData {
 export function CreateCampaignPage() {
   const navigate = useNavigate();
   const [activeStep, setActiveStep] = useState(0);
-  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+  const [selectedTemplates, setSelectedTemplates] = useState<Template[]>([]);
   const [stepError, setStepError] = useState<string | null>(null);
 
   // Запросы данных
@@ -93,7 +93,7 @@ export function CreateCampaignPage() {
       campaignType: 'ONE_TIME',
       messengerType: 'WHATSAPP_ONLY',
       universalTarget: null,
-      templateId: '',
+      templateIds: [],
       clientGroupId: '',
       profileIds: [],
       scheduledAt: null,
@@ -154,7 +154,7 @@ export function CreateCampaignPage() {
         fieldsToValidate = ['name', 'campaignType', 'messengerType'];
         break;
       case 1:
-        fieldsToValidate = ['templateId'];
+        fieldsToValidate = ['templateIds'];
         break;
       case 2:
         fieldsToValidate = ['clientGroupId'];
@@ -194,9 +194,24 @@ export function CreateCampaignPage() {
     }
   };
 
+  // Обработчик выбора шаблона (toggle)
   const handleSelectTemplate = (template: Template) => {
-    setSelectedTemplate(template);
-    setValue('templateId', template.id);
+    setSelectedTemplates((prev) => {
+      const isAlreadySelected = prev.some(t => t.id === template.id);
+      let newSelection: Template[];
+      
+      if (isAlreadySelected) {
+        // Убираем из выбора
+        newSelection = prev.filter(t => t.id !== template.id);
+      } else {
+        // Добавляем в конец списка
+        newSelection = [...prev, template];
+      }
+      
+      // Обновляем форму
+      setValue('templateIds', newSelection.map(t => t.id));
+      return newSelection;
+    });
   };
 
   const handleCreateCampaign = () => {
@@ -208,6 +223,12 @@ export function CreateCampaignPage() {
       setActiveStep(3); // Переходим на шаг выбора профилей
       return;
     }
+
+    if (!data.templateIds || data.templateIds.length === 0) {
+      setStepError('Необходимо выбрать хотя бы один шаблон');
+      setActiveStep(1); // Переходим на шаг выбора шаблонов
+      return;
+    }
     
     // Преобразуем в формат API
     const input: CreateCampaignInput = {
@@ -216,7 +237,7 @@ export function CreateCampaignPage() {
       campaignType: data.campaignType,
       messengerType: data.messengerType,
       universalTarget: data.messengerType === 'UNIVERSAL' ? (data.universalTarget || 'WHATSAPP_FIRST') : undefined,
-      templateId: data.templateId,
+      templateIds: data.templateIds,
       clientGroupId: data.clientGroupId,
       profileIds: data.profileIds,
       scheduledAt: data.scheduledAt || undefined,
@@ -257,12 +278,12 @@ export function CreateCampaignPage() {
   // Шаг 1: Основная информация
   const renderStep1BasicInfo = () => <WizardStep1_BasicInfo />;
 
-  // Шаг 2: Выбор шаблона
+  // Шаг 2: Выбор шаблонов (множественный выбор)
   const renderStep2SelectTemplate = () => (
     <WizardStep2_SelectTemplate
       templatesLoading={templatesLoading}
       filteredTemplates={filteredTemplates}
-      selectedTemplate={selectedTemplate}
+      selectedTemplates={selectedTemplates}
       onSelectTemplate={handleSelectTemplate}
     />
   );
@@ -284,7 +305,7 @@ export function CreateCampaignPage() {
 
   const renderStep7Review = () => (
     <WizardStep7_Review
-      selectedTemplate={selectedTemplate}
+      selectedTemplates={selectedTemplates}
       clientGroupsData={clientGroupsData}
     />
   );
@@ -425,4 +446,3 @@ export function CreateCampaignPage() {
     </FormProvider>
   );
 }
-

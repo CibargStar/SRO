@@ -13,6 +13,7 @@ import {
   CampaignProfile,
   CampaignMessage,
   CampaignLog,
+  CampaignTemplate,
   CampaignType,
   CampaignStatus,
   CampaignProfileStatus,
@@ -33,7 +34,7 @@ export interface CreateCampaignData {
   userId: string;
   name: string;
   description?: string | null;
-  templateId: string;
+  templateIds: string[]; // Множественный выбор шаблонов (round-robin ротация)
   clientGroupId: string;
   campaignType: CampaignType;
   messengerType: MessengerTarget;
@@ -47,7 +48,7 @@ export interface CreateCampaignData {
 export interface UpdateCampaignData {
   name?: string;
   description?: string | null;
-  templateId?: string;
+  templateIds?: string[]; // Множественный выбор шаблонов (round-robin ротация)
   clientGroupId?: string;
   messengerType?: MessengerTarget;
   universalTarget?: UniversalTarget | null;
@@ -147,15 +148,19 @@ export class CampaignRepository {
 
   /**
    * Создание новой кампании
+   * Примечание: templateId сохраняется для обратной совместимости (первый шаблон из массива)
    */
   async create(data: CreateCampaignData): Promise<Campaign> {
     try {
+      // Первый шаблон используется для поля templateId (обратная совместимость)
+      const primaryTemplateId = data.templateIds[0];
+      
       const campaign = await this.prisma.campaign.create({
         data: {
           userId: data.userId,
           name: data.name,
           description: data.description ?? null,
-          templateId: data.templateId,
+          templateId: primaryTemplateId,
           clientGroupId: data.clientGroupId,
           campaignType: data.campaignType,
           messengerType: data.messengerType,
@@ -168,7 +173,7 @@ export class CampaignRepository {
         },
       });
 
-      logger.info('Campaign created', { campaignId: campaign.id, userId: data.userId });
+      logger.info('Campaign created', { campaignId: campaign.id, userId: data.userId, templateCount: data.templateIds.length });
       return campaign;
     } catch (error) {
       logger.error('Failed to create campaign', { error, data });
@@ -375,15 +380,19 @@ export class CampaignRepository {
 
   /**
    * Обновление кампании
+   * Примечание: templateIds обновляется отдельно через CampaignTemplateRepository
    */
   async update(campaignId: string, data: UpdateCampaignData): Promise<Campaign> {
     try {
+      // Если обновляются шаблоны, используем первый для поля templateId
+      const templateId = data.templateIds?.[0];
+      
       const campaign = await this.prisma.campaign.update({
         where: { id: campaignId },
         data: {
           ...(data.name !== undefined && { name: data.name }),
           ...(data.description !== undefined && { description: data.description }),
-          ...(data.templateId !== undefined && { templateId: data.templateId }),
+          ...(templateId !== undefined && { templateId }),
           ...(data.clientGroupId !== undefined && { clientGroupId: data.clientGroupId }),
           ...(data.messengerType !== undefined && { messengerType: data.messengerType }),
           ...(data.universalTarget !== undefined && { universalTarget: data.universalTarget }),
@@ -1433,3 +1442,190 @@ export class CampaignLogRepository {
   }
 }
 
+// ============================================
+// Campaign Template Repository (многие-ко-многим связь)
+// ============================================
+
+export interface CreateCampaignTemplateData {
+  campaignId: string;
+  templateId: string;
+  orderIndex: number;
+}
+
+export class CampaignTemplateRepository {
+  constructor(private prisma: PrismaClient) {}
+
+  /**
+   * Создание связи кампании с шаблоном
+   */
+  async create(data: CreateCampaignTemplateData): Promise<CampaignTemplate> {
+    try {
+      const campaignTemplate = await this.prisma.campaignTemplate.create({
+        data: {
+          campaignId: data.campaignId,
+          templateId: data.templateId,
+          orderIndex: data.orderIndex,
+        },
+      });
+
+      logger.info('Campaign template created', { 
+        campaignId: data.campaignId, 
+        templateId: data.templateId,
+        orderIndex: data.orderIndex 
+      });
+      return campaignTemplate;
+    } catch (error) {
+      logger.error('Failed to create campaign template', { error, data });
+      throw error;
+    }
+  }
+
+  /**
+   * Массовое создание связей шаблонов для кампании
+   */
+  async createMany(data: CreateCampaignTemplateData[]): Promise<number> {
+    try {
+      const result = await this.prisma.campaignTemplate.createMany({
+        data: data.map((d) => ({
+          campaignId: d.campaignId,
+          templateId: d.templateId,
+          orderIndex: d.orderIndex,
+        })),
+      });
+
+      logger.info('Campaign templates created', { 
+        count: result.count, 
+        campaignId: data[0]?.campaignId 
+      });
+      return result.count;
+    } catch (error) {
+      logger.error('Failed to create campaign templates', { error, count: data.length });
+      throw error;
+    }
+  }
+
+  /**
+   * Получение всех шаблонов кампании (отсортированных по orderIndex)
+   */
+  async findByCampaignId(campaignId: string): Promise<
+    (CampaignTemplate & {
+      template: {
+        id: string;
+        name: string;
+        type: string;
+        messengerType: string;
+        items: Array<{
+          id: string;
+          type: string;
+          content: string | null;
+          filePath: string | null;
+          orderIndex: number;
+        }>;
+      };
+    })[]
+  > {
+    try {
+      return await this.prisma.campaignTemplate.findMany({
+        where: { campaignId },
+        orderBy: { orderIndex: 'asc' },
+        include: {
+          template: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              messengerType: true,
+              items: {
+                select: {
+                  id: true,
+                  type: true,
+                  content: true,
+                  filePath: true,
+                  orderIndex: true,
+                },
+                orderBy: { orderIndex: 'asc' },
+              },
+            },
+          },
+        },
+      });
+    } catch (error) {
+      logger.error('Failed to find campaign templates', { error, campaignId });
+      throw error;
+    }
+  }
+
+  /**
+   * Получение ID шаблонов кампании (отсортированных по orderIndex)
+   */
+  async getTemplateIds(campaignId: string): Promise<string[]> {
+    try {
+      const templates = await this.prisma.campaignTemplate.findMany({
+        where: { campaignId },
+        orderBy: { orderIndex: 'asc' },
+        select: { templateId: true },
+      });
+      return templates.map(t => t.templateId);
+    } catch (error) {
+      logger.error('Failed to get template IDs', { error, campaignId });
+      throw error;
+    }
+  }
+
+  /**
+   * Удаление всех связей шаблонов для кампании
+   */
+  async deleteByCampaignId(campaignId: string): Promise<number> {
+    try {
+      const result = await this.prisma.campaignTemplate.deleteMany({
+        where: { campaignId },
+      });
+
+      logger.info('Campaign templates deleted', { campaignId, count: result.count });
+      return result.count;
+    } catch (error) {
+      logger.error('Failed to delete campaign templates', { error, campaignId });
+      throw error;
+    }
+  }
+
+  /**
+   * Обновление шаблонов кампании (удаление старых и создание новых)
+   */
+  async updateTemplates(campaignId: string, templateIds: string[]): Promise<number> {
+    try {
+      // Удаляем старые связи
+      await this.deleteByCampaignId(campaignId);
+
+      // Создаём новые
+      if (templateIds.length > 0) {
+        return await this.createMany(
+          templateIds.map((templateId, index) => ({
+            campaignId,
+            templateId,
+            orderIndex: index,
+          }))
+        );
+      }
+
+      return 0;
+    } catch (error) {
+      logger.error('Failed to update campaign templates', { error, campaignId, templateIds });
+      throw error;
+    }
+  }
+
+  /**
+   * Подсчёт шаблонов кампании
+   */
+  async count(campaignId: string): Promise<number> {
+    try {
+      return await this.prisma.campaignTemplate.count({
+        where: { campaignId },
+      });
+    } catch (error) {
+      logger.error('Failed to count campaign templates', { error, campaignId });
+      throw error;
+    }
+  }
+}

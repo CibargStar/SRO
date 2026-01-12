@@ -16,6 +16,7 @@ import {
   CampaignProfileRepository,
   CampaignMessageRepository,
   CampaignLogRepository,
+  CampaignTemplateRepository,
   CreateCampaignData,
   UpdateCampaignData,
   ListCampaignsQuery,
@@ -77,6 +78,7 @@ export class CampaignsService {
   private profileRepo: CampaignProfileRepository;
   private messageRepo: CampaignMessageRepository;
   private logRepo: CampaignLogRepository;
+  private templateRepo: CampaignTemplateRepository;
   private loadBalancer: LoadBalancerService;
 
   constructor(private prisma: PrismaClient) {
@@ -84,6 +86,7 @@ export class CampaignsService {
     this.profileRepo = new CampaignProfileRepository(prisma);
     this.messageRepo = new CampaignMessageRepository(prisma);
     this.logRepo = new CampaignLogRepository(prisma);
+    this.templateRepo = new CampaignTemplateRepository(prisma);
     this.loadBalancer = new LoadBalancerService(prisma);
   }
 
@@ -128,22 +131,31 @@ export class CampaignsService {
    * Создание новой кампании
    */
   async createCampaign(userId: string, input: CreateCampaignInput): Promise<Campaign> {
-    logger.info('Creating campaign', { userId, name: input.name });
+    logger.info('Creating campaign', { userId, name: input.name, templateCount: input.templateIds.length });
 
     // Проверка лимитов
     await this.checkUserLimits(userId);
 
-    // Проверка существования шаблона
-    const template = await this.prisma.template.findFirst({
-      where: { id: input.templateId, userId },
+    // Проверка существования всех шаблонов
+    const templates = await this.prisma.template.findMany({
+      where: { 
+        id: { in: input.templateIds }, 
+        userId 
+      },
     });
 
-    if (!template) {
-      throw new HttpError('Шаблон не найден или не принадлежит пользователю', 404, 'TEMPLATE_NOT_FOUND');
+    if (templates.length !== input.templateIds.length) {
+      throw new HttpError('Один или несколько шаблонов не найдены или не принадлежат пользователю', 404, 'TEMPLATE_NOT_FOUND');
     }
 
-    if (!template.isActive) {
-      throw new HttpError('Шаблон неактивен', 400, 'TEMPLATE_INACTIVE');
+    // Проверка активности шаблонов
+    const inactiveTemplates = templates.filter(t => !t.isActive);
+    if (inactiveTemplates.length > 0) {
+      throw new HttpError(
+        `Следующие шаблоны неактивны: ${inactiveTemplates.map(t => t.name).join(', ')}`,
+        400,
+        'TEMPLATE_INACTIVE'
+      );
     }
 
     // Проверка существования группы клиентов
@@ -175,12 +187,15 @@ export class CampaignsService {
       }
     }
 
-    // Создание кампании и связей с профилями в транзакции
+    // Первый шаблон используется для поля templateId (обратная совместимость)
+    const primaryTemplateId = input.templateIds[0];
+
+    // Создание кампании и связей с профилями/шаблонами в транзакции
     const campaignData: CreateCampaignData = {
       userId,
       name: input.name,
       description: input.description,
-      templateId: input.templateId,
+      templateIds: input.templateIds,
       clientGroupId: input.clientGroupId,
       campaignType: input.campaignType,
       messengerType: input.messengerType,
@@ -191,7 +206,7 @@ export class CampaignsService {
       scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
     };
 
-    // Выполняем создание кампании, профилей и лога в одной транзакции
+    // Выполняем создание кампании, шаблонов, профилей и лога в одной транзакции
     const campaign = await this.prisma.$transaction(async (tx) => {
       // Создание кампании
       const newCampaign = await tx.campaign.create({
@@ -199,7 +214,7 @@ export class CampaignsService {
           userId: campaignData.userId,
           name: campaignData.name,
           description: campaignData.description ?? null,
-          templateId: campaignData.templateId,
+          templateId: primaryTemplateId, // Первый шаблон для обратной совместимости
           clientGroupId: campaignData.clientGroupId,
           campaignType: campaignData.campaignType,
           messengerType: campaignData.messengerType,
@@ -211,6 +226,17 @@ export class CampaignsService {
           status: 'DRAFT',
         },
       });
+
+      // Создание связей с шаблонами (многие-ко-многим для ротации)
+      if (input.templateIds.length > 0) {
+        await tx.campaignTemplate.createMany({
+          data: input.templateIds.map((templateId, index) => ({
+            campaignId: newCampaign.id,
+            templateId,
+            orderIndex: index,
+          })),
+        });
+      }
 
       // Создание связей с профилями
       if (input.profileIds.length > 0) {
@@ -231,14 +257,21 @@ export class CampaignsService {
           level: 'INFO',
           action: 'created',
           message: `Кампания "${input.name}" создана`,
-          metadata: JSON.stringify({ profileCount: input.profileIds.length }),
+          metadata: JSON.stringify({ 
+            profileCount: input.profileIds.length,
+            templateCount: input.templateIds.length 
+          }),
         },
       });
 
       return newCampaign;
     });
 
-    logger.info('Campaign created successfully', { campaignId: campaign.id, userId });
+    logger.info('Campaign created successfully', { 
+      campaignId: campaign.id, 
+      userId, 
+      templateCount: input.templateIds.length 
+    });
 
     // Получаем полные данные с relations для парсинга конфигов
     const campaignWithRelations = await this.campaignRepo.findByIdWithRelations(campaign.id);
@@ -269,14 +302,27 @@ export class CampaignsService {
       throw new HttpError('Редактирование возможно только для кампаний в статусе DRAFT', 409, 'CAMPAIGN_NOT_DRAFT');
     }
 
-    // Проверка шаблона если меняется
-    if (input.templateId) {
-      const template = await this.prisma.template.findFirst({
-        where: { id: input.templateId, userId },
+    // Проверка шаблонов если меняются
+    if (input.templateIds && input.templateIds.length > 0) {
+      const templates = await this.prisma.template.findMany({
+        where: { 
+          id: { in: input.templateIds }, 
+          userId 
+        },
       });
 
-      if (!template) {
-        throw new HttpError('Шаблон не найден или не принадлежит пользователю', 404, 'TEMPLATE_NOT_FOUND');
+      if (templates.length !== input.templateIds.length) {
+        throw new HttpError('Один или несколько шаблонов не найдены или не принадлежат пользователю', 404, 'TEMPLATE_NOT_FOUND');
+      }
+
+      // Проверка активности шаблонов
+      const inactiveTemplates = templates.filter(t => !t.isActive);
+      if (inactiveTemplates.length > 0) {
+        throw new HttpError(
+          `Следующие шаблоны неактивны: ${inactiveTemplates.map(t => t.name).join(', ')}`,
+          400,
+          'TEMPLATE_INACTIVE'
+        );
       }
     }
 
@@ -294,7 +340,7 @@ export class CampaignsService {
     const updateData: UpdateCampaignData = {
       ...(input.name !== undefined && { name: input.name }),
       ...(input.description !== undefined && { description: input.description }),
-      ...(input.templateId !== undefined && { templateId: input.templateId }),
+      ...(input.templateIds !== undefined && { templateIds: input.templateIds }),
       ...(input.clientGroupId !== undefined && { clientGroupId: input.clientGroupId }),
       ...(input.messengerType !== undefined && { messengerType: input.messengerType }),
       ...(input.universalTarget !== undefined && { universalTarget: input.universalTarget }),
@@ -314,6 +360,11 @@ export class CampaignsService {
 
     await this.campaignRepo.update(campaignId, updateData);
 
+    // Обновляем связи с шаблонами если они изменились
+    if (input.templateIds && input.templateIds.length > 0) {
+      await this.templateRepo.updateTemplates(campaignId, input.templateIds);
+    }
+
     // Логирование
     await this.logRepo.create({
       campaignId,
@@ -323,7 +374,7 @@ export class CampaignsService {
       metadata: JSON.stringify(Object.keys(input)),
     });
 
-    logger.info('Campaign updated successfully', { campaignId });
+    logger.info('Campaign updated successfully', { campaignId, templateCount: input.templateIds?.length });
 
     // Получаем обновлённую кампанию с relations для парсинга конфигов
     const campaignWithRelations = await this.campaignRepo.findByIdWithRelations(campaignId);

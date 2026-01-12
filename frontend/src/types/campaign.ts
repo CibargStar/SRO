@@ -423,7 +423,7 @@ export interface CampaignStats {
 export interface CreateCampaignInput {
   name: string;
   description?: string | null;
-  templateId: string;
+  templateIds: string[]; // Множественный выбор шаблонов (round-robin ротация)
   clientGroupId: string;
   campaignType: CampaignType;
   messengerType: MessengerTarget;
@@ -441,7 +441,7 @@ export interface CreateCampaignInput {
 export interface UpdateCampaignInput {
   name?: string;
   description?: string | null;
-  templateId?: string;
+  templateIds?: string[]; // Множественный выбор шаблонов (round-robin ротация)
   clientGroupId?: string;
   messengerType?: MessengerTarget;
   universalTarget?: UniversalTarget | null;
