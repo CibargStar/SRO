@@ -162,9 +162,29 @@ export class TelegramSender {
 
       // Активируем вкладку Telegram перед отправкой
       await page.bringToFront();
+      
+      // ВАЖНО: После переключения с WhatsApp страница Telegram может быть не готова
+      // Ждем загрузки страницы и стабилизации DOM
+      await this.delay(500);
+      
+      // ВАЖНО: При переключении между мессенджерами сбрасываем кеш Telegram
+      // Это гарантирует, что мы не будем использовать старый кеш от предыдущего контакта
+      const normalizedPhone = input.phone.replace(/[^\d]/g, '');
+      const cachedPhone = input.profileId ? this.currentOpenChat.get(input.profileId) : null;
+      
+      // Если кеш не соответствует текущему номеру - сбрасываем его
+      // Это происходит при переключении между мессенджерами или при переходе к новому контакту
+      if (input.profileId && cachedPhone && cachedPhone !== normalizedPhone) {
+        logger.debug('Clearing Telegram cache - switching contact or messenger', { 
+          profileId: input.profileId,
+          cachedPhone,
+          newPhone: normalizedPhone
+        });
+        this.currentOpenChat.delete(input.profileId);
+        this.expectedPeerId.delete(input.profileId);
+      }
 
       // Открываем чат с номером (метод сам проверит кэш и состояние)
-      const normalizedPhone = input.phone.replace(/[^\d]/g, '');
       await this.openChat(page, input.phone, input.profileId);
 
       // Отправляем текст (передаем номер и profileId для проверки правильности чата)
@@ -404,12 +424,12 @@ export class TelegramSender {
         throw new Error('Page is closed');
       }
 
-      // ВАЖНО: Сбрасываем кэш ПЕРЕД открытием нового чата, чтобы избежать проблем с переключением
+      // ВАЖНО: Надежная логика сброса кеша при переключении между контактами или мессенджерами
       // Проверяем, нужно ли открывать новый чат
       const cachedPhone = profileId ? this.currentOpenChat.get(profileId) : null;
       
       if (cachedPhone === normalizedPhone) {
-        // Проверяем, что чат действительно открыт и активен
+        // Кеш соответствует текущему номеру - проверяем, что чат действительно открыт и активен
         // ВАЖНО: Всегда ищем поле заново, не используем кэшированное
         const inputField = await this.findMessageInput(page);
         if (inputField) {
@@ -445,18 +465,29 @@ export class TelegramSender {
           }
         }
         // Чат не активен или поле не найдено - сбрасываем кэш и открываем заново
-        logger.debug('Cached chat invalid or inactive, reopening', { phone: normalizedPhone });
+        logger.debug('Cached chat invalid or inactive, reopening', { phone: normalizedPhone, profileId });
         if (profileId) {
           this.currentOpenChat.delete(profileId);
           this.expectedPeerId.delete(profileId);
         }
       } else {
-        // Открываем новый чат - сбрасываем кэш старого чата
-        if (profileId && cachedPhone) {
-          logger.debug('Switching to new chat, clearing old cache', { 
-            oldPhone: cachedPhone, 
-            newPhone: normalizedPhone 
-          });
+        // Открываем новый чат - ВСЕГДА сбрасываем кэш старого чата
+        // Это происходит при переключении между контактами или мессенджерами
+        if (profileId) {
+          if (cachedPhone) {
+            logger.debug('Switching to new chat, clearing old cache', { 
+              profileId,
+              oldPhone: cachedPhone, 
+              newPhone: normalizedPhone 
+            });
+          } else {
+            logger.debug('Opening first chat for profile, clearing any stale cache', { 
+              profileId,
+              newPhone: normalizedPhone 
+            });
+          }
+          // ВАЖНО: Всегда сбрасываем кеш при открытии нового контакта
+          // Это гарантирует чистый старт, особенно после переключения с WhatsApp
           this.currentOpenChat.delete(profileId);
           this.expectedPeerId.delete(profileId);
         }
@@ -476,7 +507,10 @@ export class TelegramSender {
 
       // Убеждаемся, что страница активна перед переходом
       await page.bringToFront();
-      await this.delay(100);
+      
+      // ВАЖНО: После переключения с другого мессенджера (WhatsApp) даем время на стабилизацию
+      // Не проверяем URL, так как он может автоматически заменяться на username
+      await this.delay(300);
 
       // ВАЖНО: Сохраняем data-peer-id старого поля ввода (если есть) для проверки
       // НО: очищаем его если открываем тот же контакт (чтобы не блокировать поиск)
