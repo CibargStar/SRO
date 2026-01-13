@@ -54,6 +54,14 @@ yarn-error.log*
 .temp/
 .tmp/
 
+# Cursor IDE
+.cursor/
+
+# Uploads (user-uploaded files)
+uploads/
+backend/uploads/
+frontend/uploads/
+
 # Profiles directories (Chrome profile data, NOT source code)
 # ВАЖНО: Профили хранятся в системной папке для обхода ограничения Windows (260 символов)
 # Windows: C:\SROProf
