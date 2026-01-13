@@ -7,7 +7,10 @@ node_modules/
 coverage/
 .nyc_output/
 
-# Production
+# Production (build outputs)
+# Игнорируем dist и build во всех подпапках
+**/dist/
+**/build/
 dist/
 build/
 *.log
@@ -34,10 +37,14 @@ Thumbs.db
 *.tsbuildinfo
 
 # Prisma
-backend/prisma/migrations/
+# ВАЖНО: Миграции (migrations/) должны быть в репозитории для воспроизводимости!
+# Игнорируем только файлы БД (данные), НЕ миграции (код)
 backend/prisma/**/*.db
 backend/prisma/**/*.db-journal
 backend/prisma/test.db
+# Игнорируем БД файлы в корне prisma (если есть)
+backend/prisma/*.db
+backend/prisma/*.db-journal
 
 # Docker
 .dockerignore
