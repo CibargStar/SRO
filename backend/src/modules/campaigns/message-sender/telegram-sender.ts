@@ -479,6 +479,7 @@ export class TelegramSender {
       await this.delay(100);
 
       // ВАЖНО: Сохраняем data-peer-id старого поля ввода (если есть) для проверки
+      // НО: очищаем его если открываем тот же контакт (чтобы не блокировать поиск)
       const oldPeerIdInfo = await page.evaluate((): { found: boolean; peerId: string | null; isVisible: boolean } => {
         const oldInput = document.querySelector('.input-message-input[contenteditable="true"]:not(.input-field-input-fake)');
         if (oldInput) {
@@ -492,7 +493,20 @@ export class TelegramSender {
         return { found: false, peerId: null, isVisible: false };
       }).catch(() => ({ found: false, peerId: null, isVisible: false }));
       
-      const oldPeerId = oldPeerIdInfo.peerId;
+      // ВАЖНО: Если открываем тот же контакт, не используем oldPeerId для блокировки
+      // (peer-id может совпадать, и мы должны использовать существующее поле)
+      let oldPeerId: string | null = null;
+      if (oldPeerIdInfo.found && oldPeerIdInfo.peerId) {
+        // Проверяем, не открываем ли мы тот же контакт
+        const isSameContact = cachedPhone === normalizedPhone;
+        if (!isSameContact) {
+          // Только если это другой контакт, используем oldPeerId для фильтрации
+          oldPeerId = oldPeerIdInfo.peerId;
+        } else {
+          // Если тот же контакт, очищаем oldPeerId - будем использовать существующее поле
+          logger.debug('Opening same contact, will reuse existing input field', { phone: normalizedPhone });
+        }
+      }
 
       logger.debug('Old chat peer-id before navigation', { oldPeerId, newPhone: normalizedPhone });
 
@@ -581,57 +595,29 @@ export class TelegramSender {
         }
       }
 
-      // ВАЖНО: После перехода ждем, что старое поле ввода исчезло или стало невидимым и неактивным
+      // ВАЖНО: После перехода очищаем фокус со старого поля
+      // НЕ ждем исчезновения старого поля - новое может появиться быстро, и мы найдем его по wrapper
       if (oldPeerId) {
-        logger.debug('Waiting for old input field to disappear and become inactive after navigation', { oldPeerId });
-        await page.waitForFunction(
-          (oldId) => {
-            const oldInput = document.querySelector(`.input-message-input[data-peer-id="${oldId}"]`) as HTMLElement;
-            if (!oldInput) { return true; } // Старое поле исчезло
-            
-            const style = window.getComputedStyle(oldInput);
-            const isVisible = oldInput.offsetParent !== null && 
-                             style.display !== 'none' && 
-                             style.visibility !== 'hidden';
-            
-            // Проверяем, что старое поле не активно
-            const isActive = document.activeElement === oldInput;
-            
-            // Старое поле должно быть невидимым И неактивным
-            return !isVisible && !isActive;
-          },
-          { timeout: 10000 }, // Увеличено с 5 до 10 секунд
-          oldPeerId
-        ).catch(() => {
-          logger.warn('Old input field did not disappear, but continuing');
-        });
+        logger.debug('Clearing focus from old input field after navigation', { oldPeerId });
         
-        // Явно удаляем фокус со старого поля после перехода
+        // Явно удаляем фокус со старого поля
         await page.evaluate((oldId) => {
           const oldInput = document.querySelector(`.input-message-input[data-peer-id="${oldId}"]`) as HTMLElement;
           if (oldInput) {
             oldInput.blur();
           }
-          // Также убеждаемся, что активный элемент не старое поле
+          // Убеждаемся, что активный элемент не старое поле
           const activeEl = document.activeElement;
-          if (activeEl && activeEl === oldInput && activeEl instanceof HTMLElement) {
+          if (activeEl && activeEl instanceof HTMLElement && activeEl.getAttribute('data-peer-id') === oldId) {
             activeEl.blur();
           }
         }, oldPeerId).catch(() => {
           logger.debug('Could not blur old input field after navigation (may already be gone)');
         });
+        
+        // Небольшая задержка для стабилизации DOM
+        await this.delay(300);
       }
-      
-      // ВАЖНО: Убеждаемся, что активный элемент не старое поле после перехода
-      await page.evaluate((oldId) => {
-        if (!oldId) { return; }
-        const activeEl = document.activeElement;
-        if (activeEl && activeEl instanceof HTMLElement && activeEl.getAttribute('data-peer-id') === oldId) {
-          activeEl.blur();
-        }
-      }, oldPeerId).catch(() => {
-        logger.debug('Could not check active element after navigation');
-      });
       
       await this.delay(300);
 
@@ -736,20 +722,36 @@ export class TelegramSender {
             // Пропускаем невидимые поля
             if (!isVisible) { continue; }
             
-            // Если это старое поле, пропускаем
-            if (oldId !== null && oldId !== undefined && peerId === oldId) {
-              continue;
-            }
-            
             // КРИТИЧЕСКИ ВАЖНО: Проверяем, что поле принадлежит активному видимому контейнеру
             // Старые поля могут остаться в DOM, но их контейнеры скрыты
+            let wrapperVisible = true;
             if (hasWrapper) {
               const wrapperStyle = window.getComputedStyle(wrapper as HTMLElement);
-              const wrapperVisible = (wrapper as HTMLElement).offsetParent !== null && 
-                                   wrapperStyle.display !== 'none' && 
-                                   wrapperStyle.visibility !== 'hidden';
+              wrapperVisible = (wrapper as HTMLElement).offsetParent !== null && 
+                             wrapperStyle.display !== 'none' && 
+                             wrapperStyle.visibility !== 'hidden';
               if (!wrapperVisible) {
                 continue; // Пропускаем поля в скрытых контейнерах
+              }
+            }
+            
+            // Если это старое поле И оно в скрытом контейнере, пропускаем
+            // НО: если поле в видимом контейнере, используем его (даже если peer-id совпадает)
+            // Это важно для случая, когда открываем тот же контакт
+            if (oldId !== null && oldId !== undefined && peerId === oldId) {
+              // Если wrapper видим, это может быть тот же контакт - используем поле
+              if (wrapperVisible) {
+                // Проверяем, что это действительно активное поле (в фокусе или в активном контейнере)
+                const isActive = document.activeElement === htmlInput || 
+                               (wrapper && document.activeElement?.closest('.new-message-wrapper') === wrapper);
+                if (!isActive) {
+                  // Старое поле в видимом контейнере, но не активное - пропускаем
+                  continue;
+                }
+                // Если активно - используем (это может быть тот же контакт)
+              } else {
+                // Старое поле в скрытом контейнере - пропускаем
+                continue;
               }
             }
             
@@ -859,59 +861,14 @@ export class TelegramSender {
           debugInfo: undefined,
         }));
         
+        const elapsed = Date.now() - startTime;
         logger.debug('Input field check result', { 
           inputInfo, 
           oldPeerId, 
-          elapsed: Date.now() - startTime 
+          elapsed
         });
-        
-        // Если поле не найдено, продолжаем поиск
-        if (!inputInfo.found) {
-          // Логируем детальную информацию о всех найденных полях
-          const allInputsInfo = 'allInputsInfo' in inputInfo ? inputInfo.allInputsInfo : undefined;
-          if (allInputsInfo && Array.isArray(allInputsInfo) && allInputsInfo.length > 0) {
-            logger.debug('Input fields found but none are valid', { 
-              allInputsInfo,
-              elapsed: Date.now() - startTime 
-            });
-          }
-          await this.delay(checkInterval);
-          continue;
-        }
-        
-        // Если есть старое поле, проверяем что peer-id изменился
-        if (inputInfo.isOld) {
-          logger.debug('Found old input field, waiting for new one', { 
-            peerId: inputInfo.peerId,
-            elapsed: Date.now() - startTime 
-          });
-          await this.delay(checkInterval);
-          continue; // Продолжаем искать новое поле
-        }
-        
-        // Проверяем, что поле видимо (wrapper проверка необязательна)
-        if (!inputInfo.isVisible) {
-          logger.debug('Input field found but not visible', { 
-            isVisible: inputInfo.isVisible,
-            wrapperVisible: inputInfo.wrapperVisible,
-            elapsed: Date.now() - startTime 
-          });
-          await this.delay(checkInterval);
-          continue;
-        }
-        
-        // Это новое поле ввода
-        newPeerId = inputInfo.peerId;
-        inputFound = true;
-        logger.debug('Found new message input field', { 
-          newPeerId, 
-          oldPeerId,
-          elapsed: Date.now() - startTime 
-        });
-        break;
         
         // Логируем прогресс поиска
-        const elapsed = Date.now() - startTime;
         if (elapsed % 3000 < checkInterval) {
           logger.debug('Still searching for message input field', { 
             elapsed,
@@ -924,7 +881,7 @@ export class TelegramSender {
         // ВАЖНО: Проверяем Premium только если поле ввода не найдено
         // КРИТИЧЕСКИ ВАЖНО: Проверяем USER_NOT_FOUND раньше и чаще
         // Проверяем каждый раз через 1.5 секунды (не только после 3 секунд)
-        if ((Date.now() - startTime) > 1000 && (Date.now() - startTime) % 1500 < checkInterval) {
+        if (elapsed > 1000 && elapsed % 1500 < checkInterval) {
           // Быстрая проверка на USER_NOT_FOUND
           const hasUserNotFound = await this.quickCheckUserNotFound(page);
           if (hasUserNotFound) {
@@ -932,7 +889,7 @@ export class TelegramSender {
             logger.warn('User not found error detected in waiting loop', { 
               phone: normalizedPhone, 
               profileId,
-              elapsed: Date.now() - startTime
+              elapsed
             });
             break;
           }
@@ -947,8 +904,59 @@ export class TelegramSender {
             }
           }
         }
-
-        await this.delay(checkInterval);
+        
+        // Если поле не найдено, продолжаем поиск
+        if (!inputInfo.found) {
+          // Логируем детальную информацию о всех найденных полях
+          const allInputsInfo = 'allInputsInfo' in inputInfo ? inputInfo.allInputsInfo : undefined;
+          if (allInputsInfo && Array.isArray(allInputsInfo) && allInputsInfo.length > 0) {
+            logger.debug('Input fields found but none are valid', { 
+              allInputsInfo,
+              elapsed
+            });
+          }
+          await this.delay(checkInterval);
+          continue;
+        }
+        
+        // ВАЖНО: Если прошло достаточно времени (более 5 секунд) и есть видимое поле,
+        // используем его даже если peer-id совпадает (возможно, это тот же контакт)
+        const shouldUseExistingField = elapsed > 5000 && inputInfo.isVisible && inputInfo.wrapperVisible;
+        
+        // Если есть старое поле, проверяем что peer-id изменился
+        // НО: если прошло много времени и поле видимо, используем его
+        if (inputInfo.isOld && !shouldUseExistingField) {
+          logger.debug('Found old input field, waiting for new one', { 
+            peerId: inputInfo.peerId,
+            elapsed,
+            willUseAfterTimeout: true
+          });
+          await this.delay(checkInterval);
+          continue; // Продолжаем искать новое поле
+        }
+        
+        // Проверяем, что поле видимо
+        if (!inputInfo.isVisible) {
+          logger.debug('Input field found but not visible', { 
+            isVisible: inputInfo.isVisible,
+            wrapperVisible: inputInfo.wrapperVisible,
+            elapsed 
+          });
+          await this.delay(checkInterval);
+          continue;
+        }
+        
+        // Это новое поле ввода (или существующее, если прошло достаточно времени)
+        newPeerId = inputInfo.peerId;
+        inputFound = true;
+        logger.debug('Found message input field', { 
+          newPeerId, 
+          oldPeerId,
+          isOld: inputInfo.isOld,
+          elapsed,
+          reusedExisting: inputInfo.isOld && shouldUseExistingField
+        });
+        break;
       }
 
       // Если нашли ошибку
@@ -1071,8 +1079,29 @@ export class TelegramSender {
           // Если указан targetPeerId, ищем по нему
           if (targetPeerId && peerId !== targetPeerId) { continue; }
           
-          // Пропускаем старое поле
-          if (oldId && peerId === oldId) { continue; }
+          // Пропускаем старое поле ТОЛЬКО если оно в скрытом контейнере
+          if (oldId && peerId === oldId) {
+            // Проверяем, что это действительно старое поле (в скрытом контейнере)
+            const wrapper = htmlInput.closest('.new-message-wrapper');
+            if (wrapper) {
+              const wrapperStyle = window.getComputedStyle(wrapper as HTMLElement);
+              const wrapperVisible = (wrapper as HTMLElement).offsetParent !== null && 
+                                   wrapperStyle.display !== 'none' && 
+                                   wrapperStyle.visibility !== 'hidden';
+              // Если wrapper видим, это может быть тот же контакт - используем поле
+              if (wrapperVisible) {
+                // Проверяем активность
+                const isActive = document.activeElement === htmlInput || 
+                               document.activeElement?.closest('.new-message-wrapper') === wrapper;
+                if (isActive) {
+                  // Активное поле - используем его (возможно, тот же контакт)
+                  return htmlInput;
+                }
+              }
+            }
+            // Старое поле в скрытом контейнере или неактивное - пропускаем
+            continue;
+          }
           
           return htmlInput;
         }
@@ -1091,17 +1120,40 @@ export class TelegramSender {
       }
 
       // Финальная проверка: убеждаемся, что это не старое поле
+      // НО: если открываем тот же контакт, peer-id может совпадать - это нормально
       const finalPeerId = await page.evaluate((el) => {
         const htmlEl = el as HTMLElement;
         return htmlEl?.getAttribute('data-peer-id');
       }, inputField).catch(() => null);
       
-      if (oldPeerId && finalPeerId === oldPeerId) {
-        if (profileId) {
-          this.currentOpenChat.delete(profileId);
-          this.expectedPeerId.delete(profileId);
+      // Проверяем, что это не старое поле только если открываем ДРУГОЙ контакт
+      const isSameContact = cachedPhone === normalizedPhone;
+      if (oldPeerId && finalPeerId === oldPeerId && !isSameContact) {
+        // Дополнительная проверка: убеждаемся, что старое поле действительно неактивно
+        const isOldFieldActive = await page.evaluate((oldId) => {
+          const oldInput = document.querySelector(`.input-message-input[data-peer-id="${oldId}"]`) as HTMLElement;
+          if (!oldInput) { return false; }
+          const wrapper = oldInput.closest('.new-message-wrapper');
+          if (!wrapper) { return true; } // Если нет wrapper, считаем неактивным
+          const wrapperStyle = window.getComputedStyle(wrapper as HTMLElement);
+          return (wrapper as HTMLElement).offsetParent !== null && 
+                 wrapperStyle.display !== 'none' && 
+                 wrapperStyle.visibility !== 'hidden';
+        }, oldPeerId).catch(() => false);
+        
+        if (isOldFieldActive) {
+          if (profileId) {
+            this.currentOpenChat.delete(profileId);
+            this.expectedPeerId.delete(profileId);
+          }
+          throw new Error(`Found old input field after opening new chat. Old peer-id: ${oldPeerId}, new phone: ${normalizedPhone}`);
+        } else {
+          // Старое поле неактивно, новое поле с тем же peer-id - возможно, это тот же контакт
+          logger.debug('Peer-id matches but old field is inactive, using new field', { 
+            peerId: finalPeerId, 
+            phone: normalizedPhone 
+          });
         }
-        throw new Error(`Found old input field after opening new chat. Old peer-id: ${oldPeerId}, new phone: ${normalizedPhone}`);
       }
 
       logger.debug('New chat input field verified', { 

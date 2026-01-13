@@ -48,6 +48,7 @@ export class ProfilesService {
   private autoRestartService: AutoRestartService;
   private wsServer?: WebSocketServer;
   private launchCheckService?: LaunchCheckService;
+  private campaignExecutorCallback?: (profileId: string) => Promise<void>;
   
   // Защита от race conditions: отслеживание операций запуска/остановки
   private operationLocks: Map<string, 'starting' | 'stopping'> = new Map();
@@ -99,6 +100,14 @@ export class ProfilesService {
   }
 
   /**
+   * Установка callback для обработки закрытия браузера в кампаниях
+   * Вызывается из CampaignExecutorService при инициализации
+   */
+  setCampaignExecutorCallback(callback: (profileId: string) => Promise<void>): void {
+    this.campaignExecutorCallback = callback;
+  }
+
+  /**
    * Обработка неожиданного закрытия браузера
    * 
    * Обновляет статус профиля в БД на STOPPED.
@@ -116,6 +125,16 @@ export class ProfilesService {
       if (profile.status === 'RUNNING' || profile.status === 'STARTING') {
         await this.updateProfileStatus(profileId, 'STOPPED');
         logger.info('Profile status updated to STOPPED after browser disconnect', { profileId });
+
+        // Уведомляем CampaignExecutor о закрытии браузера для обработки PROCESSING сообщений
+        if (this.campaignExecutorCallback) {
+          await this.campaignExecutorCallback(profileId).catch((error) => {
+            logger.error('Error in campaign executor callback on browser disconnect', {
+              error: error instanceof Error ? error.message : 'Unknown error',
+              profileId,
+            });
+          });
+        }
       }
     } catch (error) {
       logger.error('Failed to update profile status after browser disconnect', {

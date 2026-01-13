@@ -749,6 +749,20 @@ export class CampaignProfileRepository {
   }
 
   /**
+   * Получение всех кампаний для профиля
+   */
+  async findByProfileId(profileId: string): Promise<CampaignProfile[]> {
+    try {
+      return await this.prisma.campaignProfile.findMany({
+        where: { profileId },
+      });
+    } catch (error) {
+      logger.error('Failed to find campaign profiles by profileId', { error, profileId });
+      throw error;
+    }
+  }
+
+  /**
    * Обновление профиля кампании
    */
   async update(id: string, data: UpdateCampaignProfileData): Promise<CampaignProfile> {
@@ -1017,10 +1031,16 @@ export class CampaignMessageRepository {
 
   /**
    * Получение chunk сообщений для профиля
+   * Включает PENDING сообщения и FAILED сообщения, которые можно ретраить (retryCount < maxRetriesOnError)
    */
   async getChunkForProfile(campaignId: string, profileId: string, limit: number = 10): Promise<CampaignMessage[]> {
     try {
-      return await this.prisma.campaignMessage.findMany({
+      // Получаем настройки для определения maxRetriesOnError
+      const settings = await this.prisma.campaignGlobalSettings.findFirst();
+      const maxRetries = settings?.maxRetriesOnError ?? 3;
+
+      // Получаем PENDING сообщения
+      const pendingMessages = await this.prisma.campaignMessage.findMany({
         where: {
           campaignId,
           profileId,
@@ -1042,6 +1062,71 @@ export class CampaignMessageRepository {
           clientPhone: true,
         },
       });
+
+      // Если набрали достаточно PENDING сообщений, возвращаем их
+      if (pendingMessages.length >= limit) {
+        return pendingMessages;
+      }
+
+      // Добираем FAILED сообщения, которые можно ретраить
+      const remainingLimit = limit - pendingMessages.length;
+      if (remainingLimit > 0 && maxRetries > 0) {
+        // Получаем все FAILED сообщения и фильтруем по retryCount
+        const allFailedMessages = await this.prisma.campaignMessage.findMany({
+          where: {
+            campaignId,
+            profileId,
+            status: 'FAILED',
+          },
+          take: remainingLimit * 2, // Берем больше, чтобы после фильтрации хватило
+          orderBy: { createdAt: 'asc' },
+          include: {
+            client: {
+              include: {
+                group: {
+                  select: { name: true },
+                },
+                region: {
+                  select: { name: true },
+                },
+              },
+            },
+            clientPhone: true,
+          },
+        });
+
+        // Фильтруем: retryCount должен быть null или меньше maxRetries
+        const retryableMessages = allFailedMessages.filter(
+          (msg) => msg.retryCount === null || (msg.retryCount !== null && msg.retryCount < maxRetries)
+        ).slice(0, remainingLimit);
+
+        // Сбрасываем статус FAILED сообщений обратно в PENDING для ретрая
+        if (retryableMessages.length > 0) {
+          await Promise.all(
+            retryableMessages.map((msg) =>
+              this.prisma.campaignMessage.update({
+                where: { id: msg.id },
+                data: { status: 'PENDING' },
+              }).catch((error) => {
+                logger.error('Failed to reset FAILED message to PENDING for retry', {
+                  messageId: msg.id,
+                  error: error instanceof Error ? error.message : 'Unknown error',
+                });
+              })
+            )
+          );
+
+          logger.debug('Reset FAILED messages to PENDING for retry', {
+            campaignId,
+            profileId,
+            count: retryableMessages.length,
+          });
+        }
+
+        return [...pendingMessages, ...retryableMessages];
+      }
+
+      return pendingMessages;
     } catch (error) {
       logger.error('Failed to get chunk for profile', { error, campaignId, profileId, limit });
       throw error;

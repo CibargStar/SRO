@@ -77,6 +77,10 @@ export class CampaignExecutorService extends EventEmitter {
    */
   setProfilesService(profilesService: ProfilesService): void {
     this.profilesService = profilesService;
+    // Устанавливаем callback для обработки закрытия браузера
+    profilesService.setCampaignExecutorCallback(async (profileId: string) => {
+      await this.handleProfileBrowserDisconnect(profileId);
+    });
   }
 
   /**
@@ -149,6 +153,10 @@ export class CampaignExecutorService extends EventEmitter {
     await this.campaignRepository.updateProgress(campaignId, {
       startedAt: campaign.startedAt ?? new Date(),
     });
+
+    // Сбрасываем PROCESSING сообщения обратно в PENDING при восстановлении
+    // (на случай если кампания была прервана при рестарте/сбое)
+    await this.resetProcessingMessages(campaignId);
 
     // Подготовка воркеров по профилям
     const campaignProfiles = await this.profileRepository.findByCampaignId(
@@ -306,37 +314,7 @@ export class CampaignExecutorService extends EventEmitter {
     
     // Сбрасываем сообщения в статусе PROCESSING обратно в PENDING
     // чтобы они могли быть обработаны при возобновлении
-    try {
-      const processingMessages = await this.messageRepository.findByCampaignId(campaignId, {
-        page: 1,
-        limit: 1000, // Достаточно большое число для получения всех
-        status: 'PROCESSING',
-      });
-
-      if (processingMessages.data.length > 0) {
-        // Сбрасываем статус обратно в PENDING
-        await Promise.all(
-          processingMessages.data.map((msg) =>
-            this.messageRepository.update(msg.id, { status: 'PENDING' }).catch((error) => {
-              logger.error('Failed to reset message status to PENDING', {
-                messageId: msg.id,
-                error: error instanceof Error ? error.message : 'Unknown error',
-              });
-            })
-          )
-        );
-
-        logger.info('Reset processing messages to PENDING on pause', {
-          campaignId,
-          count: processingMessages.data.length,
-        });
-      }
-    } catch (error) {
-      logger.error('Failed to reset processing messages on pause', {
-        campaignId,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
-    }
+    await this.resetProcessingMessages(campaignId);
 
     if (campaign) {
       this.emitStatus(campaignId, campaign.userId, 'PAUSED', previousStatus);
@@ -794,6 +772,121 @@ export class CampaignExecutorService extends EventEmitter {
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       logger.error('Failed to pause campaign on error', { campaignId, profileId, message });
+    }
+  }
+
+  /**
+   * Сброс PROCESSING сообщений обратно в PENDING
+   * Используется при паузе, восстановлении и сбоях
+   */
+  private async resetProcessingMessages(campaignId: string): Promise<void> {
+    try {
+      const processingMessages = await this.messageRepository.findByCampaignId(campaignId, {
+        page: 1,
+        limit: 1000, // Достаточно большое число для получения всех
+        status: 'PROCESSING',
+      });
+
+      if (processingMessages.data.length > 0) {
+        // Сбрасываем статус обратно в PENDING
+        await Promise.all(
+          processingMessages.data.map((msg) =>
+            this.messageRepository.update(msg.id, { status: 'PENDING' }).catch((error) => {
+              logger.error('Failed to reset message status to PENDING', {
+                messageId: msg.id,
+                error: error instanceof Error ? error.message : 'Unknown error',
+              });
+            })
+          )
+        );
+
+        logger.info('Reset processing messages to PENDING', {
+          campaignId,
+          count: processingMessages.data.length,
+        });
+      }
+    } catch (error) {
+      logger.error('Failed to reset processing messages', {
+        campaignId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+
+  /**
+   * Обработка закрытия браузера для профиля
+   * Сбрасывает PROCESSING сообщения и выполняет перебалансировку
+   */
+  private async handleProfileBrowserDisconnect(profileId: string): Promise<void> {
+    try {
+      // Находим все кампании с этим профилем через CampaignProfile
+      const campaignProfiles = await this.profileRepository.findByProfileId(profileId);
+      
+      for (const cp of campaignProfiles) {
+        const campaign = await this.campaignRepository.findById(cp.campaignId);
+        if (!campaign || campaign.status !== 'RUNNING') {
+          continue;
+        }
+
+        // Сбрасываем PROCESSING сообщения для этого профиля
+        await this.resetProcessingMessagesForProfile(cp.campaignId, profileId);
+
+        // Выполняем перебалансировку - переназначаем сообщения на другие профили
+        await this.loadBalancer.rebalanceOnProfileFailure(cp.campaignId, profileId).catch((error) => {
+          logger.error('Failed to rebalance on profile disconnect', {
+            campaignId: cp.campaignId,
+            profileId,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        });
+      }
+    } catch (error) {
+      logger.error('Failed to handle profile browser disconnect', {
+        profileId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+
+  /**
+   * Сброс PROCESSING сообщений для конкретного профиля
+   * Используется при закрытии браузера/сбое профиля
+   */
+  private async resetProcessingMessagesForProfile(campaignId: string, profileId: string): Promise<void> {
+    try {
+      // Находим PROCESSING сообщения для конкретного профиля напрямую
+      const processingMessages = await this.messageRepository.findByCampaignId(campaignId, {
+        page: 1,
+        limit: 1000,
+        status: 'PROCESSING',
+        profileId,
+      });
+
+      if (processingMessages.data.length > 0) {
+        await Promise.all(
+          processingMessages.data.map((msg) =>
+            this.messageRepository.update(msg.id, { status: 'PENDING' }).catch((error) => {
+              logger.error('Failed to reset message status to PENDING for profile', {
+                messageId: msg.id,
+                profileId,
+                error: error instanceof Error ? error.message : 'Unknown error',
+              });
+            })
+          )
+        );
+
+        logger.info('Reset processing messages to PENDING for profile', {
+          campaignId,
+          profileId,
+          count: processingMessages.data.length,
+        });
+      }
+    } catch (error) {
+      logger.error('Failed to reset processing messages for profile', {
+        campaignId,
+        profileId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
     }
   }
 }
