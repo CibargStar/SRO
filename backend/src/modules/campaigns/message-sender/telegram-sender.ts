@@ -136,7 +136,13 @@ export class TelegramSender {
   private async resetTelegramWebPage(page: Page): Promise<void> {
     try {
       await page.bringToFront();
-      await page.goto(TELEGRAM_WEB_BASE_URL, { waitUntil: 'domcontentloaded', timeout: 35000 });
+      // Нужен полноценный простой сети: иначе следующий goto на #?tgaddr=... не обрабатывается SPA
+      try {
+        await page.goto(TELEGRAM_WEB_BASE_URL, { waitUntil: 'networkidle0', timeout: 45000 });
+      } catch {
+        await page.goto(TELEGRAM_WEB_BASE_URL, { waitUntil: 'load', timeout: 45000 });
+      }
+      await this.waitForTelegramWebAppShell(page);
       await this.delay(500);
       // Дополнительно сбрасываем фокус после перезагрузки оболочки
       await page.evaluate(() => {
@@ -150,6 +156,103 @@ export class TelegramSender {
       logger.warn('Telegram Web base reset failed, continuing with direct chat URL', {
         error: err instanceof Error ? err.message : String(err),
       });
+    }
+  }
+
+  /**
+   * Дождаться появления оболочки Telegram Web K (список чатов / колонки), иначе tgaddr по hash не отрабатывает.
+   */
+  private async waitForTelegramWebAppShell(page: Page): Promise<void> {
+    try {
+      await page.waitForFunction(
+        () => {
+          const app = document.querySelector('#app') !== null;
+          const chats = document.querySelector('.chatlist') !== null;
+          const main = document.querySelector('.main-column') !== null;
+          const pages = document.querySelector('#pages') !== null;
+          return app || chats || main || pages;
+        },
+        { timeout: 25000, polling: 250 }
+      );
+    } catch {
+      logger.debug('Telegram Web shell not detected within timeout, continuing anyway');
+    }
+    await this.delay(400);
+  }
+
+  /**
+   * Переход по deep-link чата (?tgaddr=resolve?phone=...): ждём сеть и появление поля ввода / повтор при «залипании» SPA.
+   */
+  private async navigateToChatResolveUrl(page: Page, chatUrl: string): Promise<void> {
+    const gotoChat = async (waitUntil: 'networkidle0' | 'load' | 'domcontentloaded'): Promise<void> => {
+      await page.goto(chatUrl, { waitUntil, timeout: 50000 });
+    };
+
+    try {
+      await gotoChat('networkidle0');
+    } catch {
+      logger.debug('telegram: chatUrl networkidle0 failed, trying load');
+      try {
+        await gotoChat('load');
+      } catch {
+        await gotoChat('domcontentloaded');
+      }
+    }
+
+    await this.delay(600);
+
+    const hasRealInput = async (): Promise<boolean> => {
+      return await page.evaluate(() => {
+        return (
+          document.querySelector(
+            '.input-message-input[contenteditable="true"]:not(.input-field-input-fake)'
+          ) !== null
+        );
+      });
+    };
+
+    if (await hasRealInput()) {
+      return;
+    }
+
+    // URL в строке есть, а чат не открылся — часто SPA не успела обработать tgaddr
+    try {
+      await page.waitForFunction(
+        () =>
+          document.querySelector(
+            '.input-message-input[contenteditable="true"]:not(.input-field-input-fake)'
+          ) !== null,
+        { timeout: 12000, polling: 300 }
+      );
+      return;
+    } catch {
+      logger.warn('Telegram: chat input not appeared after goto, forcing location.assign');
+    }
+
+    await page.evaluate((url) => {
+      window.location.assign(url);
+    }, chatUrl);
+
+    await this.delay(1200);
+
+    try {
+      await page.waitForFunction(
+        () =>
+          document.querySelector(
+            '.input-message-input[contenteditable="true"]:not(.input-field-input-fake)'
+          ) !== null,
+        { timeout: 20000, polling: 300 }
+      );
+    } catch {
+      logger.warn('Telegram: input still missing after assign, trying reload + goto');
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: 35000 }).catch(() => undefined);
+      await this.delay(800);
+      try {
+        await gotoChat('networkidle0');
+      } catch {
+        await gotoChat('domcontentloaded');
+      }
+      await this.delay(1000);
     }
   }
 
@@ -599,17 +702,11 @@ export class TelegramSender {
       
       await this.delay(200);
 
-      // Переходим на URL чата (как WhatsApp: domcontentloaded — стабильнее для SPA, чем networkidle)
-      try {
-        await page.goto(chatUrl, { waitUntil: 'domcontentloaded', timeout: 35000 });
-      } catch {
-        logger.debug('goto chatUrl failed, retrying once');
-        await page.goto(chatUrl, { waitUntil: 'domcontentloaded', timeout: 35000 });
-      }
+      // Deep-link на чат: networkidle + ожидание поля; при «залипании» — location.assign / reload
+      await this.navigateToChatResolveUrl(page, chatUrl);
       
-      // ВАЖНО: После page.goto() ждем стабилизации URL и появления поля ввода
-      // Telegram Web может перенаправлять на другие чаты или не загружать поле сразу
-      await this.delay(1200); // Даем время на перенаправление и загрузку
+      // ВАЖНО: После навигации даём время на редирект username / дорисовку
+      await this.delay(400);
       
       // КРИТИЧЕСКИ ВАЖНО: Проверяем ошибку USER_NOT_FOUND сразу после page.goto()
       // Ошибка может появиться сразу, не нужно ждать окончания ожидания поля ввода
