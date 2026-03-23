@@ -109,6 +109,9 @@ const USER_NOT_FOUND_ERROR_TEXTS = [
   'This user does not exist',
 ] as const;
 
+/** Базовый URL Telegram Web K — сброс SPA при смене контакта (аналог полного перехода в WhatsApp) */
+const TELEGRAM_WEB_BASE_URL = 'https://web.telegram.org/k/';
+
 export class TelegramSender {
   private chromeProcessService?: ChromeProcessService;
   /**
@@ -124,6 +127,30 @@ export class TelegramSender {
 
   constructor(chromeProcessService?: ChromeProcessService) {
     this.chromeProcessService = chromeProcessService;
+  }
+
+  /**
+   * Сброс состояния Telegram Web: выгружает текущий чат из SPA, убирает «залипшие» DOM от прошлого контакта.
+   * Вызывать при переходе к другому номеру (как у WhatsApp — каждый раз чистый переход).
+   */
+  private async resetTelegramWebPage(page: Page): Promise<void> {
+    try {
+      await page.bringToFront();
+      await page.goto(TELEGRAM_WEB_BASE_URL, { waitUntil: 'domcontentloaded', timeout: 35000 });
+      await this.delay(500);
+      // Дополнительно сбрасываем фокус после перезагрузки оболочки
+      await page.evaluate(() => {
+        const activeEl = document.activeElement;
+        if (activeEl && activeEl instanceof HTMLElement) {
+          activeEl.blur();
+        }
+      }).catch(() => undefined);
+      await this.delay(200);
+    } catch (err) {
+      logger.warn('Telegram Web base reset failed, continuing with direct chat URL', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
 
   /**
@@ -499,6 +526,22 @@ export class TelegramSender {
       if (profileId) {
         this.expectedPeerId.delete(profileId);
       }
+
+      // Смена контакта: полный сброс SPA (как у WhatsApp — новый goto), иначе в DOM остаётся старое поле
+      // и цикл ждёт «новый» peer-id, отбрасывая единственное видимое поле из‑за !isActive → спам в логах.
+      const isSwitchingContact =
+        Boolean(profileId) &&
+        cachedPhone !== null &&
+        cachedPhone !== normalizedPhone;
+
+      if (isSwitchingContact) {
+        logger.debug('Switching Telegram contact: resetting Web app (base URL) before opening new phone', {
+          profileId,
+          from: cachedPhone,
+          to: normalizedPhone,
+        });
+        await this.resetTelegramWebPage(page);
+      }
       
       // URL для открытия чата напрямую
       const chatUrl = `https://web.telegram.org/k/#?tgaddr=tg%3A%2F%2Fresolve%3Fphone%3D${normalizedPhone}`;
@@ -556,19 +599,17 @@ export class TelegramSender {
       
       await this.delay(200);
 
-      // Переходим напрямую на URL чата
-      // Используем networkidle для более надежной загрузки
+      // Переходим на URL чата (как WhatsApp: domcontentloaded — стабильнее для SPA, чем networkidle)
       try {
-        await page.goto(chatUrl, { waitUntil: 'networkidle0', timeout: 30000 });
+        await page.goto(chatUrl, { waitUntil: 'domcontentloaded', timeout: 35000 });
       } catch {
-        // Если networkidle не сработал, пробуем domcontentloaded
-        logger.debug('networkidle timeout, trying domcontentloaded');
-        await page.goto(chatUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        logger.debug('goto chatUrl failed, retrying once');
+        await page.goto(chatUrl, { waitUntil: 'domcontentloaded', timeout: 35000 });
       }
       
       // ВАЖНО: После page.goto() ждем стабилизации URL и появления поля ввода
       // Telegram Web может перенаправлять на другие чаты или не загружать поле сразу
-      await this.delay(1000); // Даем время на перенаправление и загрузку
+      await this.delay(1200); // Даем время на перенаправление и загрузку
       
       // КРИТИЧЕСКИ ВАЖНО: Проверяем ошибку USER_NOT_FOUND сразу после page.goto()
       // Ошибка может появиться сразу, не нужно ждать окончания ожидания поля ввода
@@ -694,7 +735,7 @@ export class TelegramSender {
       
       while (Date.now() - startTime < maxWaitTime) {
         // Прямой поиск поля ввода через page.evaluate (более надежно, чем findMessageInput)
-        const inputInfo = await page.evaluate((oldId): {
+        const inputInfo = await page.evaluate((oldId, elapsedMs): {
           peerId: string | null;
           isOld: boolean;
           isVisible: boolean;
@@ -779,10 +820,20 @@ export class TelegramSender {
                 const isActive = document.activeElement === htmlInput || 
                                (wrapper && document.activeElement?.closest('.new-message-wrapper') === wrapper);
                 if (!isActive) {
-                  // Старое поле в видимом контейнере, но не активное - пропускаем
-                  continue;
+                  // После смены чата Telegram часто не ставит фокус сразу, но peer-id уже обновился —
+                  // единственное видимое поле нельзя отбрасывать бесконечно (иначе found: false и спам в логах).
+                  const realVisibleCount = allInputs.filter((inp) => {
+                    const h = inp as HTMLElement;
+                    if (h.classList.contains('input-field-input-fake')) { return false; }
+                    if (h.getAttribute('contenteditable') !== 'true') { return false; }
+                    const st = window.getComputedStyle(h);
+                    return h.offsetParent !== null && st.display !== 'none' && st.visibility !== 'hidden';
+                  }).length;
+                  if (elapsedMs < 4000 && realVisibleCount !== 1) {
+                    continue;
+                  }
                 }
-                // Если активно - используем (это может быть тот же контакт)
+                // Если активно — или таймаут / единственное поле — используем
               } else {
                 // Старое поле в скрытом контейнере - пропускаем
                 continue;
@@ -883,7 +934,7 @@ export class TelegramSender {
             allInputsInfo,
             debugInfo: { bestPeerId, oldId: oldId ?? null, allInputsCount: allInputs.length },
           };
-        }, oldPeerId ?? null).catch(() => ({ 
+        }, oldPeerId ?? null, Date.now() - startTime).catch(() => ({ 
           peerId: null, 
           isOld: false, 
           isVisible: false,
@@ -955,7 +1006,7 @@ export class TelegramSender {
         
         // ВАЖНО: Если прошло достаточно времени (более 5 секунд) и есть видимое поле,
         // используем его даже если peer-id совпадает (возможно, это тот же контакт)
-        const shouldUseExistingField = elapsed > 5000 && inputInfo.isVisible && inputInfo.wrapperVisible;
+        const shouldUseExistingField = elapsed > 3500 && inputInfo.isVisible && inputInfo.wrapperVisible;
         
         // Если есть старое поле, проверяем что peer-id изменился
         // НО: если прошло много времени и поле видимо, используем его
@@ -1211,7 +1262,7 @@ export class TelegramSender {
       // ВАЖНО: После открытия чата всегда ищем поле ввода, кликаем на него и активируем
       // Это гарантирует, что поле готово к вводу текста
       logger.debug('Activating message input field after opening chat');
-      const activationField = await this.findMessageInput(page);
+      const activationField = await this.findMessageInput(page, finalPeerId ?? undefined);
       if (activationField) {
         // Активируем поле ввода через JavaScript (более надежно)
         await page.evaluate((el) => {
