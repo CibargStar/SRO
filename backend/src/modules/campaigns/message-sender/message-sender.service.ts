@@ -28,7 +28,7 @@ export interface SendMessageInput {
   hasWhatsApp?: boolean;
   hasTelegram?: boolean;
   profileId?: string; // ID профиля для доступа к Puppeteer
-  skipSendDelay?: boolean; // Пропустить задержку перед отправкой (для второго мессенджера в режиме BOTH)
+  skipSendDelay?: boolean; // Пропустить задержку перед отправкой (для второго мессенджера того же контакта)
 }
 
 export interface SendMessageResult {
@@ -73,7 +73,7 @@ export class MessageSenderService {
       this.ensurePhoneValid(phone);
 
       // Задержка перед отправкой (анти-спам тайминги)
-      // Пропускаем задержку если skipSendDelay=true (для второго мессенджера в режиме BOTH)
+      // Пропускаем задержку если skipSendDelay=true (для второго мессенджера того же контакта)
       if (input.sendDelayMs && input.sendDelayMs > 0 && !input.skipSendDelay) {
         await this.delay(input.sendDelayMs);
       }
@@ -156,14 +156,12 @@ export class MessageSenderService {
     hasWa: boolean,
     hasTg: boolean
   ): MessengerType {
-    if (universalTarget === 'TELEGRAM_FIRST') {
+    const normalizedTarget = universalTarget === 'BOTH' ? 'WHATSAPP_FIRST' : universalTarget;
+
+    if (normalizedTarget === 'TELEGRAM_FIRST') {
       if (hasTg) return 'TELEGRAM';
       if (hasWa) return 'WHATSAPP';
-    } else if (universalTarget === 'WHATSAPP_FIRST') {
-      if (hasWa) return 'WHATSAPP';
-      if (hasTg) return 'TELEGRAM';
-    } else if (universalTarget === 'BOTH') {
-      // Для BOTH на уровне sendMessage выберем сначала WA, затем вызывающая сторона может дернуть повторно для TG
+    } else if (normalizedTarget === 'WHATSAPP_FIRST') {
       if (hasWa) return 'WHATSAPP';
       if (hasTg) return 'TELEGRAM';
     } else {

@@ -248,6 +248,8 @@ export class CampaignExecutorService extends EventEmitter {
           }
         : undefined;
     const typingSimulationEnabled = Boolean(settings.typingSimulationEnabled);
+    const normalizedUniversalTarget =
+      campaign.universalTarget === 'BOTH' ? 'WHATSAPP_FIRST' : campaign.universalTarget;
 
     const workerContexts: WorkerContext[] = [];
     for (const cp of campaignProfiles) {
@@ -259,7 +261,7 @@ export class CampaignExecutorService extends EventEmitter {
         loadBalancer: this.loadBalancer,
         sender: this.sender,
         messengerTarget: campaign.messengerType,
-        universalTarget: campaign.universalTarget,
+        universalTarget: normalizedUniversalTarget,
         pauseMode,
         delayBetweenMessagesMs,
         delayBetweenContactsMs,

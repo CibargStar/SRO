@@ -28,7 +28,9 @@ export const campaignProfileStatusSchema = z.enum(['PENDING', 'RUNNING', 'COMPLE
 export const messageStatusSchema = z.enum(['PENDING', 'PROCESSING', 'SENT', 'FAILED', 'SKIPPED']);
 export const messengerTargetSchema = z.enum(['WHATSAPP_ONLY', 'TELEGRAM_ONLY', 'UNIVERSAL']);
 export const messengerTypeSchema = z.enum(['WHATSAPP', 'TELEGRAM']);
-export const universalTargetSchema = z.enum(['BOTH', 'WHATSAPP_FIRST', 'TELEGRAM_FIRST']);
+// В UI/API поддерживаем только порядок первого канала.
+// Режим "BOTH" удалён: для UNIVERSAL отправка всегда идет в оба канала.
+export const universalTargetSchema = z.enum(['WHATSAPP_FIRST', 'TELEGRAM_FIRST']);
 export const logLevelSchema = z.enum(['INFO', 'WARNING', 'ERROR']);
 
 // ============================================

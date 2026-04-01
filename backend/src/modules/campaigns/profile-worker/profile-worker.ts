@@ -98,7 +98,9 @@ export class ProfileWorker {
     this.delayBetweenContactsMs = config.delayBetweenContactsMs;
     this.typingSimulationEnabled = config.typingSimulationEnabled;
     this.typingDelayMs = config.typingDelayMs;
-    this.universalTarget = config.universalTarget;
+    // Legacy-совместимость: старые кампании с BOTH трактуем как WHATSAPP_FIRST.
+    this.universalTarget =
+      config.universalTarget === 'BOTH' ? 'WHATSAPP_FIRST' : config.universalTarget;
     this.variableParser = new VariableParserService();
   }
 
@@ -454,7 +456,7 @@ export class ProfileWorker {
         };
       }
 
-      // UNIVERSAL / BOTH логика: пробуем по приоритету, для BOTH — обе попытки
+      // UNIVERSAL логика: пробуем оба канала, universalTarget задает только порядок.
       const tried: Array<{ messenger: MessengerType; result: SendMessageResult }> = [];
 
       const trySend = async (messenger: MessengerType, skipSendDelay = false) => {
@@ -470,7 +472,7 @@ export class ProfileWorker {
           hasTelegram: hasTg,
           universalTarget: this.universalTarget,
           profileId: this.profileId,
-          skipSendDelay, // Пропускаем задержку для второго мессенджера в режиме BOTH
+          skipSendDelay, // Пропускаем задержку для второго мессенджера для того же контакта
         });
         tried.push({ messenger, result: res });
         if (res.success) {
@@ -486,7 +488,7 @@ export class ProfileWorker {
       // - universalTarget определяет ТОЛЬКО порядок: кто идет первым.
       const orderedMessengers: MessengerType[] = this.universalTarget === 'TELEGRAM_FIRST'
         ? ['TELEGRAM', 'WHATSAPP']
-        : ['WHATSAPP', 'TELEGRAM']; // WHATSAPP_FIRST, BOTH и default
+        : ['WHATSAPP', 'TELEGRAM']; // WHATSAPP_FIRST и default
 
       for (const [index, messenger] of orderedMessengers.entries()) {
         // Пропускаем невалидные каналы для конкретного номера

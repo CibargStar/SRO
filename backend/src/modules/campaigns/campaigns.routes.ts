@@ -58,7 +58,7 @@ router.get('/:campaignId', controller.getCampaign);
  * - clientGroupId: uuid (required)
  * - campaignType: 'ONE_TIME' | 'SCHEDULED' (required)
  * - messengerType: 'WHATSAPP_ONLY' | 'TELEGRAM_ONLY' | 'UNIVERSAL' (required)
- * - universalTarget: 'BOTH' | 'WHATSAPP_FIRST' | 'TELEGRAM_FIRST' (optional)
+ * - universalTarget: 'WHATSAPP_FIRST' | 'TELEGRAM_FIRST' (optional)
  * - profileIds: uuid[] (required)
  * - scheduleConfig: ScheduleConfig (optional)
  * - filterConfig: FilterConfig (optional)
