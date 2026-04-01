@@ -186,7 +186,13 @@ export const createCampaignSchema = z.object({
   optionsConfig: optionsConfigSchema.optional(),
   
   scheduledAt: z.string().datetime().optional().nullable(),
-});
+}).refine(
+  (data) => data.messengerType !== 'UNIVERSAL' || Boolean(data.universalTarget),
+  {
+    message: 'Для универсальной кампании нужно выбрать порядок отправки',
+    path: ['universalTarget'],
+  }
+);
 
 export type CreateCampaignFormData = z.infer<typeof createCampaignSchema>;
 

@@ -4,7 +4,7 @@
  * Страница создания новой кампании с пошаговым мастером
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -130,6 +130,12 @@ export function CreateCampaignPage() {
 
   const watchedValues = watch();
 
+  useEffect(() => {
+    if (watchedValues.messengerType === 'UNIVERSAL' && !watchedValues.universalTarget) {
+      setValue('universalTarget', 'WHATSAPP_FIRST', { shouldValidate: true });
+    }
+  }, [watchedValues.messengerType, watchedValues.universalTarget, setValue]);
+
   // Фильтрованные шаблоны по типу мессенджера
   const filteredTemplates = useMemo(() => {
     if (!templatesData?.data) return [];
@@ -252,7 +258,7 @@ export function CreateCampaignPage() {
       description: data.description?.trim() || undefined,
       campaignType: data.campaignType,
       messengerType: data.messengerType,
-      universalTarget: data.messengerType === 'UNIVERSAL' ? (data.universalTarget || 'WHATSAPP_FIRST') : undefined,
+      universalTarget: data.messengerType === 'UNIVERSAL' ? data.universalTarget : undefined,
       templateIds: data.templateIds,
       clientGroupId: data.clientGroupId,
       profileIds: data.profileIds,

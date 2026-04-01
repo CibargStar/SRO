@@ -205,7 +205,13 @@ export const createCampaignSchema = z.object({
   
   // Запланированное время запуска (для SCHEDULED)
   scheduledAt: z.string().datetime().optional().nullable(),
-});
+}).refine(
+  (data) => data.messengerType !== 'UNIVERSAL' || Boolean(data.universalTarget),
+  {
+    message: 'Для UNIVERSAL кампании universalTarget обязателен',
+    path: ['universalTarget'],
+  }
+);
 
 export type CreateCampaignInput = z.infer<typeof createCampaignSchema>;
 
