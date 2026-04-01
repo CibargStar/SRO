@@ -186,51 +186,108 @@ export class ProfileWorker {
             continue;
           }
 
-          // Собираем все элементы шаблона для ОДНОГО вызова sendMessage
-          // Это гарантирует, что чат откроется один раз и все элементы уйдут в него
-          const allTexts: string[] = [];
-          const allAttachments: string[] = [];
+          // Отправляем элементы шаблона ПО ПОРЯДКУ:
+          // - каждый TEXT элемент = отдельное сообщение;
+          // - переносы внутри content остаются внутри одного сообщения (обрабатываются sender-ом).
+          // Это позволяет отличать "мультишаблон" от обычного переноса строки.
+          let selectedMessenger: 'WHATSAPP' | 'TELEGRAM' | null = messenger;
+          let lastPartResult: {
+            messageId: string;
+            status: 'SENT' | 'FAILED' | 'SKIPPED';
+            messenger: SendMessageResult['messenger'] | null;
+            clientId: string | null;
+            phoneId: string | null;
+            errorMessage?: string;
+          } | null = null;
+          let partFailureResult: {
+            messageId: string;
+            status: 'SENT' | 'FAILED' | 'SKIPPED';
+            messenger: SendMessageResult['messenger'] | null;
+            clientId: string | null;
+            phoneId: string | null;
+            errorMessage?: string;
+          } | null = null;
+          let sentPartsCount = 0;
 
           for (const item of processedItems) {
-            if (item.type === 'TEXT' && item.content) {
-              allTexts.push(item.content);
-            } else if (item.type === 'FILE' && item.filePath) {
-              allAttachments.push(item.filePath);
-              logger.debug('File attachment added to send list', {
-                filePath: item.filePath,
-                phone,
-                messageId: msg.id,
-              });
+            const textPart = item.type === 'TEXT' ? item.content : undefined;
+            const attachmentPart = item.type === 'FILE' && item.filePath ? [item.filePath] : undefined;
+
+            if (!textPart && !attachmentPart) {
+              continue;
             }
+
+            logger.debug('Sending template item as separate part', {
+              phone,
+              messageId: msg.id,
+              messenger: selectedMessenger ?? 'AUTO',
+              itemType: item.type,
+              textLength: textPart?.length ?? 0,
+              attachmentsCount: attachmentPart?.length ?? 0,
+              attachmentPath: attachmentPart?.[0] ?? null,
+              partIndex: sentPartsCount,
+            });
+
+            const partResult = await this.sendWithHandling({
+              messageId: msg.id,
+              messenger: selectedMessenger,
+              phone,
+              text: textPart,
+              attachments: attachmentPart,
+              clientId,
+              phoneId,
+              waStatus: msg.clientPhone?.whatsAppStatus ?? 'Unknown' as MessengerStatus,
+              tgStatus: msg.clientPhone?.telegramStatus ?? 'Unknown' as MessengerStatus,
+              // Задержку отправки применяем только для первой части,
+              // чтобы мультишаблон не растягивался искусственной паузой между частями.
+              sendDelayMs: sentPartsCount === 0 ? this.delayBetweenMessagesMs : 0,
+            });
+
+            lastPartResult = partResult;
+
+            if (partResult.status !== 'SENT') {
+              partFailureResult = partResult;
+              break;
+            }
+
+            // В универсальном режиме фиксируем фактически выбранный мессенджер
+            // и отправляем остальные части туда же.
+            if (!selectedMessenger && partResult.messenger) {
+              selectedMessenger = partResult.messenger;
+            }
+
+            sentPartsCount++;
           }
 
-          // Объединяем все тексты в один (разделяем переносом строки)
-          const combinedText = allTexts.length > 0 ? allTexts.join('\n') : undefined;
-
-          logger.debug('Preparing to send message with attachments', {
-            phone,
-            messageId: msg.id,
-            messenger,
-            hasText: !!combinedText,
-            textLength: combinedText?.length ?? 0,
-            attachmentsCount: allAttachments.length,
-            attachments: allAttachments,
-          });
-
-          // Отправляем все элементы ОДНИМ вызовом sendMessage
-          // Это предотвращает переключение чата между текстом и файлами
-          result = await this.sendWithHandling({
-            messageId: msg.id,
-            messenger,
-            phone,
-            text: combinedText,
-            attachments: allAttachments.length > 0 ? allAttachments : undefined,
-            clientId,
-            phoneId,
-            waStatus: msg.clientPhone?.whatsAppStatus ?? 'Unknown' as MessengerStatus,
-            tgStatus: msg.clientPhone?.telegramStatus ?? 'Unknown' as MessengerStatus,
-            sendDelayMs: this.delayBetweenMessagesMs,
-          });
+          if (partFailureResult) {
+            result = partFailureResult;
+          } else if (sentPartsCount === 0 && !lastPartResult) {
+            result = {
+              messageId: msg.id,
+              status: 'FAILED' as const,
+              messenger: selectedMessenger,
+              clientId,
+              phoneId,
+              errorMessage: 'Template has no sendable text or file parts',
+            };
+          } else if (lastPartResult?.status === 'SENT') {
+            result = {
+              ...lastPartResult,
+              messageId: msg.id,
+              clientId,
+              phoneId,
+            };
+          } else {
+            // Защита от теоретического случая, когда цикл завершился без явного результата.
+            result = {
+              messageId: msg.id,
+              status: 'FAILED' as const,
+              messenger: selectedMessenger,
+              clientId,
+              phoneId,
+              errorMessage: 'Failed to process template parts',
+            };
+          }
 
           await this.onMessageProcessed(result);
         } catch (error) {
