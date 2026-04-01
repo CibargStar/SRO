@@ -41,7 +41,7 @@ import type {
 } from '@/types/campaign';
 import type { Template } from '@/types/template';
 import { WizardStep1_BasicInfo, WizardStep2_SelectTemplate, WizardStep3_SelectBase, WizardStep4_SelectProfiles, WizardStep5_Schedule, WizardStep6_Options, WizardStep7_Review } from '@/components/campaigns';
-import { createCampaignSchema } from '@/schemas/campaign.schema';
+import { createCampaignSchema, createCampaignSchemaBase } from '@/schemas/campaign.schema';
 
 // Шаги мастера
 const WIZARD_STEPS = [
@@ -95,8 +95,8 @@ export function CreateCampaignPage() {
 
   // Form
   const formMethods = useForm<CampaignFormData>({
-    resolver: zodResolver(createCampaignSchema.omit({ profileIds: true }).extend({
-      profileIds: createCampaignSchema.shape.profileIds.optional(),
+    resolver: zodResolver(createCampaignSchemaBase.omit({ profileIds: true }).extend({
+      profileIds: createCampaignSchemaBase.shape.profileIds.optional(),
     })),
     defaultValues: {
       name: '',

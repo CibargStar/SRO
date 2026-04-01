@@ -148,7 +148,7 @@ export type OptionsConfigFormData = z.infer<typeof optionsConfigSchema>;
 /**
  * Схема создания кампании
  */
-export const createCampaignSchema = z.object({
+export const createCampaignSchemaBase = z.object({
   name: z
     .string({ required_error: 'Название обязательно' })
     .min(1, { message: 'Название не может быть пустым' })
@@ -186,7 +186,9 @@ export const createCampaignSchema = z.object({
   optionsConfig: optionsConfigSchema.optional(),
   
   scheduledAt: z.string().datetime().optional().nullable(),
-}).refine(
+});
+
+export const createCampaignSchema = createCampaignSchemaBase.refine(
   (data) => data.messengerType !== 'UNIVERSAL' || Boolean(data.universalTarget),
   {
     message: 'Для универсальной кампании нужно выбрать порядок отправки',
