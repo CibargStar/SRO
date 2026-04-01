@@ -8,7 +8,7 @@
 import { CampaignMessageRepository } from '../campaigns.repository';
 import { LoadBalancerService } from '../load-balancer';
 import { MessageSenderService, SendMessageResult } from '../message-sender';
-import { MessengerType, UniversalTarget, MessengerStatus } from '@prisma/client';
+import { MessengerType, UniversalTarget, MessengerStatus, MessengerTarget } from '@prisma/client';
 import prisma from '../../../config/database';
 import { VariableParserService, ClientData } from '../../templates/variable-parser.service';
 import logger from '../../../config/logger';
@@ -20,6 +20,7 @@ interface ProfileWorkerConfig {
   messageRepository: CampaignMessageRepository;
   loadBalancer: LoadBalancerService;
   sender: MessageSenderService;
+  messengerTarget?: MessengerTarget;
   universalTarget?: UniversalTarget | null;
   pauseMode: 1 | 2;
   delayBetweenMessagesMs?: number;
@@ -72,6 +73,7 @@ export class ProfileWorker {
   private typingSimulationEnabled?: boolean;
   private typingDelayMs?: { minMs: number; maxMs: number };
   private lastClientId: string | null = null;
+  private messengerTarget?: MessengerTarget;
   private universalTarget?: UniversalTarget | null;
   
   // Множественные шаблоны для ротации (round-robin)
@@ -89,6 +91,7 @@ export class ProfileWorker {
     this.chunkSize = config.chunkSize;
     this.messageRepository = config.messageRepository;
     this.sender = config.sender;
+    this.messengerTarget = config.messengerTarget;
     this.onMessageProcessed = config.onMessageProcessed;
     this.pauseMode = config.pauseMode;
     this.delayBetweenMessagesMs = config.delayBetweenMessagesMs;
@@ -110,9 +113,14 @@ export class ProfileWorker {
     await this.loadTemplate();
 
     // Помечаем профиль как занятый рассылкой
-    // Это предотвращает переключение вкладок мониторингом статуса аккаунтов
-    // Определяем мессенджер по типу кампании (можно уточнить позже при отправке)
-    this.sender.markProfileBusy(this.profileId, 'whatsapp', this.campaignId);
+    // Это предотвращает переключение вкладок мониторингом статуса аккаунтов.
+    // Для универсального режима выбираем первый канал по приоритету.
+    const busyMessenger: 'whatsapp' | 'telegram' =
+      this.messengerTarget === 'TELEGRAM_ONLY' ||
+      (this.messengerTarget === 'UNIVERSAL' && this.universalTarget === 'TELEGRAM_FIRST')
+        ? 'telegram'
+        : 'whatsapp';
+    this.sender.markProfileBusy(this.profileId, busyMessenger, this.campaignId);
     logger.debug('Profile marked as busy for campaign', { profileId: this.profileId, campaignId: this.campaignId });
     
     while (this.running) {
@@ -190,7 +198,7 @@ export class ProfileWorker {
           // - каждый TEXT элемент = отдельное сообщение;
           // - переносы внутри content остаются внутри одного сообщения (обрабатываются sender-ом).
           // Это позволяет отличать "мультишаблон" от обычного переноса строки.
-          let selectedMessenger: 'WHATSAPP' | 'TELEGRAM' | null = messenger;
+          const selectedMessenger: 'WHATSAPP' | 'TELEGRAM' | null = messenger;
           let lastPartResult: {
             messageId: string;
             status: 'SENT' | 'FAILED' | 'SKIPPED';
@@ -248,18 +256,6 @@ export class ProfileWorker {
             if (partResult.status !== 'SENT') {
               partFailureResult = partResult;
               break;
-            }
-
-            // В универсальных fallback-режимах (WHATSAPP_FIRST / TELEGRAM_FIRST)
-            // фиксируем фактически сработавший мессенджер для следующих частей.
-            // В режиме BOTH фиксировать НЕЛЬЗЯ — каждая часть должна уходить в оба мессенджера.
-            const shouldPinResolvedMessenger =
-              !selectedMessenger &&
-              partResult.messenger !== null &&
-              this.universalTarget !== 'BOTH';
-
-            if (shouldPinResolvedMessenger) {
-              selectedMessenger = partResult.messenger;
             }
 
             sentPartsCount++;
@@ -481,26 +477,44 @@ export class ProfileWorker {
         await trySend(messenger, index > 0);
       }
 
-      // Итог: если были успешные отправки — считаем SENT, иначе FAILED
-      const success = tried.find((t) => t.result.success);
-      if (success) {
+      // Итог для UNIVERSAL:
+      // - успех только если ВСЕ реально попытанные каналы успешно отправили;
+      // - если хоть один из попытанных каналов упал, считаем FAILED.
+      if (tried.length === 0) {
+        return {
+          messageId: input.messageId,
+          status: 'FAILED',
+          messenger: null,
+          clientId: input.clientId,
+          phoneId: input.phoneId,
+          errorMessage: 'No valid messenger channels for this contact',
+        };
+      }
+
+      const allSucceeded = tried.every((t) => t.result.success);
+      if (allSucceeded) {
+        const firstSuccess = tried[0];
         return {
           messageId: input.messageId,
           status: 'SENT',
-          messenger: success.messenger,
+          messenger: firstSuccess?.messenger ?? null,
           clientId: input.clientId,
           phoneId: input.phoneId,
         };
       }
 
-      const lastError = tried.find((t) => !t.result.success)?.result.error;
+      const failedAttempts = tried.filter((t) => !t.result.success);
+      const lastError = failedAttempts[failedAttempts.length - 1]?.result.error;
+      const failedMessengers = failedAttempts.map((t) => t.messenger).join(', ');
       return {
         messageId: input.messageId,
         status: 'FAILED',
         messenger: tried.at(-1)?.messenger ?? null,
         clientId: input.clientId,
         phoneId: input.phoneId,
-        errorMessage: lastError ?? 'Universal send failed',
+        errorMessage: lastError
+          ? `Universal send failed for: ${failedMessengers}. Last error: ${lastError}`
+          : `Universal send failed for: ${failedMessengers}`,
       };
     } catch (error: unknown) {
       return {

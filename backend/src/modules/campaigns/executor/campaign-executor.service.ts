@@ -258,6 +258,7 @@ export class CampaignExecutorService extends EventEmitter {
         messageRepository: this.messageRepository,
         loadBalancer: this.loadBalancer,
         sender: this.sender,
+        messengerTarget: campaign.messengerType,
         universalTarget: campaign.universalTarget,
         pauseMode,
         delayBetweenMessagesMs,
