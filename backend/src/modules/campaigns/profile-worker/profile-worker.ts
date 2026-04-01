@@ -340,10 +340,8 @@ export class ProfileWorker {
           });
         }
 
-        // Межсообщенческий тайминг
-        await this.applyMessageDelay();
-
-        // Пауза между контактами согласно режиму (только при успешной отправке)
+        // Пауза только между контактами (не между мессенджерами/частями шаблона)
+        // и только при успешной отправке.
         if (result.status === 'SENT') {
           if (this.pauseMode === 1) {
             await this.applyContactDelay();
@@ -618,13 +616,6 @@ export class ProfileWorker {
       where: { id: phoneId },
       data: { telegramStatus: 'Invalid' },
     });
-  }
-
-  private async applyMessageDelay(): Promise<void> {
-    if (!this.delayBetweenMessagesMs || this.delayBetweenMessagesMs <= 0) {
-      return;
-    }
-    await this.delay(this.delayBetweenMessagesMs);
   }
 
   private async applyContactDelay(): Promise<void> {

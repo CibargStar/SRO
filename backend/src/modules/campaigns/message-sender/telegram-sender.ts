@@ -547,12 +547,9 @@ export class TelegramSender {
         this.expectedPeerId.delete(profileId);
       }
 
-      // Опциональный жёсткий SPA reset для сложных кейсов переключения чатов.
-      if (
-        cachedPhone !== null &&
-        cachedPhone !== normalizedPhone &&
-        process.env.TELEGRAM_RESET_SPA_ON_SWITCH === '1'
-      ) {
+      // Для нового номера всегда открываем чат "с чистого листа":
+      // полный reset Telegram Web перед deep-link, чтобы не тащить старый DOM/фокус/состояние.
+      if (cachedPhone !== normalizedPhone) {
         await this.resetTelegramWebPage(page);
       }
 
