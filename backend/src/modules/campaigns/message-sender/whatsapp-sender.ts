@@ -837,8 +837,22 @@ export class WhatsAppSender {
       await page.keyboard.press('Backspace');
       await this.delay(100);
 
-      // Вводим текст через keyboard.type (надежный "ручной" набор)
-      await page.keyboard.type(text, { delay: 30 });
+      // ВАЖНО: \n в keyboard.type() может интерпретироваться как Enter (отправка).
+      // Вставляем переносы через Shift+Enter, чтобы сохранить один message bubble.
+      const normalizedText = text.replace(/\r\n/g, '\n');
+      const lines = normalizedText.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? '';
+        if (line.length > 0) {
+          await page.keyboard.type(line, { delay: 30 });
+        }
+        if (i < lines.length - 1) {
+          await page.keyboard.down('Shift');
+          await page.keyboard.press('Enter');
+          await page.keyboard.up('Shift');
+          await this.delay(40);
+        }
+      }
       await this.delay(300);
 
       // Проверяем, что текст введен
