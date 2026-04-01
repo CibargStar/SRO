@@ -194,100 +194,123 @@ export class ProfileWorker {
             continue;
           }
 
-          // Отправляем элементы шаблона ПО ПОРЯДКУ:
-          // - каждый TEXT элемент = отдельное сообщение;
-          // - переносы внутри content остаются внутри одного сообщения (обрабатываются sender-ом).
-          // Это позволяет отличать "мультишаблон" от обычного переноса строки.
-          const selectedMessenger: 'WHATSAPP' | 'TELEGRAM' | null = messenger;
-          let lastPartResult: {
-            messageId: string;
-            status: 'SENT' | 'FAILED' | 'SKIPPED';
-            messenger: SendMessageResult['messenger'] | null;
-            clientId: string | null;
-            phoneId: string | null;
-            errorMessage?: string;
-          } | null = null;
-          let partFailureResult: {
-            messageId: string;
-            status: 'SENT' | 'FAILED' | 'SKIPPED';
-            messenger: SendMessageResult['messenger'] | null;
-            clientId: string | null;
-            phoneId: string | null;
-            errorMessage?: string;
-          } | null = null;
-          let sentPartsCount = 0;
+          // Отправляем батчами по мессенджеру:
+          // 1) все части мультишаблона в первом канале;
+          // 2) затем все части во втором (для UNIVERSAL).
+          const fixedMessenger: 'WHATSAPP' | 'TELEGRAM' | null = messenger;
+          const hasWa = (msg.clientPhone?.whatsAppStatus ?? 'Unknown') !== 'Invalid';
+          const hasTg = (msg.clientPhone?.telegramStatus ?? 'Unknown') !== 'Invalid';
 
-          for (const item of processedItems) {
-            const textPart = item.type === 'TEXT' ? item.content : undefined;
-            const attachmentPart = item.type === 'FILE' && item.filePath ? [item.filePath] : undefined;
+          const baseOrder: Array<'WHATSAPP' | 'TELEGRAM'> =
+            this.universalTarget === 'TELEGRAM_FIRST'
+              ? ['TELEGRAM', 'WHATSAPP']
+              : ['WHATSAPP', 'TELEGRAM'];
+          const messengerOrder: Array<'WHATSAPP' | 'TELEGRAM'> = fixedMessenger
+            ? [fixedMessenger]
+            : baseOrder.filter((m) => (m === 'WHATSAPP' ? hasWa : hasTg));
 
-            if (!textPart && !attachmentPart) {
-              continue;
-            }
-
-            logger.debug('Sending template item as separate part', {
-              phone,
-              messageId: msg.id,
-              messenger: selectedMessenger ?? 'AUTO',
-              itemType: item.type,
-              textLength: textPart?.length ?? 0,
-              attachmentsCount: attachmentPart?.length ?? 0,
-              attachmentPath: attachmentPart?.[0] ?? null,
-              partIndex: sentPartsCount,
-            });
-
-            const partResult = await this.sendWithHandling({
-              messageId: msg.id,
-              messenger: selectedMessenger,
-              phone,
-              text: textPart,
-              attachments: attachmentPart,
-              clientId,
-              phoneId,
-              waStatus: msg.clientPhone?.whatsAppStatus ?? 'Unknown' as MessengerStatus,
-              tgStatus: msg.clientPhone?.telegramStatus ?? 'Unknown' as MessengerStatus,
-              // Задержку отправки применяем только для первой части,
-              // чтобы мультишаблон не растягивался искусственной паузой между частями.
-              sendDelayMs: sentPartsCount === 0 ? this.delayBetweenMessagesMs : 0,
-            });
-
-            lastPartResult = partResult;
-
-            if (partResult.status !== 'SENT') {
-              partFailureResult = partResult;
-              break;
-            }
-
-            sentPartsCount++;
-          }
-
-          if (partFailureResult) {
-            result = partFailureResult;
-          } else if (sentPartsCount === 0 && !lastPartResult) {
+          if (messengerOrder.length === 0) {
             result = {
               messageId: msg.id,
               status: 'FAILED' as const,
-              messenger: selectedMessenger,
+              messenger: null,
+              clientId,
+              phoneId,
+              errorMessage: 'No valid messenger channels for this contact',
+            };
+            await this.onMessageProcessed(result);
+            continue;
+          }
+
+          let lastSuccessResult: {
+            messageId: string;
+            status: 'SENT' | 'FAILED' | 'SKIPPED';
+            messenger: SendMessageResult['messenger'] | null;
+            clientId: string | null;
+            phoneId: string | null;
+            errorMessage?: string;
+          } | null = null;
+          const channelFailures: string[] = [];
+          let sentPartsTotal = 0;
+          let isFirstSendOverall = true;
+
+          for (const channel of messengerOrder) {
+            let channelFailed = false;
+
+            for (const item of processedItems) {
+              const textPart = item.type === 'TEXT' ? item.content : undefined;
+              const attachmentPart = item.type === 'FILE' && item.filePath ? [item.filePath] : undefined;
+
+              if (!textPart && !attachmentPart) {
+                continue;
+              }
+
+              logger.debug('Sending template item', {
+                phone,
+                messageId: msg.id,
+                messenger: channel,
+                itemType: item.type,
+                textLength: textPart?.length ?? 0,
+                attachmentsCount: attachmentPart?.length ?? 0,
+                attachmentPath: attachmentPart?.[0] ?? null,
+                sentPartsTotal,
+              });
+
+              const partResult = await this.sendWithHandling({
+                messageId: msg.id,
+                messenger: channel,
+                phone,
+                text: textPart,
+                attachments: attachmentPart,
+                clientId,
+                phoneId,
+                waStatus: msg.clientPhone?.whatsAppStatus ?? 'Unknown' as MessengerStatus,
+                tgStatus: msg.clientPhone?.telegramStatus ?? 'Unknown' as MessengerStatus,
+                // Применяем задержку только перед первой фактической отправкой по контакту.
+                sendDelayMs: isFirstSendOverall ? this.delayBetweenMessagesMs : 0,
+              });
+              isFirstSendOverall = false;
+
+              if (partResult.status !== 'SENT') {
+                channelFailed = true;
+                channelFailures.push(`${channel}: ${partResult.errorMessage ?? 'Unknown send error'}`);
+                break;
+              }
+
+              lastSuccessResult = partResult;
+              sentPartsTotal++;
+            }
+
+            // Переходим к следующему мессенджеру только после завершения текущего батча.
+            if (channelFailed) {
+              continue;
+            }
+          }
+
+          if (channelFailures.length > 0) {
+            result = {
+              messageId: msg.id,
+              status: 'FAILED' as const,
+              messenger: lastSuccessResult?.messenger ?? messengerOrder[messengerOrder.length - 1] ?? null,
+              clientId,
+              phoneId,
+              errorMessage: `Failed channels: ${channelFailures.join(' | ')}`,
+            };
+          } else if (sentPartsTotal === 0 || !lastSuccessResult) {
+            result = {
+              messageId: msg.id,
+              status: 'FAILED' as const,
+              messenger: fixedMessenger,
               clientId,
               phoneId,
               errorMessage: 'Template has no sendable text or file parts',
             };
-          } else if (lastPartResult?.status === 'SENT') {
-            result = {
-              ...lastPartResult,
-              messageId: msg.id,
-              clientId,
-              phoneId,
-            };
           } else {
-            // Защита от теоретического случая, когда цикл завершился без явного результата.
             result = {
+              ...lastSuccessResult,
               messageId: msg.id,
-              status: 'FAILED' as const,
-              messenger: selectedMessenger,
               clientId,
               phoneId,
-              errorMessage: 'Failed to process template parts',
             };
           }
 
