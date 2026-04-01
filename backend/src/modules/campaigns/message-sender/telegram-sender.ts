@@ -291,6 +291,12 @@ export class TelegramSender {
     logger.warn('Telegram: trying global search fallback to open chat', { phone: normalizedPhone });
     const searchOk = await this.tryOpenChatViaGlobalSearch(page, normalizedPhone);
     if (!searchOk) {
+      // Если чат через поиск не открылся, сразу проверяем USER_NOT_FOUND,
+      // чтобы не уходить в долгие повторы ожидания/ретраи.
+      const userNotFound = await this.quickCheckUserNotFound(page);
+      if (userNotFound) {
+        throw new Error('USER_NOT_FOUND: Sorry, this user doesn\'t seem to exist');
+      }
       logger.warn('Telegram: global search fallback did not open chat', { phone: normalizedPhone });
     }
   }
@@ -349,6 +355,11 @@ export class TelegramSender {
       await page.keyboard.type(searchQuery, { delay: 35 });
       await this.delay(1800);
 
+      // Быстрая проверка после ввода запроса: Telegram может сразу показать "user doesn't exist".
+      if (await this.quickCheckUserNotFound(page)) {
+        throw new Error('USER_NOT_FOUND: Sorry, this user doesn\'t seem to exist');
+      }
+
       const clickedFirst = await page.evaluate(() => {
         const row = document.querySelector<HTMLElement>('.chatlist-chat, .search-group .chatlist-chat, .search-super .chatlist-chat');
         if (row) {
@@ -364,6 +375,11 @@ export class TelegramSender {
 
       await this.delay(2200);
 
+      // Повторная проверка после Enter/клика результата.
+      if (await this.quickCheckUserNotFound(page)) {
+        throw new Error('USER_NOT_FOUND: Sorry, this user doesn\'t seem to exist');
+      }
+
       return await page.evaluate(() => {
         return (
           document.querySelector(
@@ -372,6 +388,9 @@ export class TelegramSender {
         );
       });
     } catch (err) {
+      if (err instanceof Error && err.message.includes('USER_NOT_FOUND')) {
+        throw err;
+      }
       logger.warn('Telegram global search fallback error', {
         error: err instanceof Error ? err.message : String(err),
       });
