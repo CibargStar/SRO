@@ -181,12 +181,51 @@ export class TelegramSender {
   }
 
   /**
-   * Переход по deep-link чата (?tgaddr=resolve?phone=...): ждём сеть и появление поля ввода / повтор при «залипании» SPA.
+   * Переход по deep-link чата (?tgaddr=resolve?phone=...): hash → полный goto → assign → поиск.
    */
-  private async navigateToChatResolveUrl(page: Page, chatUrl: string): Promise<void> {
+  private async navigateToChatResolveUrl(page: Page, chatUrl: string, normalizedPhone: string): Promise<void> {
+    const hasRealInput = async (): Promise<boolean> => {
+      return await page.evaluate(() => {
+        return (
+          document.querySelector(
+            '.input-message-input[contenteditable="true"]:not(.input-field-input-fake)'
+          ) !== null
+        );
+      });
+    };
+
     const gotoChat = async (waitUntil: 'networkidle0' | 'load' | 'domcontentloaded'): Promise<void> => {
       await page.goto(chatUrl, { waitUntil, timeout: 50000 });
     };
+
+    // 1) Уже на Telegram Web K — сначала только меняем hash (роутер SPA открывает чат без полной перезагрузки)
+    try {
+      const cur = page.url();
+      if (cur.includes('web.telegram.org/k')) {
+        await page.evaluate((phone) => {
+          const q = encodeURIComponent(`tg://resolve?phone=${phone}`);
+          window.location.hash = `?tgaddr=${q}`;
+        }, normalizedPhone);
+        await this.delay(900);
+        try {
+          await page.waitForFunction(
+            () =>
+              document.querySelector(
+                '.input-message-input[contenteditable="true"]:not(.input-field-input-fake)'
+              ) !== null,
+            { timeout: 18000, polling: 250 }
+          );
+        } catch {
+          /* ниже — полный goto */
+        }
+        if (await hasRealInput()) {
+          logger.debug('Telegram: chat opened via hash-only navigation', { phone: normalizedPhone });
+          return;
+        }
+      }
+    } catch {
+      /* fallback goto */
+    }
 
     try {
       await gotoChat('networkidle0');
@@ -200,16 +239,6 @@ export class TelegramSender {
     }
 
     await this.delay(600);
-
-    const hasRealInput = async (): Promise<boolean> => {
-      return await page.evaluate(() => {
-        return (
-          document.querySelector(
-            '.input-message-input[contenteditable="true"]:not(.input-field-input-fake)'
-          ) !== null
-        );
-      });
-    };
 
     if (await hasRealInput()) {
       return;
@@ -253,6 +282,100 @@ export class TelegramSender {
         await gotoChat('domcontentloaded');
       }
       await this.delay(1000);
+    }
+
+    if (await hasRealInput()) {
+      return;
+    }
+
+    logger.warn('Telegram: trying global search fallback to open chat', { phone: normalizedPhone });
+    const searchOk = await this.tryOpenChatViaGlobalSearch(page, normalizedPhone);
+    if (!searchOk) {
+      logger.warn('Telegram: global search fallback did not open chat', { phone: normalizedPhone });
+    }
+  }
+
+  /**
+   * Fallback: открыть чат через глобальный поиск по номеру (если tgaddr не сработал).
+   */
+  private async tryOpenChatViaGlobalSearch(page: Page, normalizedPhone: string): Promise<boolean> {
+    const searchQuery = normalizedPhone.startsWith('+') ? normalizedPhone : `+${normalizedPhone}`;
+    try {
+      await page.bringToFront();
+      await page.keyboard.down('Control');
+      await page.keyboard.press('KeyK');
+      await page.keyboard.up('Control');
+      await this.delay(500);
+    } catch {
+      /* ignore */
+    }
+
+    try {
+      const clicked = await page.evaluate(() => {
+        const candidates = Array.from(
+          document.querySelectorAll<HTMLElement>('.input-field-input[placeholder*="Search"], .input-field-input[placeholder*="Поиск"], .input-field-input[placeholder*="search"]')
+        );
+        for (const el of candidates) {
+          const style = window.getComputedStyle(el);
+          if (el.offsetParent !== null && style.display !== 'none' && style.visibility !== 'hidden') {
+            el.focus();
+            el.click();
+            return true;
+          }
+        }
+        // Любой видимый input в области поиска
+        const any = document.querySelector<HTMLElement>('.input-search-input, .input-search .input-field-input');
+        if (any) {
+          const style = window.getComputedStyle(any);
+          if (any.offsetParent !== null && style.display !== 'none') {
+            any.focus();
+            any.click();
+            return true;
+          }
+        }
+        return false;
+      });
+
+      if (!clicked) {
+        logger.debug('Telegram search: could not focus search input');
+        return false;
+      }
+
+      await this.delay(200);
+      await page.keyboard.down('Control');
+      await page.keyboard.press('KeyA');
+      await page.keyboard.up('Control');
+      await page.keyboard.press('Backspace');
+      await page.keyboard.type(searchQuery, { delay: 35 });
+      await this.delay(1800);
+
+      const clickedFirst = await page.evaluate(() => {
+        const row = document.querySelector<HTMLElement>('.chatlist-chat, .search-group .chatlist-chat, .search-super .chatlist-chat');
+        if (row) {
+          row.click();
+          return true;
+        }
+        return false;
+      });
+
+      if (!clickedFirst) {
+        await page.keyboard.press('Enter');
+      }
+
+      await this.delay(2200);
+
+      return await page.evaluate(() => {
+        return (
+          document.querySelector(
+            '.input-message-input[contenteditable="true"]:not(.input-field-input-fake)'
+          ) !== null
+        );
+      });
+    } catch (err) {
+      logger.warn('Telegram global search fallback error', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return false;
     }
   }
 
@@ -637,7 +760,9 @@ export class TelegramSender {
         cachedPhone !== null &&
         cachedPhone !== normalizedPhone;
 
-      if (isSwitchingContact) {
+      // Полный сброс на /k/ может мешать открытию чата по tgaddr (SPA уже загружена, hash не обрабатывается).
+      // Включите TELEGRAM_RESET_SPA_ON_SWITCH=1 только если снова появится «залипание» старого чата в DOM.
+      if (isSwitchingContact && process.env.TELEGRAM_RESET_SPA_ON_SWITCH === '1') {
         logger.debug('Switching Telegram contact: resetting Web app (base URL) before opening new phone', {
           profileId,
           from: cachedPhone,
@@ -703,7 +828,7 @@ export class TelegramSender {
       await this.delay(200);
 
       // Deep-link на чат: networkidle + ожидание поля; при «залипании» — location.assign / reload
-      await this.navigateToChatResolveUrl(page, chatUrl);
+      await this.navigateToChatResolveUrl(page, chatUrl, normalizedPhone);
       
       // ВАЖНО: После навигации даём время на редирект username / дорисовку
       await this.delay(400);
@@ -2133,9 +2258,22 @@ export class TelegramSender {
         }
       }
       
-      // Вводим текст через keyboard.type для правильной обработки мульти-шаблонов
-      // Это гарантирует, что переносы строк обрабатываются правильно
-      await page.keyboard.type(text, { delay: 30 });
+      // ВАЖНО: \n в keyboard.type() воспринимается как Enter и может отправить сообщение раньше времени.
+      // Для Telegram вставляем переносы через Shift+Enter, чтобы сохранить текст одним сообщением.
+      const normalizedText = text.replace(/\r\n/g, '\n');
+      const lines = normalizedText.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? '';
+        if (line.length > 0) {
+          await page.keyboard.type(line, { delay: 30 });
+        }
+        if (i < lines.length - 1) {
+          await page.keyboard.down('Shift');
+          await page.keyboard.press('Enter');
+          await page.keyboard.up('Shift');
+          await this.delay(40);
+        }
+      }
       
       // Небольшая задержка для обработки
       await this.delay(200);
