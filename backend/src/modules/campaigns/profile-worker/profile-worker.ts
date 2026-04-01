@@ -250,9 +250,15 @@ export class ProfileWorker {
               break;
             }
 
-            // В универсальном режиме фиксируем фактически выбранный мессенджер
-            // и отправляем остальные части туда же.
-            if (!selectedMessenger && partResult.messenger) {
+            // В универсальных fallback-режимах (WHATSAPP_FIRST / TELEGRAM_FIRST)
+            // фиксируем фактически сработавший мессенджер для следующих частей.
+            // В режиме BOTH фиксировать НЕЛЬЗЯ — каждая часть должна уходить в оба мессенджера.
+            const shouldPinResolvedMessenger =
+              !selectedMessenger &&
+              partResult.messenger !== null &&
+              this.universalTarget !== 'BOTH';
+
+            if (shouldPinResolvedMessenger) {
               selectedMessenger = partResult.messenger;
             }
 
