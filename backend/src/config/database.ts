@@ -28,7 +28,7 @@ const prisma = new PrismaClient({
 // Логирование всех SQL запросов для отладки
 // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
 prisma.$on('query', (e: { query: string; params: string; duration: number }) => {
-  logger.debug({
+  logger.debug('Prisma query', {
     query: e.query,
     params: e.params,
     duration: `${e.duration}ms`,
