@@ -52,7 +52,7 @@ export type MessengerType = 'WHATSAPP' | 'TELEGRAM';
 /**
  * Целевой мессенджер для Universal-режима
  */
-export type UniversalTarget = 'BOTH' | 'WHATSAPP_FIRST' | 'TELEGRAM_FIRST';
+export type UniversalTarget = 'WHATSAPP_FIRST' | 'TELEGRAM_FIRST';
 
 /**
  * Уровень логирования
@@ -792,7 +792,6 @@ export const MESSENGER_TARGET_LABELS: Record<MessengerTarget, string> = {
  * Метки универсальных целей
  */
 export const UNIVERSAL_TARGET_LABELS: Record<UniversalTarget, string> = {
-  BOTH: 'Оба мессенджера',
   WHATSAPP_FIRST: 'Сначала WhatsApp',
   TELEGRAM_FIRST: 'Сначала Telegram',
 };

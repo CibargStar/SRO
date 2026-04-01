@@ -69,6 +69,17 @@ interface CampaignFormData {
   optionsConfig?: OptionsConfig;
 }
 
+function normalizeTemplateTarget(raw: unknown): UniversalTarget | MessengerTarget {
+  if (raw === 'WHATSAPP_ONLY' || raw === 'TELEGRAM_ONLY' || raw === 'UNIVERSAL') {
+    return raw;
+  }
+  // Legacy/alternate values from older payloads
+  if (raw === 'WHATSAPP') return 'WHATSAPP_ONLY';
+  if (raw === 'TELEGRAM') return 'TELEGRAM_ONLY';
+  if (raw === 'BOTH') return 'UNIVERSAL';
+  return 'UNIVERSAL';
+}
+
 export function CreateCampaignPage() {
   const navigate = useNavigate();
   const [activeStep, setActiveStep] = useState(0);
@@ -125,12 +136,17 @@ export function CreateCampaignPage() {
     const messengerType = watchedValues.messengerType;
     
     return templatesData.data.filter(template => {
+      const templateTarget = normalizeTemplateTarget(
+        (template as unknown as { messengerTarget?: unknown; messengerType?: unknown }).messengerTarget ??
+        (template as unknown as { messengerTarget?: unknown; messengerType?: unknown }).messengerType
+      );
+
       if (messengerType === 'UNIVERSAL') return true;
       if (messengerType === 'WHATSAPP_ONLY') {
-        return template.messengerTarget === 'WHATSAPP_ONLY' || template.messengerTarget === 'UNIVERSAL';
+        return templateTarget === 'WHATSAPP_ONLY' || templateTarget === 'UNIVERSAL';
       }
       if (messengerType === 'TELEGRAM_ONLY') {
-        return template.messengerTarget === 'TELEGRAM_ONLY' || template.messengerTarget === 'UNIVERSAL';
+        return templateTarget === 'TELEGRAM_ONLY' || templateTarget === 'UNIVERSAL';
       }
       return true;
     });

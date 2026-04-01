@@ -18,7 +18,6 @@ export function UniversalTargetSelector({ value, onChange }: UniversalTargetSele
       >
         <MenuItem value="WHATSAPP_FIRST">{UNIVERSAL_TARGET_LABELS.WHATSAPP_FIRST}</MenuItem>
         <MenuItem value="TELEGRAM_FIRST">{UNIVERSAL_TARGET_LABELS.TELEGRAM_FIRST}</MenuItem>
-        <MenuItem value="BOTH">{UNIVERSAL_TARGET_LABELS.BOTH}</MenuItem>
       </Select>
       <FormHelperText>Определяет приоритет отправки для универсальных кампаний</FormHelperText>
     </FormControl>

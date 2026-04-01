@@ -133,6 +133,34 @@ export class CampaignsService {
     };
   }
 
+  private validateTemplateMessengerCompatibility(
+    campaignMessengerType: 'WHATSAPP_ONLY' | 'TELEGRAM_ONLY' | 'UNIVERSAL',
+    templates: Array<{ id: string; name: string; messengerType: 'WHATSAPP_ONLY' | 'TELEGRAM_ONLY' | 'UNIVERSAL' }>
+  ): void {
+    if (campaignMessengerType === 'UNIVERSAL') {
+      return;
+    }
+
+    const incompatible = templates.filter((t) => {
+      if (t.messengerType === 'UNIVERSAL') {
+        return false;
+      }
+      if (campaignMessengerType === 'WHATSAPP_ONLY') {
+        return t.messengerType !== 'WHATSAPP_ONLY';
+      }
+      return t.messengerType !== 'TELEGRAM_ONLY';
+    });
+
+    if (incompatible.length > 0) {
+      const names = incompatible.map((t) => t.name).join(', ');
+      throw new HttpError(
+        `Шаблоны не совместимы с выбранным типом кампании: ${names}`,
+        400,
+        'TEMPLATE_MESSENGER_MISMATCH'
+      );
+    }
+  }
+
   // ============================================
   // CRUD Operations
   // ============================================
@@ -167,6 +195,15 @@ export class CampaignsService {
         'TEMPLATE_INACTIVE'
       );
     }
+
+    this.validateTemplateMessengerCompatibility(
+      input.messengerType,
+      templates.map((t) => ({
+        id: t.id,
+        name: t.name,
+        messengerType: t.messengerType,
+      }))
+    );
 
     // Проверка существования группы клиентов
     const clientGroup = await this.prisma.clientGroup.findFirst({
@@ -334,6 +371,43 @@ export class CampaignsService {
           'TEMPLATE_INACTIVE'
         );
       }
+
+      const targetMessengerType = input.messengerType ?? campaign.messengerType;
+      this.validateTemplateMessengerCompatibility(
+        targetMessengerType,
+        templates.map((t) => ({
+          id: t.id,
+          name: t.name,
+          messengerType: t.messengerType,
+        }))
+      );
+    }
+
+    // Если меняется тип мессенджера без смены templateIds —
+    // проверяем совместимость уже привязанных к кампании шаблонов.
+    if ((!input.templateIds || input.templateIds.length === 0) && input.messengerType) {
+      const currentCampaignTemplates = await this.prisma.campaignTemplate.findMany({
+        where: { campaignId },
+        include: {
+          template: {
+            select: {
+              id: true,
+              name: true,
+              messengerType: true,
+            },
+          },
+        },
+      });
+
+      const templatesForValidation = currentCampaignTemplates.map((ct) => ct.template);
+      this.validateTemplateMessengerCompatibility(
+        input.messengerType,
+        templatesForValidation.map((t) => ({
+          id: t.id,
+          name: t.name,
+          messengerType: t.messengerType,
+        }))
+      );
     }
 
     // Проверка группы если меняется
