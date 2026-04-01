@@ -444,6 +444,8 @@ export class ProfileWorker {
           };
         }
 
+        await this.updatePhoneStatusByError(input.phoneId, sendResult.messenger, sendResult.error);
+
         return {
           messageId: input.messageId,
           status: 'FAILED',
@@ -475,6 +477,8 @@ export class ProfileWorker {
         tried.push({ messenger, result: res });
         if (res.success) {
           await this.updatePhoneStatus(input.phoneId, messenger);
+        } else {
+          await this.updatePhoneStatusByError(input.phoneId, messenger, res.error);
         }
         return res;
       };
@@ -566,6 +570,54 @@ export class ProfileWorker {
         data: { telegramStatus: 'Valid' },
       });
     }
+  }
+
+  private async updatePhoneStatusByError(
+    phoneId: string | null,
+    messenger: MessengerType | null,
+    errorMessage?: string
+  ): Promise<void> {
+    if (!phoneId || !messenger || !errorMessage) {
+      return;
+    }
+
+    const normalized = errorMessage.toLowerCase();
+
+    const isWhatsAppInvalid =
+      messenger === 'WHATSAPP' &&
+      (
+        normalized.includes('invalid phone number') ||
+        normalized.includes('contact not found in whatsapp') ||
+        normalized.includes('not registered in whatsapp')
+      );
+
+    const isTelegramUndeliverable =
+      messenger === 'TELEGRAM' &&
+      (
+        normalized.includes('user_not_found') ||
+        normalized.includes("doesn't seem to exist") ||
+        normalized.includes('пользователь не найден') ||
+        normalized.includes('premium_restriction') ||
+        normalized.includes('only premium users can message') ||
+        normalized.includes('принимает сообщения только от premium')
+      );
+
+    if (!isWhatsAppInvalid && !isTelegramUndeliverable) {
+      return;
+    }
+
+    if (messenger === 'WHATSAPP') {
+      await prisma.clientPhone.update({
+        where: { id: phoneId },
+        data: { whatsAppStatus: 'Invalid' },
+      });
+      return;
+    }
+
+    await prisma.clientPhone.update({
+      where: { id: phoneId },
+      data: { telegramStatus: 'Invalid' },
+    });
   }
 
   private async applyMessageDelay(): Promise<void> {

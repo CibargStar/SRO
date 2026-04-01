@@ -181,56 +181,18 @@ export class TelegramSender {
   }
 
   /**
-   * Переход по deep-link чата (?tgaddr=resolve?phone=...): hash → полный goto → assign → поиск.
+   * Переход по deep-link чата (?tgaddr=resolve?phone=...) без fallback через поиск.
    */
-  private async navigateToChatResolveUrl(page: Page, chatUrl: string, normalizedPhone: string): Promise<void> {
-    const hasRealInput = async (): Promise<boolean> => {
-      return await page.evaluate(() => {
-        return (
-          document.querySelector(
-            '.input-message-input[contenteditable="true"]:not(.input-field-input-fake)'
-          ) !== null
-        );
-      });
-    };
-
+  private async navigateToChatResolveUrl(page: Page, chatUrl: string): Promise<void> {
     const gotoChat = async (waitUntil: 'networkidle0' | 'load' | 'domcontentloaded'): Promise<void> => {
       await page.goto(chatUrl, { waitUntil, timeout: 50000 });
     };
 
-    // 1) Уже на Telegram Web K — сначала только меняем hash (роутер SPA открывает чат без полной перезагрузки)
-    try {
-      const cur = page.url();
-      if (cur.includes('web.telegram.org/k')) {
-        await page.evaluate((phone) => {
-          const q = encodeURIComponent(`tg://resolve?phone=${phone}`);
-          window.location.hash = `?tgaddr=${q}`;
-        }, normalizedPhone);
-        await this.delay(900);
-        try {
-          await page.waitForFunction(
-            () =>
-              document.querySelector(
-                '.input-message-input[contenteditable="true"]:not(.input-field-input-fake)'
-              ) !== null,
-            { timeout: 18000, polling: 250 }
-          );
-        } catch {
-          /* ниже — полный goto */
-        }
-        if (await hasRealInput()) {
-          logger.debug('Telegram: chat opened via hash-only navigation', { phone: normalizedPhone });
-          return;
-        }
-      }
-    } catch {
-      /* fallback goto */
-    }
-
+    // Открываем чат только через deep-link. Никакого fallback через поиск.
     try {
       await gotoChat('networkidle0');
     } catch {
-      logger.debug('telegram: chatUrl networkidle0 failed, trying load');
+      logger.debug('Telegram chatUrl networkidle0 failed, trying load');
       try {
         await gotoChat('load');
       } catch {
@@ -238,164 +200,27 @@ export class TelegramSender {
       }
     }
 
-    await this.delay(600);
+    await this.delay(500);
 
-    if (await hasRealInput()) {
-      return;
+    // Быстрый фейл для несуществующего пользователя / premium до длительных ожиданий.
+    if (await this.quickCheckUserNotFound(page)) {
+      throw new Error('USER_NOT_FOUND: Sorry, this user doesn\'t seem to exist');
+    }
+    if (await this.checkPremiumRestriction(page)) {
+      throw new Error('PREMIUM_RESTRICTION: Only Premium users can message this user');
     }
 
-    // URL в строке есть, а чат не открылся — часто SPA не успела обработать tgaddr
-    try {
-      await page.waitForFunction(
-        () =>
-          document.querySelector(
-            '.input-message-input[contenteditable="true"]:not(.input-field-input-fake)'
-          ) !== null,
-        { timeout: 12000, polling: 300 }
-      );
-      return;
-    } catch {
-      logger.warn('Telegram: chat input not appeared after goto, forcing location.assign');
-    }
-
-    await page.evaluate((url) => {
-      window.location.assign(url);
-    }, chatUrl);
-
-    await this.delay(1200);
-
-    try {
-      await page.waitForFunction(
-        () =>
-          document.querySelector(
-            '.input-message-input[contenteditable="true"]:not(.input-field-input-fake)'
-          ) !== null,
-        { timeout: 20000, polling: 300 }
-      );
-    } catch {
-      logger.warn('Telegram: input still missing after assign, trying reload + goto');
+    // Иногда Telegram не дорисовывает чат с первого раза — делаем один контролируемый повтор.
+    const hasInput = await page.evaluate(() =>
+      document.querySelector('.input-message-input[contenteditable="true"]:not(.input-field-input-fake)') !== null
+    ).catch(() => false);
+    if (!hasInput) {
       await page.reload({ waitUntil: 'domcontentloaded', timeout: 35000 }).catch(() => undefined);
-      await this.delay(800);
-      try {
-        await gotoChat('networkidle0');
-      } catch {
-        await gotoChat('domcontentloaded');
-      }
-      await this.delay(1000);
+      await this.delay(700);
+      await gotoChat('domcontentloaded');
+      await this.delay(700);
     }
 
-    if (await hasRealInput()) {
-      return;
-    }
-
-    logger.warn('Telegram: trying global search fallback to open chat', { phone: normalizedPhone });
-    const searchOk = await this.tryOpenChatViaGlobalSearch(page, normalizedPhone);
-    if (!searchOk) {
-      // Если чат через поиск не открылся, сразу проверяем USER_NOT_FOUND,
-      // чтобы не уходить в долгие повторы ожидания/ретраи.
-      const userNotFound = await this.quickCheckUserNotFound(page);
-      if (userNotFound) {
-        throw new Error('USER_NOT_FOUND: Sorry, this user doesn\'t seem to exist');
-      }
-      logger.warn('Telegram: global search fallback did not open chat', { phone: normalizedPhone });
-    }
-  }
-
-  /**
-   * Fallback: открыть чат через глобальный поиск по номеру (если tgaddr не сработал).
-   */
-  private async tryOpenChatViaGlobalSearch(page: Page, normalizedPhone: string): Promise<boolean> {
-    const searchQuery = normalizedPhone.startsWith('+') ? normalizedPhone : `+${normalizedPhone}`;
-    try {
-      await page.bringToFront();
-      await page.keyboard.down('Control');
-      await page.keyboard.press('KeyK');
-      await page.keyboard.up('Control');
-      await this.delay(500);
-    } catch {
-      /* ignore */
-    }
-
-    try {
-      const clicked = await page.evaluate(() => {
-        const candidates = Array.from(
-          document.querySelectorAll<HTMLElement>('.input-field-input[placeholder*="Search"], .input-field-input[placeholder*="Поиск"], .input-field-input[placeholder*="search"]')
-        );
-        for (const el of candidates) {
-          const style = window.getComputedStyle(el);
-          if (el.offsetParent !== null && style.display !== 'none' && style.visibility !== 'hidden') {
-            el.focus();
-            el.click();
-            return true;
-          }
-        }
-        // Любой видимый input в области поиска
-        const any = document.querySelector<HTMLElement>('.input-search-input, .input-search .input-field-input');
-        if (any) {
-          const style = window.getComputedStyle(any);
-          if (any.offsetParent !== null && style.display !== 'none') {
-            any.focus();
-            any.click();
-            return true;
-          }
-        }
-        return false;
-      });
-
-      if (!clicked) {
-        logger.debug('Telegram search: could not focus search input');
-        return false;
-      }
-
-      await this.delay(200);
-      await page.keyboard.down('Control');
-      await page.keyboard.press('KeyA');
-      await page.keyboard.up('Control');
-      await page.keyboard.press('Backspace');
-      await page.keyboard.type(searchQuery, { delay: 35 });
-      await this.delay(1800);
-
-      // Быстрая проверка после ввода запроса: Telegram может сразу показать "user doesn't exist".
-      if (await this.quickCheckUserNotFound(page)) {
-        throw new Error('USER_NOT_FOUND: Sorry, this user doesn\'t seem to exist');
-      }
-
-      const clickedFirst = await page.evaluate(() => {
-        const row = document.querySelector<HTMLElement>('.chatlist-chat, .search-group .chatlist-chat, .search-super .chatlist-chat');
-        if (row) {
-          row.click();
-          return true;
-        }
-        return false;
-      });
-
-      if (!clickedFirst) {
-        await page.keyboard.press('Enter');
-      }
-
-      await this.delay(2200);
-
-      // Повторная проверка после Enter/клика результата.
-      if (await this.quickCheckUserNotFound(page)) {
-        throw new Error('USER_NOT_FOUND: Sorry, this user doesn\'t seem to exist');
-      }
-
-      return await page.evaluate(() => {
-        return (
-          document.querySelector(
-            '.input-message-input[contenteditable="true"]:not(.input-field-input-fake)'
-          ) !== null
-        );
-      });
-    } catch (err) {
-      if (err instanceof Error && err.message.includes('USER_NOT_FOUND')) {
-        throw err;
-      }
-      logger.warn('Telegram global search fallback error', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      return false;
-    }
   }
 
   /**
@@ -687,7 +512,6 @@ export class TelegramSender {
    */
   private async openChatInternal(page: Page, normalizedPhone: string, profileId?: string): Promise<void> {
     try {
-      // Проверяем, что страница не закрыта
       if (page.isClosed()) {
         if (profileId) {
           this.currentOpenChat.delete(profileId);
@@ -696,896 +520,103 @@ export class TelegramSender {
         throw new Error('Page is closed');
       }
 
-      // ВАЖНО: Надежная логика сброса кеша при переключении между контактами или мессенджерами
-      // Проверяем, нужно ли открывать новый чат
       const cachedPhone = profileId ? this.currentOpenChat.get(profileId) : null;
-      
+
+      // Если нужный чат уже активен — не перезагружаем.
       if (cachedPhone === normalizedPhone) {
-        // Кеш соответствует текущему номеру - проверяем, что чат действительно открыт и активен
-        // ВАЖНО: Всегда ищем поле заново, не используем кэшированное
         const inputField = await this.findMessageInput(page);
         if (inputField) {
-          // Дополнительная проверка: убеждаемся, что поле в активном контейнере
-          const isActive = await page.evaluate((el) => {
+          const isVisible = await page.evaluate((el) => {
             const htmlEl = el as HTMLElement;
             if (!htmlEl) { return false; }
-            
-            // Проверяем видимость
             const style = window.getComputedStyle(htmlEl);
-            if (htmlEl.offsetParent === null || 
-                style.display === 'none' || 
-                style.visibility === 'hidden') {
-              return false;
-            }
-            
-            // Проверяем, что поле в активном контейнере
-            const wrapper = htmlEl.closest('.new-message-wrapper');
-            if (!wrapper) { return false; }
-            
-            const wrapperStyle = window.getComputedStyle(wrapper as HTMLElement);
-            return (wrapper as HTMLElement).offsetParent !== null && 
-                   wrapperStyle.display !== 'none' && 
-                   wrapperStyle.visibility !== 'hidden';
+            return htmlEl.offsetParent !== null && style.display !== 'none' && style.visibility !== 'hidden';
           }, inputField).catch(() => false);
-          
-          if (isActive) {
+          if (isVisible) {
             logger.debug('Chat already open and active, reusing', { phone: normalizedPhone, profileId });
-            // Убеждаемся, что страница активна
             await page.bringToFront();
             await this.delay(200);
             return;
           }
         }
-        // Чат не активен или поле не найдено - сбрасываем кэш и открываем заново
-        logger.debug('Cached chat invalid or inactive, reopening', { phone: normalizedPhone, profileId });
-        if (profileId) {
-          this.currentOpenChat.delete(profileId);
-          this.expectedPeerId.delete(profileId);
-        }
-      } else {
-        // Открываем новый чат - ВСЕГДА сбрасываем кэш старого чата
-        // Это происходит при переключении между контактами или мессенджерами
-        if (profileId) {
-          if (cachedPhone) {
-            logger.debug('Switching to new chat, clearing old cache', { 
-              profileId,
-              oldPhone: cachedPhone, 
-              newPhone: normalizedPhone 
-            });
-          } else {
-            logger.debug('Opening first chat for profile, clearing any stale cache', { 
-              profileId,
-              newPhone: normalizedPhone 
-            });
-          }
-          // ВАЖНО: Всегда сбрасываем кеш при открытии нового контакта
-          // Это гарантирует чистый старт, особенно после переключения с WhatsApp
-          this.currentOpenChat.delete(profileId);
-          this.expectedPeerId.delete(profileId);
-        }
       }
 
-      // КРИТИЧЕСКИ ВАЖНО: Очищаем expectedPeerId при открытии нового контакта
-      // expectedPeerId должен быть установлен только после успешного открытия чата
-      // и использоваться только для текущего контакта
+      // Сбрасываем кэш и открываем чат по ссылке.
       if (profileId) {
+        this.currentOpenChat.delete(profileId);
         this.expectedPeerId.delete(profileId);
       }
 
-      // Смена контакта: полный сброс SPA (как у WhatsApp — новый goto), иначе в DOM остаётся старое поле
-      // и цикл ждёт «новый» peer-id, отбрасывая единственное видимое поле из‑за !isActive → спам в логах.
-      const isSwitchingContact =
-        Boolean(profileId) &&
+      // Опциональный жёсткий SPA reset для сложных кейсов переключения чатов.
+      if (
         cachedPhone !== null &&
-        cachedPhone !== normalizedPhone;
-
-      // Полный сброс на /k/ может мешать открытию чата по tgaddr (SPA уже загружена, hash не обрабатывается).
-      // Включите TELEGRAM_RESET_SPA_ON_SWITCH=1 только если снова появится «залипание» старого чата в DOM.
-      if (isSwitchingContact && process.env.TELEGRAM_RESET_SPA_ON_SWITCH === '1') {
-        logger.debug('Switching Telegram contact: resetting Web app (base URL) before opening new phone', {
-          profileId,
-          from: cachedPhone,
-          to: normalizedPhone,
-        });
+        cachedPhone !== normalizedPhone &&
+        process.env.TELEGRAM_RESET_SPA_ON_SWITCH === '1'
+      ) {
         await this.resetTelegramWebPage(page);
       }
-      
-      // URL для открытия чата напрямую
+
       const chatUrl = `https://web.telegram.org/k/#?tgaddr=tg%3A%2F%2Fresolve%3Fphone%3D${normalizedPhone}`;
-      
       logger.debug('Opening chat', { phone: normalizedPhone, chatUrl, profileId });
 
-      // Убеждаемся, что страница активна перед переходом
       await page.bringToFront();
-      
-      // ВАЖНО: После переключения с другого мессенджера (WhatsApp) даем время на стабилизацию
-      // Не проверяем URL, так как он может автоматически заменяться на username
-      await this.delay(300);
+      await this.delay(250);
+      await this.navigateToChatResolveUrl(page, chatUrl);
+      const maxWaitMs = 20000;
+      const checkIntervalMs = 300;
+      const errorCheckIntervalMs = 1200;
+      const start = Date.now();
+      let lastErrorCheckAt = -errorCheckIntervalMs;
+      let activationField: import('puppeteer').ElementHandle<Element> | null = null;
 
-      // ВАЖНО: Сохраняем data-peer-id старого поля ввода (если есть) для проверки
-      // НО: очищаем его если открываем тот же контакт (чтобы не блокировать поиск)
-      const oldPeerIdInfo = await page.evaluate((): { found: boolean; peerId: string | null; isVisible: boolean } => {
-        const oldInput = document.querySelector('.input-message-input[contenteditable="true"]:not(.input-field-input-fake)');
-        if (oldInput) {
-          const htmlEl = oldInput as HTMLElement;
-          const peerId = htmlEl.getAttribute('data-peer-id');
-          const isVisible = htmlEl.offsetParent !== null;
-          // Явно удаляем фокус со старого поля ПЕРЕД переходом
-          htmlEl?.blur();
-          return { found: true, peerId, isVisible };
-        }
-        return { found: false, peerId: null, isVisible: false };
-      }).catch(() => ({ found: false, peerId: null, isVisible: false }));
-      
-      // ВАЖНО: Если открываем тот же контакт, не используем oldPeerId для блокировки
-      // (peer-id может совпадать, и мы должны использовать существующее поле)
-      let oldPeerId: string | null = null;
-      if (oldPeerIdInfo.found && oldPeerIdInfo.peerId) {
-        // Проверяем, не открываем ли мы тот же контакт
-        const isSameContact = cachedPhone === normalizedPhone;
-        if (!isSameContact) {
-          // Только если это другой контакт, используем oldPeerId для фильтрации
-          oldPeerId = oldPeerIdInfo.peerId;
-        } else {
-          // Если тот же контакт, очищаем oldPeerId - будем использовать существующее поле
-          logger.debug('Opening same contact, will reuse existing input field', { phone: normalizedPhone });
-        }
-      }
-
-      logger.debug('Old chat peer-id before navigation', { oldPeerId, newPhone: normalizedPhone });
-
-      // ВАЖНО: Явно удаляем фокус с активного элемента ПЕРЕД переходом
-      await page.evaluate(() => {
-        const activeEl = document.activeElement;
-        if (activeEl && activeEl instanceof HTMLElement) {
-          activeEl.blur();
-        }
-      }).catch(() => {
-        logger.debug('Could not blur active element before navigation');
-      });
-      
-      await this.delay(200);
-
-      // Deep-link на чат: networkidle + ожидание поля; при «залипании» — location.assign / reload
-      await this.navigateToChatResolveUrl(page, chatUrl, normalizedPhone);
-      
-      // ВАЖНО: После навигации даём время на редирект username / дорисовку
-      await this.delay(400);
-      
-      // КРИТИЧЕСКИ ВАЖНО: Проверяем ошибку USER_NOT_FOUND сразу после page.goto()
-      // Ошибка может появиться сразу, не нужно ждать окончания ожидания поля ввода
-      const userNotFoundEarly = await this.quickCheckUserNotFound(page);
-      if (userNotFoundEarly) {
-        logger.warn('User not found error detected immediately after page.goto()', { 
-          phone: normalizedPhone, 
-          profileId 
-        });
-        if (profileId) {
-          this.currentOpenChat.delete(profileId);
-          this.expectedPeerId.delete(profileId);
-        }
-        throw new Error('USER_NOT_FOUND: Sorry, this user doesn\'t seem to exist');
-      }
-      
-      // Проверяем, что URL содержит нужный номер или поле ввода появилось
-      // Если URL изменился неправильно, пробуем еще раз
-      const urlCheck = await page.evaluate((expectedPhone) => {
-        const url = window.location.href;
-        // URL должен содержать номер телефона в tgaddr или быть валидным чатом
-        const hasPhoneInUrl = url.includes(`phone%3D${expectedPhone}`) || url.includes(`phone=${expectedPhone}`);
-        // Или проверяем наличие поля ввода
-        const hasInputField = document.querySelector('.input-message-input[contenteditable="true"]:not(.input-field-input-fake)') !== null;
-        return { url, hasPhoneInUrl, hasInputField };
-      }, normalizedPhone).catch(() => ({ url: 'unknown', hasPhoneInUrl: false, hasInputField: false }));
-      
-      // Если URL не содержит номер и поле ввода нет, пробуем еще раз с большей задержкой
-      if (!urlCheck.hasPhoneInUrl && !urlCheck.hasInputField) {
-        logger.warn('URL changed or input field not found after goto, retrying', { 
-          url: urlCheck.url, 
-          expectedPhone: normalizedPhone 
-        });
-        
-        // Пробуем еще раз перейти на URL, но с ожиданием стабилизации
-        try {
-          // Очищаем текущее состояние - перезагружаем страницу
-          await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
-          await this.delay(1000);
-          
-          // Теперь переходим на нужный чат
-          await page.goto(chatUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-          await this.delay(2000); // Увеличенная задержка для стабилизации
-          
-          // Проверяем еще раз
-          const retryCheck = await page.evaluate((expectedPhone) => {
-            const url = window.location.href;
-            const hasPhoneInUrl = url.includes(`phone%3D${expectedPhone}`) || url.includes(`phone=${expectedPhone}`);
-            const hasInputField = document.querySelector('.input-message-input[contenteditable="true"]:not(.input-field-input-fake)') !== null;
-            return { url, hasPhoneInUrl, hasInputField };
-          }, normalizedPhone).catch(() => ({ url: 'unknown', hasPhoneInUrl: false, hasInputField: false }));
-          
-          if (!retryCheck.hasInputField) {
-            logger.warn('Input field still not found after retry', { url: retryCheck.url });
-          }
-        } catch (err) {
-          logger.debug('Retry goto failed', { error: err instanceof Error ? err.message : 'unknown' });
-        }
-      }
-
-      // ВАЖНО: После перехода очищаем фокус со старого поля
-      // НЕ ждем исчезновения старого поля - новое может появиться быстро, и мы найдем его по wrapper
-      if (oldPeerId) {
-        logger.debug('Clearing focus from old input field after navigation', { oldPeerId });
-        
-        // Явно удаляем фокус со старого поля
-        await page.evaluate((oldId) => {
-          const oldInput = document.querySelector(`.input-message-input[data-peer-id="${oldId}"]`) as HTMLElement;
-          if (oldInput) {
-            oldInput.blur();
-          }
-          // Убеждаемся, что активный элемент не старое поле
-          const activeEl = document.activeElement;
-          if (activeEl && activeEl instanceof HTMLElement && activeEl.getAttribute('data-peer-id') === oldId) {
-            activeEl.blur();
-          }
-        }, oldPeerId).catch(() => {
-          logger.debug('Could not blur old input field after navigation (may already be gone)');
-        });
-        
-        // Небольшая задержка для стабилизации DOM
-        await this.delay(300);
-      }
-      
-      await this.delay(300);
-
-      // ВАЖНО: Сначала ждем появления контейнера new-message-wrapper ИЛИ поля ввода
-      // Это более надежный индикатор того, что чат загрузился
-      logger.debug('Waiting for new-message-wrapper container or input field to appear');
-      
-      // Ждем появления wrapper ИЛИ поля ввода (более надежно)
-      // Используем Promise.race чтобы дождаться любого из них
-      let wrapperOrInputAppeared: string | null = null;
-      try {
-        wrapperOrInputAppeared = await Promise.race([
-          page.waitForSelector('.new-message-wrapper', { timeout: 10000, visible: true }).then(() => 'wrapper'),
-          page.waitForSelector('.input-message-input[contenteditable="true"]:not(.input-field-input-fake)', { timeout: 10000, visible: true }).then(() => 'input'),
-        ]);
-      } catch {
-        // Если оба не появились, продолжаем
-        logger.warn('Neither wrapper nor input field appeared after goto, but continuing');
-      }
-      
-      if (wrapperOrInputAppeared) {
-        logger.debug('Wrapper or input field appeared', { type: wrapperOrInputAppeared });
-      }
-      
-      await this.delay(500); // Дополнительная задержка для стабилизации
-      
-      // Ждём появления НОВОГО поля ввода или ошибки
-      const maxWaitTime = 20000; // Увеличено с 15 до 20 секунд
-      const checkInterval = 300;
-      const startTime = Date.now();
-      
-      let inputFound = false;
-      let errorDetected: string | null = null;
-      let newPeerId: string | null = null;
-
-      // КРИТИЧЕСКИ ВАЖНО: Не используем expectedPeerId из кэша для нового контакта
-      // expectedPeerId должен быть установлен только после успешного открытия чата
-      // и использоваться только для проверки правильности активного элемента
-      // Для нового контакта мы ищем поле с peer-id, отличным от oldPeerId
-      
-      while (Date.now() - startTime < maxWaitTime) {
-        // Прямой поиск поля ввода через page.evaluate (более надежно, чем findMessageInput)
-        const inputInfo = await page.evaluate((oldId, elapsedMs): {
-          peerId: string | null;
-          isOld: boolean;
-          isVisible: boolean;
-          hasWrapper: boolean;
-          wrapperVisible: boolean;
-          isFake: boolean;
-          isContentEditable: boolean;
-          found: boolean;
-          allInputsInfo?: Array<{
-            peerId: string | null;
-            isFake: boolean;
-            isVisible: boolean;
-            isContentEditable: boolean;
-            hasWrapper: boolean;
-          }>;
-          debugInfo?: { bestPeerId?: string | null; oldId?: string | null; allInputsCount?: number };
-        } => {
-          // Ищем все поля ввода
-          const allInputs = Array.from(document.querySelectorAll('.input-message-input'));
-          const allInputsInfo: Array<{
-            peerId: string | null;
-            isFake: boolean;
-            isVisible: boolean;
-            isContentEditable: boolean;
-            hasWrapper: boolean;
-          }> = [];
-          
-          let bestInput: HTMLElement | null = null;
-          let bestPeerId: string | null = null;
-          
-          for (const input of allInputs) {
-            const htmlInput = input as HTMLElement;
-            if (!htmlInput) { continue; }
-            
-            const isFake = htmlInput.classList.contains('input-field-input-fake');
-            const isContentEditable = htmlInput.getAttribute('contenteditable') === 'true';
-            const style = window.getComputedStyle(htmlInput);
-            const isVisible = htmlInput.offsetParent !== null && 
-                             style.display !== 'none' && 
-                             style.visibility !== 'hidden';
-            const peerId = htmlInput.getAttribute('data-peer-id');
-            const wrapper = htmlInput.closest('.new-message-wrapper');
-            const hasWrapper = !!wrapper;
-            
-            allInputsInfo.push({
-              peerId,
-              isFake,
-              isVisible,
-              isContentEditable,
-              hasWrapper,
-            });
-            
-            // Пропускаем фейковые поля
-            if (isFake) { continue; }
-            
-            // Пропускаем не contenteditable поля
-            if (!isContentEditable) { continue; }
-            
-            // Пропускаем невидимые поля
-            if (!isVisible) { continue; }
-            
-            // КРИТИЧЕСКИ ВАЖНО: Проверяем, что поле принадлежит активному видимому контейнеру
-            // Старые поля могут остаться в DOM, но их контейнеры скрыты
-            let wrapperVisible = true;
-            if (hasWrapper) {
-              const wrapperStyle = window.getComputedStyle(wrapper as HTMLElement);
-              wrapperVisible = (wrapper as HTMLElement).offsetParent !== null && 
-                             wrapperStyle.display !== 'none' && 
-                             wrapperStyle.visibility !== 'hidden';
-              if (!wrapperVisible) {
-                continue; // Пропускаем поля в скрытых контейнерах
-              }
-            }
-            
-            // Если это старое поле И оно в скрытом контейнере, пропускаем
-            // НО: если поле в видимом контейнере, используем его (даже если peer-id совпадает)
-            // Это важно для случая, когда открываем тот же контакт
-            if (oldId !== null && oldId !== undefined && peerId === oldId) {
-              // Если wrapper видим, это может быть тот же контакт - используем поле
-              if (wrapperVisible) {
-                // Проверяем, что это действительно активное поле (в фокусе или в активном контейнере)
-                const isActive = document.activeElement === htmlInput || 
-                               (wrapper && document.activeElement?.closest('.new-message-wrapper') === wrapper);
-                if (!isActive) {
-                  // После смены чата Telegram часто не ставит фокус сразу, но peer-id уже обновился —
-                  // единственное видимое поле нельзя отбрасывать бесконечно (иначе found: false и спам в логах).
-                  const realVisibleCount = allInputs.filter((inp) => {
-                    const h = inp as HTMLElement;
-                    if (h.classList.contains('input-field-input-fake')) { return false; }
-                    if (h.getAttribute('contenteditable') !== 'true') { return false; }
-                    const st = window.getComputedStyle(h);
-                    return h.offsetParent !== null && st.display !== 'none' && st.visibility !== 'hidden';
-                  }).length;
-                  if (elapsedMs < 4000 && realVisibleCount !== 1) {
-                    continue;
-                  }
-                }
-                // Если активно — или таймаут / единственное поле — используем
-              } else {
-                // Старое поле в скрытом контейнере - пропускаем
-                continue;
-              }
-            }
-            
-          // Нашли подходящее поле
-          if (!bestInput) {
-            bestInput = htmlInput;
-            bestPeerId = peerId;
-          } else {
-            // Если уже есть поле, выбираем то, которое находится в активном контейнере
-            // Активное поле обычно последнее добавленное в DOM (последнее в массиве)
-            // Но также проверяем видимость wrapper
-            const currentWrapper = htmlInput.closest('.new-message-wrapper');
-            const previousWrapper = bestInput.closest('.new-message-wrapper');
-            if (currentWrapper && previousWrapper) {
-              const currentWrapperStyle = window.getComputedStyle(currentWrapper as HTMLElement);
-              const previousWrapperStyle = window.getComputedStyle(previousWrapper as HTMLElement);
-              const currentVisible = (currentWrapper as HTMLElement).offsetParent !== null && 
-                                   currentWrapperStyle.display !== 'none' && 
-                                   currentWrapperStyle.visibility !== 'hidden';
-              const previousVisible = (previousWrapper as HTMLElement).offsetParent !== null && 
-                                    previousWrapperStyle.display !== 'none' && 
-                                    previousWrapperStyle.visibility !== 'hidden';
-              
-              // Предпочитаем поле в видимом контейнере, или последнее, если оба видимы
-              if (currentVisible && !previousVisible) {
-                bestInput = htmlInput;
-                bestPeerId = peerId;
-              } else if (currentVisible && previousVisible) {
-                // Если оба видимы, выбираем последнее (обычно это новое поле)
-                bestInput = htmlInput;
-                bestPeerId = peerId;
-              }
-            }
-          }
-        }
-        
-        if (!bestInput) {
-            return {
-              peerId: null,
-              isOld: false,
-              isVisible: false,
-              hasWrapper: false,
-              wrapperVisible: false,
-              isFake: false,
-              isContentEditable: false,
-              found: false,
-              allInputsInfo,
-              debugInfo: { allInputsCount: allInputs.length, oldId: oldId ?? null },
-            };
-        }
-        
-        // Проверяем видимость и wrapper для найденного поля
-        if (!bestInput) {
-          return {
-            peerId: null,
-            isOld: false,
-            isVisible: false,
-            hasWrapper: false,
-            wrapperVisible: false,
-            isFake: false,
-            isContentEditable: false,
-            found: false,
-            allInputsInfo,
-            debugInfo: { allInputsCount: allInputs.length, oldId: oldId ?? null },
-          };
-        }
-        
-        const style = window.getComputedStyle(bestInput);
-        const isVisible = bestInput.offsetParent !== null && 
-                         style.display !== 'none' && 
-                         style.visibility !== 'hidden';
-        
-        const wrapper = bestInput.closest('.new-message-wrapper');
-        const hasWrapper = !!wrapper;
-          let wrapperVisible = false;
-          
-          if (wrapper) {
-            const wrapperStyle = window.getComputedStyle(wrapper as HTMLElement);
-            wrapperVisible = (wrapper as HTMLElement).offsetParent !== null && 
-                            wrapperStyle.display !== 'none' && 
-                            wrapperStyle.visibility !== 'hidden';
-          }
-          
-          const isOld = oldId !== null && oldId !== undefined && bestPeerId === oldId;
-          
-          return {
-            peerId: bestPeerId,
-            isOld,
-            isVisible,
-            hasWrapper,
-            wrapperVisible,
-            isFake: bestInput.classList.contains('input-field-input-fake'),
-            isContentEditable: bestInput.getAttribute('contenteditable') === 'true',
-            found: true,
-            allInputsInfo,
-            debugInfo: { bestPeerId, oldId: oldId ?? null, allInputsCount: allInputs.length },
-          };
-        }, oldPeerId ?? null, Date.now() - startTime).catch(() => ({ 
-          peerId: null, 
-          isOld: false, 
-          isVisible: false,
-          hasWrapper: false,
-          wrapperVisible: false,
-          isFake: false,
-          isContentEditable: false,
-          found: false,
-          debugInfo: undefined,
-        }));
-        
-        const elapsed = Date.now() - startTime;
-        logger.debug('Input field check result', { 
-          inputInfo, 
-          oldPeerId, 
-          elapsed
-        });
-        
-        // Логируем прогресс поиска
-        if (elapsed % 3000 < checkInterval) {
-          logger.debug('Still searching for message input field', { 
-            elapsed,
-            oldPeerId,
-            maxWaitTime 
-          });
-        }
-
-        // Проверяем ошибки (но не каждую итерацию для экономии времени)
-        // ВАЖНО: Проверяем Premium только если поле ввода не найдено
-        // КРИТИЧЕСКИ ВАЖНО: Проверяем USER_NOT_FOUND раньше и чаще
-        // Проверяем каждый раз через 1.5 секунды (не только после 3 секунд)
-        if (elapsed > 1000 && elapsed % 1500 < checkInterval) {
-          // Быстрая проверка на USER_NOT_FOUND
-          const hasUserNotFound = await this.quickCheckUserNotFound(page);
+      while (Date.now() - start < maxWaitMs) {
+        const elapsedMs = Date.now() - start;
+        if (elapsedMs - lastErrorCheckAt >= errorCheckIntervalMs) {
+          const hasUserNotFound = await this.quickCheckUserNotFound(page) || await this.checkUserNotFound(page);
           if (hasUserNotFound) {
-            errorDetected = 'USER_NOT_FOUND';
-            logger.warn('User not found error detected in waiting loop', { 
-              phone: normalizedPhone, 
-              profileId,
-              elapsed
-            });
-            break;
+            throw new Error('USER_NOT_FOUND: Sorry, this user doesn\'t seem to exist');
           }
-          
-          // Проверка Premium только если поле ввода еще не найдено
-          // Если поле найдено, значит чат открыт и Premium ограничения нет
-          if (!inputFound) {
-            const hasPremiumRestriction = await this.checkPremiumRestriction(page);
-            if (hasPremiumRestriction) {
-              errorDetected = 'PREMIUM_RESTRICTION';
-              break;
-            }
+          if (await this.checkPremiumRestriction(page)) {
+            throw new Error('PREMIUM_RESTRICTION: Only Premium users can message this user');
           }
+          lastErrorCheckAt = elapsedMs;
         }
-        
-        // Если поле не найдено, продолжаем поиск
-        if (!inputInfo.found) {
-          // Логируем детальную информацию о всех найденных полях
-          const allInputsInfo = 'allInputsInfo' in inputInfo ? inputInfo.allInputsInfo : undefined;
-          if (allInputsInfo && Array.isArray(allInputsInfo) && allInputsInfo.length > 0) {
-            logger.debug('Input fields found but none are valid', { 
-              allInputsInfo,
-              elapsed
-            });
-          }
-          await this.delay(checkInterval);
-          continue;
+
+        activationField = await this.findMessageInput(page);
+        if (activationField) {
+          break;
         }
-        
-        // ВАЖНО: Если прошло достаточно времени (более 5 секунд) и есть видимое поле,
-        // используем его даже если peer-id совпадает (возможно, это тот же контакт)
-        const shouldUseExistingField = elapsed > 3500 && inputInfo.isVisible && inputInfo.wrapperVisible;
-        
-        // Если есть старое поле, проверяем что peer-id изменился
-        // НО: если прошло много времени и поле видимо, используем его
-        if (inputInfo.isOld && !shouldUseExistingField) {
-          logger.debug('Found old input field, waiting for new one', { 
-            peerId: inputInfo.peerId,
-            elapsed,
-            willUseAfterTimeout: true
-          });
-          await this.delay(checkInterval);
-          continue; // Продолжаем искать новое поле
-        }
-        
-        // Проверяем, что поле видимо
-        if (!inputInfo.isVisible) {
-          logger.debug('Input field found but not visible', { 
-            isVisible: inputInfo.isVisible,
-            wrapperVisible: inputInfo.wrapperVisible,
-            elapsed 
-          });
-          await this.delay(checkInterval);
-          continue;
-        }
-        
-        // Это новое поле ввода (или существующее, если прошло достаточно времени)
-        newPeerId = inputInfo.peerId;
-        inputFound = true;
-        logger.debug('Found message input field', { 
-          newPeerId, 
-          oldPeerId,
-          isOld: inputInfo.isOld,
-          elapsed,
-          reusedExisting: inputInfo.isOld && shouldUseExistingField
-        });
-        break;
+        await this.delay(checkIntervalMs);
       }
 
-      // Если нашли ошибку
-      if (errorDetected === 'USER_NOT_FOUND') {
-        if (profileId) {
-          this.currentOpenChat.delete(profileId);
-          this.expectedPeerId.delete(profileId);
-        }
-        throw new Error('USER_NOT_FOUND: Sorry, this user doesn\'t seem to exist');
-      }
-      
-      if (errorDetected === 'PREMIUM_RESTRICTION') {
-        if (profileId) {
-          this.currentOpenChat.delete(profileId);
-          this.expectedPeerId.delete(profileId);
-        }
-        throw new Error('PREMIUM_RESTRICTION: Only Premium users can message this user');
-      }
-
-      // Если не нашли поле ввода
-      if (!inputFound) {
-        // Диагностика: что есть на странице
-        const diagnosticInfo = await page.evaluate(() => {
-          const wrappers = Array.from(document.querySelectorAll('.new-message-wrapper'));
-          const inputs = Array.from(document.querySelectorAll('.input-message-input'));
-          const containers = Array.from(document.querySelectorAll('.input-message-container'));
-          
-          return {
-            wrappersCount: wrappers.length,
-            inputsCount: inputs.length,
-            containersCount: containers.length,
-            visibleWrappers: wrappers.filter(w => {
-              const htmlW = w as HTMLElement;
-              const style = window.getComputedStyle(htmlW);
-              return htmlW.offsetParent !== null && 
-                     style.display !== 'none' && 
-                     style.visibility !== 'hidden';
-            }).length,
-            visibleInputs: inputs.filter(i => {
-              const htmlI = i as HTMLElement;
-              if (htmlI.classList.contains('input-field-input-fake')) { return false; }
-              const style = window.getComputedStyle(htmlI);
-              return htmlI.offsetParent !== null && 
-                     style.display !== 'none' && 
-                     style.visibility !== 'hidden';
-            }).length,
-            url: window.location.href,
-          };
-        }).catch(() => null);
-        
-        logger.warn('Message input not found - diagnostic info', { 
-          diagnosticInfo,
-          oldPeerId,
-          elapsed: Date.now() - startTime,
-          maxWaitTime 
-        });
-        
-        // Финальная проверка на ошибки (только если поле не найдено)
-        // ВАЖНО: Используем quickCheckUserNotFound для более быстрой проверки
-        // Проверяем дважды для надежности
-        const userNotFound = await this.quickCheckUserNotFound(page) || await this.checkUserNotFound(page);
-        if (userNotFound) {
-          logger.warn('User not found error detected in final check', { phone: normalizedPhone, profileId });
-          if (profileId) {
-            this.currentOpenChat.delete(profileId);
-            this.expectedPeerId.delete(profileId);
-          }
-          throw new Error('USER_NOT_FOUND: Sorry, this user doesn\'t seem to exist');
-        }
-
-        // Проверка Premium только если поле ввода не найдено
-        // Если поле ввода найдено, значит чат открыт успешно и Premium ограничения нет
-        const hasPremiumRestriction = await this.checkPremiumRestriction(page);
-        if (hasPremiumRestriction) {
-          if (profileId) {
-            this.currentOpenChat.delete(profileId);
-            this.expectedPeerId.delete(profileId);
-          }
-          throw new Error('PREMIUM_RESTRICTION: Only Premium users can message this user');
-        }
-
-        if (profileId) {
-          this.currentOpenChat.delete(profileId);
-          this.expectedPeerId.delete(profileId);
-        }
-        throw new Error(
-          `Failed to open chat: message input not found after ${maxWaitTime}ms. ` +
-          `Diagnostic: ${JSON.stringify(diagnosticInfo)}. ` +
-          `Old peer-id: ${oldPeerId ?? 'none'}`
-        );
-      }
-      
-      // ВАЖНО: Если поле ввода найдено, НЕ проверяем Premium - это может быть ложное срабатывание
-      // Наличие поля ввода означает, что чат открыт и можно отправлять сообщения
-
-      // Дополнительная проверка: убеждаемся, что поле ввода действительно найдено и видимо
-      // И что это НОВОЕ поле (не старое)
-      // Используем прямой поиск через page.evaluate для надежности
-      const inputFieldHandle = await page.evaluateHandle((targetPeerId, oldId) => {
-        const allInputs = Array.from(document.querySelectorAll('.input-message-input'));
-        
-        for (const input of allInputs) {
-          const htmlInput = input as HTMLElement;
-          if (!htmlInput) { continue; }
-          
-          // Пропускаем фейковые поля
-          if (htmlInput.classList.contains('input-field-input-fake')) { continue; }
-          
-          // Пропускаем не contenteditable поля
-          if (htmlInput.getAttribute('contenteditable') !== 'true') { continue; }
-          
-          // Проверяем видимость
-          const style = window.getComputedStyle(htmlInput);
-          if (htmlInput.offsetParent === null || 
-              style.display === 'none' || 
-              style.visibility === 'hidden') { continue; }
-          
-          const peerId = htmlInput.getAttribute('data-peer-id');
-          
-          // Если указан targetPeerId, ищем по нему
-          if (targetPeerId && peerId !== targetPeerId) { continue; }
-          
-          // Пропускаем старое поле ТОЛЬКО если оно в скрытом контейнере
-          if (oldId && peerId === oldId) {
-            // Проверяем, что это действительно старое поле (в скрытом контейнере)
-            const wrapper = htmlInput.closest('.new-message-wrapper');
-            if (wrapper) {
-              const wrapperStyle = window.getComputedStyle(wrapper as HTMLElement);
-              const wrapperVisible = (wrapper as HTMLElement).offsetParent !== null && 
-                                   wrapperStyle.display !== 'none' && 
-                                   wrapperStyle.visibility !== 'hidden';
-              // Если wrapper видим, это может быть тот же контакт - используем поле
-              if (wrapperVisible) {
-                // Проверяем активность
-                const isActive = document.activeElement === htmlInput || 
-                               document.activeElement?.closest('.new-message-wrapper') === wrapper;
-                if (isActive) {
-                  // Активное поле - используем его (возможно, тот же контакт)
-                  return htmlInput;
-                }
-              }
-            }
-            // Старое поле в скрытом контейнере или неактивное - пропускаем
-            continue;
-          }
-          
-          return htmlInput;
-        }
-        
-        return null;
-      }, newPeerId, oldPeerId ?? null);
-      
-      const inputField = inputFieldHandle.asElement() as import('puppeteer').ElementHandle<Element> | null;
-      
-      if (!inputField) {
-        if (profileId) {
-          this.currentOpenChat.delete(profileId);
-          this.expectedPeerId.delete(profileId);
-        }
+      if (!activationField) {
         throw new Error(`Message input field not found after opening chat for phone ${normalizedPhone}`);
       }
 
-      // Финальная проверка: убеждаемся, что это не старое поле
-      // НО: если открываем тот же контакт, peer-id может совпадать - это нормально
       const finalPeerId = await page.evaluate((el) => {
         const htmlEl = el as HTMLElement;
         return htmlEl?.getAttribute('data-peer-id');
-      }, inputField).catch(() => null);
-      
-      // Проверяем, что это не старое поле только если открываем ДРУГОЙ контакт
-      const isSameContact = cachedPhone === normalizedPhone;
-      if (oldPeerId && finalPeerId === oldPeerId && !isSameContact) {
-        // Дополнительная проверка: убеждаемся, что старое поле действительно неактивно
-        const isOldFieldActive = await page.evaluate((oldId) => {
-          const oldInput = document.querySelector(`.input-message-input[data-peer-id="${oldId}"]`) as HTMLElement;
-          if (!oldInput) { return false; }
-          const wrapper = oldInput.closest('.new-message-wrapper');
-          if (!wrapper) { return true; } // Если нет wrapper, считаем неактивным
-          const wrapperStyle = window.getComputedStyle(wrapper as HTMLElement);
-          return (wrapper as HTMLElement).offsetParent !== null && 
-                 wrapperStyle.display !== 'none' && 
-                 wrapperStyle.visibility !== 'hidden';
-        }, oldPeerId).catch(() => false);
-        
-        if (isOldFieldActive) {
-          if (profileId) {
-            this.currentOpenChat.delete(profileId);
-            this.expectedPeerId.delete(profileId);
-          }
-          throw new Error(`Found old input field after opening new chat. Old peer-id: ${oldPeerId}, new phone: ${normalizedPhone}`);
-        } else {
-          // Старое поле неактивно, новое поле с тем же peer-id - возможно, это тот же контакт
-          logger.debug('Peer-id matches but old field is inactive, using new field', { 
-            peerId: finalPeerId, 
-            phone: normalizedPhone 
-          });
-        }
-      }
+      }, activationField).catch(() => null);
 
-      logger.debug('New chat input field verified', { 
-        newPeerId: finalPeerId, 
-        oldPeerId, 
-        phone: normalizedPhone 
-      });
-      
-      // Сохраняем ожидаемый peer-id для проверки при отправке сообщения
       if (profileId && finalPeerId) {
         this.expectedPeerId.set(profileId, finalPeerId);
       }
 
-      // Небольшая задержка для стабилизации и полной загрузки чата
-      await this.delay(500);
-      
-      // Убеждаемся, что страница активна
-      await page.bringToFront();
-      await this.delay(200);
-
-      // ВАЖНО: После открытия чата всегда ищем поле ввода, кликаем на него и активируем
-      // Это гарантирует, что поле готово к вводу текста
-      logger.debug('Activating message input field after opening chat');
-      const activationField = await this.findMessageInput(page, finalPeerId ?? undefined);
-      if (activationField) {
-        // Активируем поле ввода через JavaScript (более надежно)
-        await page.evaluate((el) => {
-          const htmlEl = el as HTMLElement;
-          if (!htmlEl) { return false; }
-          
-          // Прокручиваем в видимую область
-          htmlEl.scrollIntoView({ block: 'center', behavior: 'instant' });
-          
-          // Фокусируемся на элементе
-          htmlEl.focus();
-          
-          // Кликаем для активации
-          const clickEvent = new MouseEvent('click', {
-            bubbles: true,
-            cancelable: true,
-            view: window,
-          });
-          htmlEl.dispatchEvent(clickEvent);
-          
-          // Также вызываем обычный click
-          htmlEl.click();
-          
-          // Для contenteditable полей может потребоваться активация через события
-          const focusEvent = new FocusEvent('focus', {
-            bubbles: true,
-            cancelable: true,
-            view: window,
-          });
-          htmlEl.dispatchEvent(focusEvent);
-          
-          return true;
-        }, activationField);
-        
-        await this.delay(300);
-        
-        // Дополнительно кликаем через Puppeteer для надежности
-        await activationField.click().catch(() => {
-          logger.warn('Puppeteer click failed, but JavaScript activation should work');
-        });
-        await this.delay(200);
-        
-        // Фокусируемся на поле ввода
-        await activationField.focus().catch(() => {
-          logger.warn('Puppeteer focus failed, but JavaScript activation should work');
-        });
-        await this.delay(200);
-        
-        // Проверяем, что поле активно
-        let isFocused = await page.evaluate((el) => {
-          return document.activeElement === el;
-        }, activationField).catch(() => false);
-        
-        if (!isFocused) {
-          logger.warn('Input field may not be focused after activation, retrying');
-          // Повторная попытка установки фокуса
-          await activationField.focus().catch(() => {
-            logger.warn('Puppeteer focus retry failed');
-          });
-          await this.delay(200);
-          
-          // Повторная проверка фокуса
-          isFocused = await page.evaluate((el) => {
-            return document.activeElement === el;
-          }, activationField).catch(() => false);
-          
-          if (!isFocused) {
-            logger.warn('Input field still not focused after retry, but continuing');
-          } else {
-            logger.debug('Input field focused after retry');
-          }
-        }
-        
-        logger.debug('Message input field activated', { peerId: finalPeerId, isFocused });
-      } else {
-        logger.warn('Could not activate input field after opening chat, but continuing');
-      }
+      // Активируем поле ввода (аналогично WA-паттерну: focus + click + небольшой wait).
+      await page.evaluate((el) => {
+        const htmlEl = el as HTMLElement;
+        if (!htmlEl) { return; }
+        htmlEl.scrollIntoView({ block: 'center', behavior: 'instant' });
+        htmlEl.focus();
+        htmlEl.click();
+      }, activationField).catch(() => undefined);
+      await activationField.click().catch(() => undefined);
+      await activationField.focus().catch(() => undefined);
+      await this.delay(250);
 
       // Сохраняем в кэш ТОЛЬКО после успешной проверки
       if (profileId) {
         this.currentOpenChat.set(profileId, normalizedPhone);
-        // Ожидаемый peer-id уже сохранен выше
       }
 
       logger.debug('Telegram chat opened successfully', { phone: normalizedPhone, profileId });
@@ -1911,11 +942,9 @@ export class TelegramSender {
       }
       
       // Если не нашли с нужным peer-id, берем первое подходящее
-      if (!validResult) {
-        validResult = results.find(r => 
-          !r.isFake && r.isContentEditable && r.isVisible
-        ) ?? null;
-      }
+      validResult ??= results.find(r => 
+        !r.isFake && r.isContentEditable && r.isVisible
+      ) ?? null;
       
       if (validResult) {
         return {
@@ -1957,11 +986,9 @@ export class TelegramSender {
       );
       
       // Если не нашли с нужным peer-id, берем первое подходящее
-      if (!validResult) {
-        validResult = searchResult.allResults.find(r => 
-          !r.isFake && r.isContentEditable && r.isVisible
-        );
-      }
+      validResult ??= searchResult.allResults.find(r => 
+        !r.isFake && r.isContentEditable && r.isVisible
+      );
       
       if (validResult) {
         const foundElement = await page.evaluateHandle((targetPeerId) => {
@@ -2466,13 +1493,13 @@ export class TelegramSender {
         }
         
         return null;
-      }, inputElement || null, expectedPeerId || null);
+      }, inputElement ?? null, expectedPeerId ?? null);
       
       const element = button.asElement() as import('puppeteer').ElementHandle<Element> | null;
       if (element) {
         logger.debug('Attach button found in same wrapper as input field', { 
           hasInputElement: !!inputElement, 
-          expectedPeerId: expectedPeerId || null 
+          expectedPeerId: expectedPeerId ?? null 
         });
         return element;
       }
@@ -2763,7 +1790,7 @@ export class TelegramSender {
       
       // Проверяем наличие поля ввода - это более надежный индикатор, чем URL
       // ВАЖНО: Передаем expectedPeerId, чтобы выбрать правильное поле (не старое)
-      const inputElement = await this.findMessageInput(page, expectedPeerIdForFile ?? undefined);
+      let inputElement = await this.findMessageInput(page, expectedPeerIdForFile ?? undefined);
       if (!inputElement) {
         // Поле ввода не найдено - возможно чат не открыт, пытаемся открыть заново
         const normalizedPhone = phone ? phone.replace(/[^\d]/g, '') : null;
@@ -2778,6 +1805,7 @@ export class TelegramSender {
           if (!retryInputElement) {
             throw new Error(`Cannot send file - message input not found after reopening chat for phone ${normalizedPhone}`);
           }
+          inputElement = retryInputElement;
         } else {
           throw new Error('Message input not found - chat may not be open');
         }
