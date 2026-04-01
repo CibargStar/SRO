@@ -460,52 +460,25 @@ export class ProfileWorker {
         return res;
       };
 
-      if (this.universalTarget === 'BOTH') {
-        // В режиме BOTH отправляем в оба мессенджера БЕЗ паузы между ними
-        // Пауза должна быть только между контактами, а не между мессенджерами для одного контакта
-        if (hasWa) {
-          await trySend('WHATSAPP', false); // Первый мессенджер - с задержкой
+      // UNIVERSAL логика:
+      // - всегда пытаемся отправить в оба мессенджера (если они валидны для номера);
+      // - universalTarget определяет ТОЛЬКО порядок: кто идет первым.
+      const orderedMessengers: MessengerType[] = this.universalTarget === 'TELEGRAM_FIRST'
+        ? ['TELEGRAM', 'WHATSAPP']
+        : ['WHATSAPP', 'TELEGRAM']; // WHATSAPP_FIRST, BOTH и default
+
+      for (const [index, messenger] of orderedMessengers.entries()) {
+        // Пропускаем невалидные каналы для конкретного номера
+        if (messenger === 'WHATSAPP' && !hasWa) {
+          continue;
         }
-        if (hasTg) {
-          await trySend('TELEGRAM', true); // Второй мессенджер - БЕЗ задержки (для того же контакта)
+        if (messenger === 'TELEGRAM' && !hasTg) {
+          continue;
         }
-      } else if (this.universalTarget === 'TELEGRAM_FIRST') {
-        // В режиме TELEGRAM_FIRST сначала пробуем Telegram, если не удалось - WhatsApp
-        // Это fallback, поэтому задержка нужна для обоих (разные попытки)
-        if (hasTg) {
-          const res = await trySend('TELEGRAM', false);
-          if (res.success) {
-            return {
-              messageId: input.messageId,
-              status: 'SENT',
-              messenger: res.messenger,
-              clientId: input.clientId,
-              phoneId: input.phoneId,
-            };
-          }
-        }
-        if (hasWa) {
-          await trySend('WHATSAPP', false); // Fallback - с задержкой
-        }
-      } else {
-        // WHATSAPP_FIRST или undefined
-        // В режиме WHATSAPP_FIRST сначала пробуем WhatsApp, если не удалось - Telegram
-        // Это fallback, поэтому задержка нужна для обоих (разные попытки)
-        if (hasWa) {
-          const res = await trySend('WHATSAPP', false);
-          if (res.success) {
-            return {
-              messageId: input.messageId,
-              status: 'SENT',
-              messenger: res.messenger,
-              clientId: input.clientId,
-              phoneId: input.phoneId,
-            };
-          }
-        }
-        if (hasTg) {
-          await trySend('TELEGRAM', false); // Fallback - с задержкой
-        }
+
+        // Для второго мессенджера пропускаем межсообщенческую задержку:
+        // это тот же контакт, просто второй канал.
+        await trySend(messenger, index > 0);
       }
 
       // Итог: если были успешные отправки — считаем SENT, иначе FAILED

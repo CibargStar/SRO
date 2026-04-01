@@ -323,29 +323,23 @@ export class LoadBalancerService {
     contact: ContactInfo,
     universalTarget?: UniversalTarget | null
   ): MessengerType | null {
+    // Для UNIVERSAL всегда оставляем messenger = null.
+    // Порядок отправки (WHATSAPP_FIRST / TELEGRAM_FIRST / BOTH) определяется downstream в ProfileWorker.
+    // Здесь храним обе доступности контакта, чтобы параметр contact оставался осмысленным.
     const hasWa = contact.whatsAppStatus !== 'Invalid';
     const hasTg = contact.telegramStatus !== 'Invalid';
-
-    if (universalTarget === 'BOTH') {
-      // Оставляем null — чтобы downstream мог отправить в оба по очереди
+    // universalTarget сохраняем как входной контракт, но порядок теперь обрабатывается в ProfileWorker.
+    const isSupportedUniversalTarget =
+      universalTarget === 'WHATSAPP_FIRST' ||
+      universalTarget === 'TELEGRAM_FIRST' ||
+      universalTarget === 'BOTH' ||
+      universalTarget == null;
+    if (!isSupportedUniversalTarget) {
       return null;
     }
-
-    if (universalTarget === 'WHATSAPP_FIRST') {
-      if (hasWa) return 'WHATSAPP';
-      if (hasTg) return 'TELEGRAM';
+    if (!hasWa && !hasTg) {
       return null;
     }
-
-    if (universalTarget === 'TELEGRAM_FIRST') {
-      if (hasTg) return 'TELEGRAM';
-      if (hasWa) return 'WHATSAPP';
-      return null;
-    }
-
-    // Значение по умолчанию — пытаемся WhatsApp, иначе Telegram
-    if (hasWa) return 'WHATSAPP';
-    if (hasTg) return 'TELEGRAM';
     return null;
   }
 
