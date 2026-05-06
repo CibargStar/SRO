@@ -343,9 +343,9 @@ export class ProfileWorker {
         }
 
         // Пауза между получателями:
-        // - применяем не только при SENT, но и при FAILED (была попытка отправки);
-        // - это предотвращает burst-отправки при частичных ошибках в каналах.
-        if (result.status === 'SENT' || result.status === 'FAILED') {
+        // - применяем только при успешной отправке (SENT);
+        // - при FAILED паузу пропускаем согласно бизнес-правилу.
+        if (result.status === 'SENT') {
           if (this.pauseMode === 1) {
             await this.applyInterRecipientDelay();
           } else if (this.pauseMode === 2) {
