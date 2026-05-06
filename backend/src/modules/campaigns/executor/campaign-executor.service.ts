@@ -145,6 +145,13 @@ export class CampaignExecutorService extends EventEmitter {
     if (campaign.status !== 'QUEUED' && campaign.status !== 'RUNNING') {
       throw new Error(`Campaign not runnable: ${campaignId} is in status ${campaign.status}`);
     }
+    // Защита от двойного старта:
+    // если в текущем процессе уже есть активные воркеры этой кампании,
+    // повторный start приведёт к дублирующей отправке и гонкам по статусам.
+    if (campaign.status === 'RUNNING' && this.hasActiveWorkers(campaignId)) {
+      logger.warn('Start campaign skipped: workers already running', { campaignId });
+      return;
+    }
 
     const previousStatus = campaign.status;
 
@@ -638,6 +645,14 @@ export class CampaignExecutorService extends EventEmitter {
     }
 
     this.workers.delete(campaignId);
+  }
+
+  private hasActiveWorkers(campaignId: string): boolean {
+    const contexts = this.workers.get(campaignId);
+    if (!contexts || contexts.length === 0) {
+      return false;
+    }
+    return contexts.some((ctx) => ctx.running);
   }
 
   // ============================

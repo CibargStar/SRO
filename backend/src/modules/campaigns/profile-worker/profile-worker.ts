@@ -159,7 +159,10 @@ export class ProfileWorker {
             messageId: msg.id,
             error: error instanceof Error ? error.message : 'Unknown error',
           });
-          // Продолжаем обработку, но логируем ошибку
+          // Если не удалось атомарно захватить сообщение в PROCESSING,
+          // не отправляем его, чтобы избежать дубликатов при повторной выборке PENDING.
+          await this.delay(200);
+          continue;
         }
 
         // Определяем мессенджер (если не выбран — универсальный, решит executor/ sender)
@@ -176,6 +179,7 @@ export class ProfileWorker {
           phoneId: string | null;
           errorMessage?: string;
         };
+        let hasSuccessfulDeliveryForRecipient = false;
 
         try {
           // Получаем элементы шаблона с подстановкой переменных клиента
@@ -280,6 +284,7 @@ export class ProfileWorker {
               }
 
               lastSuccessResult = partResult;
+              hasSuccessfulDeliveryForRecipient = true;
               sentPartsTotal++;
             }
 
@@ -343,9 +348,11 @@ export class ProfileWorker {
         }
 
         // Пауза между получателями:
-        // - применяем только при успешной отправке (SENT);
-        // - при FAILED паузу пропускаем согласно бизнес-правилу.
-        if (result.status === 'SENT') {
+        // - применяем когда была хотя бы одна успешная доставка этому получателю;
+        // - полностью неуспешные попытки (0 доставок) паузу не вызывают.
+        // Это устраняет сценарий UNIVERSAL "частичный успех + итог FAILED"
+        // где без паузы происходил burst по следующим клиентам.
+        if (hasSuccessfulDeliveryForRecipient) {
           if (this.pauseMode === 1) {
             await this.applyInterRecipientDelay();
           } else if (this.pauseMode === 2) {
