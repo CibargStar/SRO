@@ -342,14 +342,15 @@ export class ProfileWorker {
           });
         }
 
-        // Пауза только между контактами (не между мессенджерами/частями шаблона)
-        // и только при успешной отправке.
-        if (result.status === 'SENT') {
+        // Пауза между получателями:
+        // - применяем не только при SENT, но и при FAILED (была попытка отправки);
+        // - это предотвращает burst-отправки при частичных ошибках в каналах.
+        if (result.status === 'SENT' || result.status === 'FAILED') {
           if (this.pauseMode === 1) {
-            await this.applyContactDelay();
+            await this.applyInterRecipientDelay();
           } else if (this.pauseMode === 2) {
             if (this.lastClientId === null || this.lastClientId !== clientId) {
-              await this.applyContactDelay();
+              await this.applyInterRecipientDelay();
             }
           }
           this.lastClientId = clientId;
@@ -620,11 +621,35 @@ export class ProfileWorker {
     });
   }
 
-  private async applyContactDelay(): Promise<void> {
-    if (!this.delayBetweenContactsMs || this.delayBetweenContactsMs <= 0) {
+  /**
+   * Пауза между получателями с учётом выбранного режима.
+   *
+   * ВАЖНО:
+   * - pauseMode=2 (между клиентами): основной тайминг delayBetweenContactsMs.
+   * - Если delayBetweenContactsMs не задан, используем fallback на delayBetweenMessagesMs
+   *   чтобы не терять throttling из-за неполной конфигурации.
+   * - pauseMode=1 (между номерами): используем delayBetweenMessagesMs.
+   */
+  private async applyInterRecipientDelay(): Promise<void> {
+    const delayMs = this.resolveInterRecipientDelayMs();
+    if (!delayMs || delayMs <= 0) {
       return;
     }
-    await this.delay(this.delayBetweenContactsMs);
+    await this.delay(delayMs);
+  }
+
+  private resolveInterRecipientDelayMs(): number {
+    if (this.pauseMode === 2) {
+      if (typeof this.delayBetweenContactsMs === 'number' && this.delayBetweenContactsMs > 0) {
+        return this.delayBetweenContactsMs;
+      }
+      return this.delayBetweenMessagesMs ?? 0;
+    }
+
+    if (typeof this.delayBetweenMessagesMs === 'number' && this.delayBetweenMessagesMs > 0) {
+      return this.delayBetweenMessagesMs;
+    }
+    return this.delayBetweenContactsMs ?? 0;
   }
 
   private async delay(ms: number): Promise<void> {
